@@ -665,8 +665,12 @@ export default function AdminDashboardScreen({ onLogout }) {
                                                 <tr key={eq.equipment_id} className="hover:bg-purple-50 transition border-b border-purple-50 last:border-0">
                                                     <td className="py-4 px-4 first:pl-2">
                                                         <div className="flex items-center gap-3">
-                                                            <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-600">
-                                                                <Package size={20} />
+                                                            <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-600 overflow-hidden">
+                                                                {eq.equipment_img ? (
+                                                                    <img src={`http://localhost/${eq.equipment_img.replace(/\.jpeg$/i, '.jpg')}`} alt={eq.name} className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    <Package size={20} />
+                                                                )}
                                                             </div>
                                                             <div className="text-[13px] font-semibold text-slate-700">{eq.name}</div>
                                                         </div>
@@ -803,6 +807,14 @@ export default function AdminDashboardScreen({ onLogout }) {
                                         </button>
                                     </div>
                                     <div className="p-8 space-y-5 overflow-y-auto">
+                                        {/* แสดงรูปภาพอุปกรณ์ */}
+                                        {editEquip.equipment_img && (
+                                            <div className="flex justify-center mb-6 mt-[-10px]">
+                                                <div className="w-32 h-32 rounded-2xl overflow-hidden border border-purple-100 shadow-sm bg-purple-50 flex items-center justify-center">
+                                                    <img src={`http://localhost/${editEquip.equipment_img.replace(/\.jpeg$/i, '.jpg')}`} alt={editEquip.name} className="w-full h-full object-contain" />
+                                                </div>
+                                            </div>
+                                        )}
                                         <div>
                                             <label className="block text-[13.5px] font-bold text-purple-900 mb-2">ชื่ออุปกรณ์</label>
                                             <input type="text" className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
