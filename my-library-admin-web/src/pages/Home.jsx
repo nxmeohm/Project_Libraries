@@ -54,6 +54,8 @@ const STATUS_MAP = {
     returned: { label: "คืนแล้ว", cls: "bg-green-100 text-green-700" },
     overdue: { label: "เลยกำหนด", cls: "bg-red-100 text-red-600" },
     rejected: { label: "ยกเลิก", cls: "bg-slate-100 text-slate-600" },
+    damaged_lost: { label: "สูญหาย/ชำรุด", cls: "bg-orange-100 text-orange-700" },
+    fine_paid: { label: "ชำระค่าปรับแล้ว", cls: "bg-teal-100 text-teal-700" },
 };
 
 const KPI_TONE = {
@@ -101,13 +103,21 @@ export default function AdminDashboardScreen({ onLogout }) {
             });
     };
 
-    const handleAction = async (id, action) => {
-        if (!confirm(`ยืนยันการดำเนินการ?`)) return;
+    const handleAction = async (id, action, defaultFine = 0) => {
+        let fine = 0;
+        if (action === 'lost') {
+            const amountStr = prompt(`ระบุค่าปรับ (บาท) สำหรับอุปกรณ์สูญหาย/เสียหาย:\n(ราคาประเมินอุปกรณ์: ${defaultFine} บาท)`, defaultFine);
+            if (amountStr === null) return;
+            fine = parseFloat(amountStr) || 0;
+        } else {
+            if (!confirm(`ยืนยันการดำเนินการ?`)) return;
+        }
+        
         try {
             const response = await fetch("http://localhost:5000/api/admin/update-request", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ id, action })
+                body: JSON.stringify({ id, action, fine })
             });
             const data = await response.json();
             if (data.success) {
@@ -378,7 +388,7 @@ export default function AdminDashboardScreen({ onLogout }) {
     return (
         <div className="min-h-screen bg-purple-50 flex font-sans">
             {/* ================= SIDEBAR ================= */}
-            <div className="w-[236px] shrink-0 bg-gradient-to-b from-purple-900 to-purple-800 text-white p-4 flex flex-col sticky top-0 h-screen">
+            <div className="w-[236px] shrink-0 bg-[#3D2B56] text-white p-4 flex flex-col sticky top-0 h-screen">
                 <div className="flex items-center gap-2.5 px-2 pt-1.5 pb-6">
                     <div className="w-8.5 h-8.5 w-[34px] h-[34px] rounded-[10px] bg-white/15 flex items-center justify-center shrink-0">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -602,11 +612,21 @@ export default function AdminDashboardScreen({ onLogout }) {
                                                             </div>
                                                         )}
                                                         {(r.status === "borrowed" || r.status === "overdue") && (
-                                                            <button onClick={() => handleAction(r.id, 'return')} className="text-[12px] font-semibold text-purple-700 hover:text-purple-900 transition">
-                                                                ตรวจสอบ & บันทึกคืน
+                                                            <div className="flex flex-col gap-2 items-start">
+                                                                <button onClick={() => handleAction(r.id, 'return')} className="text-[12px] font-semibold text-purple-700 hover:text-purple-900 transition">
+                                                                    ตรวจสอบ & บันทึกคืน
+                                                                </button>
+                                                                <button onClick={() => handleAction(r.id, 'lost', r.price)} className="text-[12px] font-semibold text-red-500 hover:text-red-700 transition">
+                                                                    แจ้งสูญหาย/เสียหาย
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                        {r.status === "damaged_lost" && (
+                                                            <button onClick={() => handleAction(r.id, 'fine_paid')} className="text-[12px] font-semibold text-green-600 hover:text-green-800 transition">
+                                                                ชำระค่าปรับแล้ว
                                                             </button>
                                                         )}
-                                                        {(r.status === "returned" || r.status === "rejected") && (
+                                                        {(r.status === "returned" || r.status === "rejected" || r.status === "fine_paid") && (
                                                             <span className="text-slate-300">-</span>
                                                         )}
                                                     </td>
@@ -902,7 +922,7 @@ export default function AdminDashboardScreen({ onLogout }) {
                                     <table className="w-full border-collapse min-w-[800px]">
                                         <thead>
                                             <tr>
-                                                {["รหัสนศ.", "ชื่อ-นามสกุล", "สาขาวิชา", "สถานะบัญชี", "การจัดการ"].map((h) => (
+                                                {["รหัสนศ.", "ชื่อ-นามสกุล", "สาขาวิชา", "สถานะบัญชี"].map((h) => (
                                                     <th key={h} className="text-left text-[11.5px] uppercase tracking-wide text-slate-400 font-bold pb-4 border-b-2 border-purple-100 whitespace-nowrap px-4 first:pl-2">
                                                         {h}
                                                     </th>
@@ -911,7 +931,7 @@ export default function AdminDashboardScreen({ onLogout }) {
                                         </thead>
                                         <tbody>
                                             {isUsersLoading ? (
-                                                <tr><td colSpan="5" className="py-8 text-center text-slate-400 text-sm">กำลังโหลดข้อมูล...</td></tr>
+                                                <tr><td colSpan="4" className="py-8 text-center text-slate-400 text-sm">กำลังโหลดข้อมูล...</td></tr>
                                             ) : usersData.length > 0 ? usersData.map((user) => {
                                                 const statusMap = {
                                                     'active': { label: 'ใช้งานได้', cls: 'bg-green-100 text-green-700' },
@@ -930,23 +950,10 @@ export default function AdminDashboardScreen({ onLogout }) {
                                                                 {status.label}
                                                             </span>
                                                         </td>
-                                                        <td className="py-4 px-4">
-                                                            <div className="flex gap-2">
-                                                                <button className="w-8 h-8 rounded-lg border border-purple-200 text-purple-600 flex items-center justify-center hover:bg-purple-50 transition">
-                                                                    <Eye size={15} />
-                                                                </button>
-                                                                <button className="w-8 h-8 rounded-lg border border-purple-200 text-purple-600 flex items-center justify-center hover:bg-purple-50 transition">
-                                                                    <Edit3 size={15} />
-                                                                </button>
-                                                                <button className="w-8 h-8 rounded-lg border border-red-200 text-red-500 flex items-center justify-center hover:bg-red-50 transition">
-                                                                    <Trash2 size={15} />
-                                                                </button>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                );
+                                                        </tr>
+                                                    );
                                             }) : (
-                                                <tr><td colSpan="5" className="py-8 text-center text-slate-400 text-sm">ไม่มีข้อมูลผู้ใช้งาน</td></tr>
+                                                <tr><td colSpan="4" className="py-8 text-center text-slate-400 text-sm">ไม่มีข้อมูลผู้ใช้งาน</td></tr>
                                             )}
                                         </tbody>
                                     </table>

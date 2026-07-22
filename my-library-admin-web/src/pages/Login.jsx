@@ -56,7 +56,7 @@ export default function AdminLoginScreen({ onLoginSuccess = () => { } }) {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-purple-700 to-purple-500 p-6">
+        <div className="min-h-screen flex items-center justify-center bg-[#3D2B56] p-6">
             <div className="w-full max-w-[400px]">
                 {/* Brand */}
                 <div className="flex flex-col items-center text-center mb-7 text-white">

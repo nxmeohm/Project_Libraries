@@ -1,9 +1,11 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const pool = require('./db');
 const http = require('http');
 const { Server } = require('socket.io');
 const generateChartData = require('./generate_chart_data');
+const mailer = require('./mailer');
 
 const app = express();
 const server = http.createServer(app);
@@ -118,7 +120,7 @@ app.get('/api/admin/requests', async (req, res) => {
     try {
         const sql = `
             SELECT 
-                b.id, b.student_id, e.name as equipment_name, e.equipment_id,
+                b.id, b.student_id, e.name as equipment_name, e.equipment_id, e.price,
                 b.borrow_date, b.return_date, b.status, sp.* 
             FROM borrowed b
             LEFT JOIN student_profiles sp ON b.student_id = sp.student_id
@@ -140,6 +142,7 @@ app.get('/api/admin/requests', async (req, res) => {
                 student_name: student_name.trim(),
                 equipment_name: row.equipment_name,
                 equipment_code: row.equipment_id,
+                price: row.price,
                 borrow_date: row.borrow_date,
                 return_date: row.return_date,
                 status: row.status
@@ -155,27 +158,42 @@ app.get('/api/admin/requests', async (req, res) => {
 
 // 4. Admin Update Request Status
 app.post('/api/admin/update-request', async (req, res) => {
-    const { id, action } = req.body;
+    const { id, action, fine } = req.body;
     if (!id || !action) return res.status(400).json({ success: false, message: "Missing data" });
 
     let new_status = "";
     if (action === 'approve') new_status = "borrowed";
     else if (action === 'reject') new_status = "rejected";
     else if (action === 'return') new_status = "returned";
+    else if (action === 'lost') new_status = "damaged_lost";
+    else if (action === 'fine_paid') new_status = "fine_paid";
     else return res.status(400).json({ success: false, message: "Invalid action" });
 
     try {
-        if (action === 'return' || action === 'reject') {
-            // Find the equipment_id first
-            const [borrowed] = await pool.query("SELECT equipment_id, status FROM borrowed WHERE id = ?", [parseInt(id)]);
-            if (borrowed.length > 0) {
+        // Fetch detailed borrow info for email
+        const [borrowInfoRes] = await pool.query(`
+            SELECT b.status, b.equipment_id, e.name as equipment_name, 
+                   s.email as student_email, s.name_th as student_name 
+            FROM borrowed b
+            LEFT JOIN equipments e ON b.equipment_id = e.equipment_id
+            LEFT JOIN student_profiles s ON b.student_id = s.student_id
+            WHERE b.id = ?
+        `, [parseInt(id)]);
+        const borrowInfo = borrowInfoRes.length > 0 ? borrowInfoRes[0] : null;
+
+        if (action === 'return' || action === 'reject' || action === 'lost') {
+            if (borrowInfo) {
                 // If it was already returned/rejected, don't free another item
-                if (borrowed[0].status !== 'returned' && borrowed[0].status !== 'rejected') {
-                    const equip_id = borrowed[0].equipment_id;
+                if (borrowInfo.status !== 'returned' && borrowInfo.status !== 'rejected' && borrowInfo.status !== 'damaged_lost') {
+                    const equip_id = borrowInfo.equipment_id;
                     // Free one item
                     const [item] = await pool.query("SELECT item_id FROM equipment_items WHERE equipment_id = ? AND status = 'borrowed' LIMIT 1", [equip_id]);
                     if (item.length > 0) {
-                        await pool.query("UPDATE equipment_items SET status = 'available' WHERE item_id = ?", [item[0].item_id]);
+                        if (action === 'lost') {
+                            await pool.query("UPDATE equipment_items SET status = 'damaged_lost' WHERE item_id = ?", [item[0].item_id]);
+                        } else {
+                            await pool.query("UPDATE equipment_items SET status = 'available' WHERE item_id = ?", [item[0].item_id]);
+                        }
                     }
                 }
             }
@@ -183,8 +201,30 @@ app.post('/api/admin/update-request', async (req, res) => {
         
         if (action === 'return') {
             await pool.query("UPDATE borrowed SET status = ?, return_date = NOW() WHERE id = ?", [new_status, parseInt(id)]);
+            if (borrowInfo && borrowInfo.student_email) {
+                mailer.sendReturnEmail(borrowInfo.student_email, borrowInfo.student_name, borrowInfo.equipment_name);
+            }
+        } else if (action === 'lost') {
+            await pool.query("UPDATE borrowed SET status = ?, return_date = NOW() WHERE id = ?", [new_status, parseInt(id)]);
+            if (borrowInfo && borrowInfo.student_email) {
+                mailer.sendFineEmail(borrowInfo.student_email, borrowInfo.student_name, borrowInfo.equipment_name, fine || 0);
+                const notifTitle = "แจ้งเตือนค่าปรับอุปกรณ์";
+                const notifMsg = `อุปกรณ์ "${borrowInfo.equipment_name}" สูญหาย/ชำรุดเสียหาย คุณมียอดค่าปรับที่ต้องชำระจำนวน ${fine || 0} บาท ติดต่อบรรณารักษ์ด่วน`;
+                await pool.query("INSERT INTO notifications (target, title, message) VALUES (?, ?, ?)", [borrowInfo.student_email, notifTitle, notifMsg]);
+            }
+        } else if (action === 'fine_paid') {
+            await pool.query("UPDATE borrowed SET status = ? WHERE id = ?", [new_status, parseInt(id)]);
+            if (borrowInfo && borrowInfo.student_email) {
+                mailer.sendFinePaidEmail(borrowInfo.student_email, borrowInfo.student_name, borrowInfo.equipment_name);
+                const notifTitle = "ชำระค่าปรับสำเร็จ";
+                const notifMsg = `ขอบคุณครับ/ค่ะ ระบบได้รับยอดชำระค่าปรับสำหรับอุปกรณ์ "${borrowInfo.equipment_name}" เรียบร้อยแล้ว`;
+                await pool.query("INSERT INTO notifications (target, title, message) VALUES (?, ?, ?)", [borrowInfo.student_email, notifTitle, notifMsg]);
+            }
         } else {
             await pool.query("UPDATE borrowed SET status = ? WHERE id = ?", [new_status, parseInt(id)]);
+            if (action === 'approve' && borrowInfo && borrowInfo.student_email) {
+                mailer.sendApprovalEmail(borrowInfo.student_email, borrowInfo.student_name, borrowInfo.equipment_name);
+            }
         }
         
         req.app.get('io').emit('data_updated');
@@ -193,6 +233,42 @@ app.post('/api/admin/update-request', async (req, res) => {
         console.error(error);
         res.status(500).json({ success: false, message: "Database Error" });
     }
+});
+
+// Admin Manual Notifications POST
+app.post('/api/admin/notifications', async (req, res) => {
+    const { target, title, message } = req.body;
+    if (!title || !message) return res.status(400).json({ success: false, message: "Missing data" });
+
+    try {
+        let emails = [];
+        if (target === 'all') {
+            const [users] = await pool.query("SELECT email FROM student_profiles WHERE email IS NOT NULL AND email != ''");
+            emails = users.map(u => u.email);
+        } else {
+            emails.push(target);
+        }
+
+        if (emails.length === 0) {
+            return res.json({ success: false, message: "No users found with valid email addresses." });
+        }
+
+        let successCount = 0;
+        for (const email of emails) {
+            const sent = await mailer.sendManualNotification(email, title, message);
+            if (sent) successCount++;
+        }
+
+        res.json({ success: true, message: `Sent ${successCount} notifications successfully.` });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: "Database Error" });
+    }
+});
+
+// Admin Get Notifications GET (Mock for now)
+app.get('/api/admin/notifications', async (req, res) => {
+    res.json({ success: true, data: [] });
 });
 
 // 5. Admin Get Equipments
