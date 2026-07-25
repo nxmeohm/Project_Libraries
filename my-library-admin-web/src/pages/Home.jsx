@@ -49,13 +49,13 @@ const RECENT_ACTIVITY = [
 ];
 
 const STATUS_MAP = {
-    pending: { label: "รออนุมัติ", cls: "bg-amber-100 text-amber-700" },
-    borrowed: { label: "กำลังยืม", cls: "bg-purple-100 text-purple-700" },
-    returned: { label: "คืนแล้ว", cls: "bg-green-100 text-green-700" },
-    overdue: { label: "เลยกำหนด", cls: "bg-red-100 text-red-600" },
-    rejected: { label: "ยกเลิก", cls: "bg-slate-100 text-slate-600" },
-    damaged_lost: { label: "สูญหาย/ชำรุด", cls: "bg-orange-100 text-orange-700" },
-    fine_paid: { label: "ชำระค่าปรับแล้ว", cls: "bg-teal-100 text-teal-700" },
+    pending: { label: "รออนุมัติ", cls: "bg-amber-500 text-white" },
+    borrowed: { label: "กำลังยืม", cls: "bg-purple-600 text-white" },
+    returned: { label: "คืนแล้ว", cls: "bg-green-600 text-white" },
+    overdue: { label: "เลยกำหนด", cls: "bg-red-600 text-white" },
+    rejected: { label: "ยกเลิก", cls: "bg-slate-500 text-white" },
+    damaged_lost: { label: "สูญหาย/ชำรุด", cls: "bg-orange-600 text-white" },
+    fine_paid: { label: "ชำระค่าปรับแล้ว", cls: "bg-teal-600 text-white" },
 };
 
 const KPI_TONE = {
@@ -67,10 +67,10 @@ const KPI_TONE = {
 
 const NAV_ITEMS = [
     { key: "dashboard", label: "แดชบอร์ด", icon: LayoutGrid },
-    { key: "requests", label: "คำขอยืม-คืน", icon: CheckSquare, badge: 3 },
+    { key: "requests", label: "คำขอยืม-คืน", icon: CheckSquare },
     { key: "equipment", label: "คลังอุปกรณ์", icon: Package },
-    { key: "users", label: "ผู้ใช้งาน", icon: Users, badge: 3 },
-    { key: "notify", label: "แจ้งเตือนผู้ใช้", icon: Bell },
+    { key: "users", label: "ผู้ใช้งาน", icon: Users },
+    { key: "notify", label: "ประกาศ", icon: Bell },
     { key: "userhistory", label: "ประวัติผู้ใช้งาน", icon: Search },
 ];
 
@@ -109,6 +109,9 @@ export default function AdminDashboardScreen({ onLogout }) {
             const amountStr = prompt(`ระบุค่าปรับ (บาท) สำหรับอุปกรณ์สูญหาย/เสียหาย:\n(ราคาประเมินอุปกรณ์: ${defaultFine} บาท)`, defaultFine);
             if (amountStr === null) return;
             fine = parseFloat(amountStr) || 0;
+        } else if (action === 'return' && defaultFine > 0) {
+            if (!confirm(`นักศึกษามีค่าปรับล่าช้า ${defaultFine} บาท ชำระเงินเรียบร้อยแล้วใช่หรือไม่?\nกด OK เพื่อยืนยันรับคืนและบันทึกยอดค่าปรับ`)) return;
+            fine = defaultFine;
         } else {
             if (!confirm(`ยืนยันการดำเนินการ?`)) return;
         }
@@ -136,6 +139,9 @@ export default function AdminDashboardScreen({ onLogout }) {
     // Users state
     const [usersData, setUsersData] = useState([]);
     const [isUsersLoading, setIsUsersLoading] = useState(false);
+    const [userSearchQuery, setUserSearchQuery] = useState("");
+    const [selectedUser, setSelectedUser] = useState(null);
+    const [isUserModalOpen, setIsUserModalOpen] = useState(false);
 
     // Notifications state
     const [notificationsData, setNotificationsData] = useState([]);
@@ -365,7 +371,7 @@ export default function AdminDashboardScreen({ onLogout }) {
         { key: "returned", label: "คืนแล้วทั้งหมด", value: dashboardData.kpi.returned.toString(), icon: Check, tone: "green" },
         { key: "overdue", label: "เลยกำหนดคืน", value: dashboardData.kpi.overdue.toString(), icon: Clock, tone: "red" },
         { key: "pending", label: "ผู้ใช้รออนุมัติ", value: dashboardData.kpi.pending.toString(), icon: User, tone: "amber" },
-        { key: "fines", label: "ค่าปรับสะสม (ของชำรุด)", value: "฿0", icon: DollarSign, tone: "red" },
+        { key: "fines", label: "ค่าปรับสะสม", value: `฿${(dashboardData.kpi.fines || 0).toLocaleString()}`, icon: DollarSign, tone: "red" },
     ] : KPI_DATA;
 
     const formatThaiDate = (dateString) => {
@@ -406,6 +412,12 @@ export default function AdminDashboardScreen({ onLogout }) {
                     {NAV_ITEMS.map((item) => {
                         const active = currentPage === item.key;
                         const Icon = item.icon;
+                        
+                        let badgeCount = null;
+                        if (item.key === "requests" && dashboardData?.kpi?.pending > 0) {
+                            badgeCount = dashboardData.kpi.pending;
+                        }
+
                         return (
                             <button
                                 key={item.key}
@@ -415,9 +427,9 @@ export default function AdminDashboardScreen({ onLogout }) {
                             >
                                 <Icon size={18} className="shrink-0" />
                                 <span className="flex-1">{item.label}</span>
-                                {item.badge && (
+                                {badgeCount && (
                                     <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full font-mono">
-                                        {item.badge}
+                                        {badgeCount}
                                     </span>
                                 )}
                             </button>
@@ -575,7 +587,7 @@ export default function AdminDashboardScreen({ onLogout }) {
                                     <table className="w-full border-collapse min-w-[800px]">
                                         <thead>
                                             <tr>
-                                                {["รหัสนศ.", "ชื่อ-นามสกุล", "อุปกรณ์", "วันที่ขอ", "กำหนดคืน", "สถานะ", "การจัดการ"].map((h) => (
+                                                {["รหัสนศ.", "ชื่อ-นามสกุล", "อุปกรณ์", "วันที่ขอ", "กำหนดคืน", "ค่าปรับ", "สถานะ", "การจัดการ"].map((h) => (
                                                     <th key={h} className="text-left text-[11.5px] uppercase tracking-wide text-slate-400 font-bold pb-4 border-b-2 border-purple-100 whitespace-nowrap px-4 first:pl-2">
                                                         {h}
                                                     </th>
@@ -584,7 +596,7 @@ export default function AdminDashboardScreen({ onLogout }) {
                                         </thead>
                                         <tbody>
                                             {isRequestsLoading ? (
-                                                <tr><td colSpan="7" className="py-8 text-center text-slate-400 text-sm">กำลังโหลดข้อมูล...</td></tr>
+                                                <tr><td colSpan="8" className="py-8 text-center text-slate-400 text-sm">กำลังโหลดข้อมูล...</td></tr>
                                             ) : filteredRequests.length > 0 ? filteredRequests.map((r) => (
                                                 <tr key={r.id} className="hover:bg-purple-50 transition border-b border-purple-50 last:border-0">
                                                     <td className="py-4 px-4 first:pl-2 text-[13px] font-medium">{r.student_id}</td>
@@ -595,6 +607,13 @@ export default function AdminDashboardScreen({ onLogout }) {
                                                     </td>
                                                     <td className="py-4 px-4 text-[13px] text-slate-600">{formatThaiDate(r.borrow_date)}</td>
                                                     <td className="py-4 px-4 text-[13px] text-slate-600">{formatThaiDate(r.return_date)}</td>
+                                                    <td className="py-4 px-4 text-[13px] font-semibold">
+                                                        {r.fine_amount > 0 ? (
+                                                            <span className="text-red-500">{r.fine_amount} บ.</span>
+                                                        ) : (
+                                                            <span className="text-slate-300">-</span>
+                                                        )}
+                                                    </td>
                                                     <td className="py-4 px-4">
                                                         <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${STATUS_MAP[r.status]?.cls || 'bg-slate-100 text-slate-600'}`}>
                                                             {STATUS_MAP[r.status]?.label || r.status}
@@ -613,7 +632,7 @@ export default function AdminDashboardScreen({ onLogout }) {
                                                         )}
                                                         {(r.status === "borrowed" || r.status === "overdue") && (
                                                             <div className="flex flex-col gap-2 items-start">
-                                                                <button onClick={() => handleAction(r.id, 'return')} className="text-[12px] font-semibold text-purple-700 hover:text-purple-900 transition">
+                                                                <button onClick={() => handleAction(r.id, 'return', r.fine_amount)} className="text-[12px] font-semibold text-purple-700 hover:text-purple-900 transition">
                                                                     ตรวจสอบ & บันทึกคืน
                                                                 </button>
                                                                 <button onClick={() => handleAction(r.id, 'lost', r.price)} className="text-[12px] font-semibold text-red-500 hover:text-red-700 transition">
@@ -633,7 +652,7 @@ export default function AdminDashboardScreen({ onLogout }) {
                                                 </tr>
                                             )) : (
                                                 <tr>
-                                                    <td colSpan="7" className="py-8 text-center text-slate-400 text-sm">ไม่พบข้อมูลคำขอ</td>
+                                                    <td colSpan="8" className="py-8 text-center text-slate-400 text-sm">ไม่พบข้อมูลคำขอ</td>
                                                 </tr>
                                             )}
                                         </tbody>
@@ -915,6 +934,24 @@ export default function AdminDashboardScreen({ onLogout }) {
                                 <h1 className="text-xl font-semibold">ผู้ใช้งานระบบ</h1>
                                 <p className="text-[12.5px] text-slate-400 mt-0.5">จัดการบัญชีนักศึกษาและอนุมัติผู้ที่ต้องการยืมอุปกรณ์</p>
                             </div>
+                            <div className="relative flex items-center">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                                <input 
+                                    type="text" 
+                                    placeholder="ค้นหาชื่อ หรือ รหัสนศ." 
+                                    className="pl-9 pr-10 py-2 bg-slate-50 border border-purple-100 rounded-xl text-[13px] focus:outline-none focus:border-purple-300 w-64 transition-colors"
+                                    value={userSearchQuery}
+                                    onChange={(e) => setUserSearchQuery(e.target.value)}
+                                />
+                                {userSearchQuery && (
+                                    <button 
+                                        onClick={() => setUserSearchQuery('')}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 bg-slate-200 text-slate-500 hover:bg-slate-300 hover:text-slate-700 rounded-full focus:outline-none transition-colors"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                )}
+                            </div>
                         </div>
                         <div className="p-8 pt-6">
                             <div className="bg-white border border-purple-100 rounded-3xl shadow-sm p-6">
@@ -932,7 +969,7 @@ export default function AdminDashboardScreen({ onLogout }) {
                                         <tbody>
                                             {isUsersLoading ? (
                                                 <tr><td colSpan="4" className="py-8 text-center text-slate-400 text-sm">กำลังโหลดข้อมูล...</td></tr>
-                                            ) : usersData.length > 0 ? usersData.map((user) => {
+                                            ) : usersData.length > 0 ? usersData.filter((u) => u.student_id.toLowerCase().includes(userSearchQuery.toLowerCase()) || (u.name_th && u.name_th.toLowerCase().includes(userSearchQuery.toLowerCase()))).map((user) => {
                                                 const statusMap = {
                                                     'active': { label: 'ใช้งานได้', cls: 'bg-green-100 text-green-700' },
                                                     'suspended': { label: 'ระงับ', cls: 'bg-red-100 text-red-600' },
@@ -941,7 +978,14 @@ export default function AdminDashboardScreen({ onLogout }) {
                                                 const status = statusMap[user.education_status] || { label: user.education_status, cls: 'bg-slate-100 text-slate-600' };
 
                                                 return (
-                                                    <tr key={user.student_id} className="hover:bg-purple-50 transition border-b border-purple-50 last:border-0">
+                                                    <tr 
+                                                        key={user.student_id} 
+                                                        className="hover:bg-purple-50 transition border-b border-purple-50 last:border-0 cursor-pointer"
+                                                        onClick={() => {
+                                                            setSelectedUser(user);
+                                                            setIsUserModalOpen(true);
+                                                        }}
+                                                    >
                                                         <td className="py-4 px-4 first:pl-2 text-[13px] font-medium text-slate-700">{user.student_id}</td>
                                                         <td className="py-4 px-4 text-[13px] font-semibold text-slate-700">{user.name_th}</td>
                                                         <td className="py-4 px-4 text-[13px] text-slate-600">{user.department}</td>
@@ -960,37 +1004,86 @@ export default function AdminDashboardScreen({ onLogout }) {
                                 </div>
                             </div>
                         </div>
+                        
+                        {/* User Detail Modal */}
+                        {isUserModalOpen && selectedUser && (
+                            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                                <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200">
+                                    <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                        <h3 className="text-lg font-bold text-slate-800">ข้อมูลส่วนตัว</h3>
+                                        <button onClick={() => setIsUserModalOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+                                            <X className="w-5 h-5 text-slate-500" />
+                                        </button>
+                                    </div>
+                                    <div className="p-6 space-y-2">
+                                        <div className="flex flex-col items-center mb-6">
+                                            <div className="w-24 h-24 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 mb-3 shadow-inner overflow-hidden">
+                                                {selectedUser.student_img ? (
+                                                    <img src={`http://localhost/${selectedUser.student_img}`} alt={selectedUser.name_th} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <User size={40} />
+                                                )}
+                                            </div>
+                                            <h2 className="text-xl font-bold text-slate-800">{selectedUser.name_th}</h2>
+                                            <p className="text-slate-500 text-[13px]">{selectedUser.student_id}</p>
+                                        </div>
+                                        
+                                        <div className="flex flex-col space-y-4">
+                                            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                                                <span className="text-slate-500 text-[13px]">สาขาวิชา:</span>
+                                                <span className="text-slate-800 font-medium text-[13px]">{selectedUser.department || "-"}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                                                <span className="text-slate-500 text-[13px]">อีเมล:</span>
+                                                <span className="text-slate-800 font-medium text-[13px]">{selectedUser.email || "-"}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                                                <span className="text-slate-500 text-[13px]">เบอร์โทร:</span>
+                                                <span className="text-slate-800 font-medium text-[13px]">{selectedUser.phone || "-"}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-slate-500 text-[13px]">สถานะ:</span>
+                                                <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                                                    selectedUser.education_status === 'active' ? 'bg-green-100 text-green-700' :
+                                                    selectedUser.education_status === 'suspended' ? 'bg-red-100 text-red-600' :
+                                                    'bg-slate-100 text-slate-600'
+                                                }`}>
+                                                    {selectedUser.education_status === 'active' ? 'กำลังศึกษา' : 
+                                                     selectedUser.education_status === 'suspended' ? 'ระงับ' : 
+                                                     selectedUser.education_status || 'ไม่ทราบ'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+                                        <button onClick={() => setIsUserModalOpen(false)} className="px-5 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl font-medium text-[13px] hover:bg-slate-50 transition shadow-sm">
+                                            ปิดหน้าต่าง
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </>
                 ) : currentPage === "notify" ? (
                     <>
                         <div className="bg-white border-b border-purple-100 px-8 py-5 sticky top-0 z-10 flex justify-between items-center">
                             <div>
-                                <h1 className="text-xl font-semibold">แจ้งเตือนผู้ใช้งาน</h1>
-                                <p className="text-[12.5px] text-slate-400 mt-0.5">ส่งข้อความแจ้งเตือนถึงนักศึกษารายบุคคลหรือทั้งหมด</p>
+                                <h1 className="text-xl font-semibold">ประกาศ</h1>
+                                <p className="text-[12.5px] text-slate-400 mt-0.5">ประกาศข้อความแจ้งเตือนถึงนักศึกษาทุกคนในระบบ</p>
                             </div>
                         </div>
                         <div className="p-8 pt-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                             {/* Left Panel: Form */}
                             <div className="lg:col-span-7 bg-white border border-purple-100 rounded-3xl shadow-sm p-6">
-                                <h2 className="text-[15px] font-bold text-slate-700 mb-5">เขียนข้อความแจ้งเตือน</h2>
+                                <h2 className="text-[15px] font-bold text-slate-700 mb-5">เขียนข้อความประกาศ</h2>
 
                                 <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-[13px] font-bold text-slate-600 mb-1.5">ส่งถึง</label>
-                                        <select
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-[13.5px] outline-none focus:border-purple-400 focus:bg-white transition text-slate-700"
-                                            value={newNotification.target}
-                                            onChange={e => setNewNotification({ ...newNotification, target: e.target.value })}
-                                        >
-                                            <option value="all">ผู้ใช้งานทั้งหมด</option>
-                                            {/* Could add dynamic users here later */}
-                                        </select>
-                                    </div>
+
                                     <div>
                                         <label className="block text-[13px] font-bold text-slate-600 mb-1.5">หัวข้อ</label>
                                         <input
                                             type="text"
-                                            placeholder="เช่น แจ้งเตือนกำหนดคืนอุปกรณ์"
+                                            placeholder="เช่น ประกาศปิดห้องสมุด"
                                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-[13.5px] outline-none focus:border-purple-400 focus:bg-white transition"
                                             value={newNotification.title}
                                             onChange={e => setNewNotification({ ...newNotification, title: e.target.value })}
@@ -999,7 +1092,7 @@ export default function AdminDashboardScreen({ onLogout }) {
                                     <div>
                                         <label className="block text-[13px] font-bold text-slate-600 mb-1.5">ข้อความ</label>
                                         <textarea
-                                            placeholder="พิมพ์ข้อความที่ต้องการแจ้งเตือน..."
+                                            placeholder="พิมพ์ข้อความที่ต้องการประกาศ..."
                                             rows="5"
                                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-[13.5px] outline-none focus:border-purple-400 focus:bg-white transition resize-none"
                                             value={newNotification.message}
@@ -1010,14 +1103,14 @@ export default function AdminDashboardScreen({ onLogout }) {
                                         onClick={handleSendNotification}
                                         className="bg-[#3b2075] text-white px-5 py-2.5 rounded-xl text-[13px] font-semibold flex items-center gap-2 shadow-md hover:bg-[#2d175e] transition"
                                     >
-                                        <Send size={15} /> ส่งการแจ้งเตือน
+                                        <Send size={15} /> ส่งประกาศ
                                     </button>
                                 </div>
                             </div>
 
                             {/* Right Panel: History */}
                             <div className="lg:col-span-5 bg-white border border-purple-100 rounded-3xl shadow-sm p-6 min-h-[400px]">
-                                <h2 className="text-[15px] font-bold text-slate-700 mb-5">ประวัติการแจ้งเตือนที่ส่งแล้ว</h2>
+                                <h2 className="text-[15px] font-bold text-slate-700 mb-5">ประวัติประกาศที่ส่งแล้ว</h2>
 
                                 {isNotificationsLoading ? (
                                     <div className="text-center text-slate-400 text-sm py-8">กำลังโหลดข้อมูล...</div>

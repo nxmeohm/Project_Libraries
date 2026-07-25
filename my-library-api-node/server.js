@@ -6,6 +6,42 @@ const http = require('http');
 const { Server } = require('socket.io');
 const generateChartData = require('./generate_chart_data');
 const mailer = require('./mailer');
+const cron = require('node-cron');
+
+// Cron job to check for overdue items every midnight
+cron.schedule('0 0 * * *', async () => {
+    console.log('[Cron] Running daily overdue check...');
+    try {
+        const sql = `
+            SELECT b.id, b.student_id, b.equipment_id, e.name as equipment_name, 
+                   s.email as student_email, s.name_th as student_name,
+                   b.borrow_date, e.borrow_days
+            FROM borrowed b
+            LEFT JOIN equipments e ON b.equipment_id = e.equipment_id
+            LEFT JOIN student_profiles s ON b.student_id = s.student_id
+            WHERE b.status = 'borrowed'
+        `;
+        const [rows] = await pool.query(sql);
+        
+        for (const row of rows) {
+            const dueDate = new Date(row.borrow_date);
+            dueDate.setDate(dueDate.getDate() + (row.borrow_days || 0));
+            
+            if (new Date() > dueDate) {
+                await pool.query("UPDATE borrowed SET status = 'overdue' WHERE id = ?", [row.id]);
+                if (row.student_email) {
+                    mailer.sendOverdueEmail(row.student_email, row.student_name, row.equipment_name);
+                }
+                const notifTitle = "แจ้งเตือนอุปกรณ์เลยกำหนดคืน";
+                const notifMsg = `อุปกรณ์ "${row.equipment_name}" ที่คุณยืมเลยกำหนดส่งคืนแล้ว กรุณานำมาคืนโดยเร็วที่สุด (มีค่าปรับล่าช้า 20 บาท/วัน)`;
+                await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [row.student_email, notifTitle, notifMsg]);
+            }
+        }
+        console.log('[Cron] Overdue check complete.');
+    } catch (error) {
+        console.error('[Cron] Error checking overdue items:', error);
+    }
+});
 
 const app = express();
 const server = http.createServer(app);
@@ -77,6 +113,9 @@ app.get('/api/admin/dashboard', async (req, res) => {
         const [pendingRes] = await pool.query("SELECT COUNT(*) as c FROM borrowed WHERE status = 'pending'");
         response.kpi.pending = pendingRes[0].c;
 
+        const [finesRes] = await pool.query("SELECT SUM(fine_amount) as total FROM borrowed WHERE fine_amount IS NOT NULL AND status IN ('returned', 'fine_paid')");
+        response.kpi.fines = finesRes[0].total || 0;
+
         const sql = `
             SELECT 
                 b.id, b.student_id, e.name as equipment_name,
@@ -120,8 +159,8 @@ app.get('/api/admin/requests', async (req, res) => {
     try {
         const sql = `
             SELECT 
-                b.id, b.student_id, e.name as equipment_name, e.equipment_id, e.price,
-                b.borrow_date, b.return_date, b.status, sp.* 
+                b.id, b.student_id, e.name as equipment_name, e.equipment_id, e.price, e.borrow_days,
+                b.borrow_date, b.return_date, b.status, b.fine_amount, sp.* 
             FROM borrowed b
             LEFT JOIN student_profiles sp ON b.student_id = sp.student_id
             LEFT JOIN equipments e ON b.equipment_id = e.equipment_id
@@ -135,6 +174,24 @@ app.get('/api/admin/requests', async (req, res) => {
             else if (row.first_name) student_name = `${row.first_name} ${row.last_name || ''}`;
             else if (row.name) student_name = row.name;
             else student_name = `Student ${row.student_id}`;
+            
+            let calculated_fine = 0;
+            let overdue_days = 0;
+            if (row.status === 'overdue' || row.status === 'borrowed') {
+                const dueDate = new Date(row.borrow_date);
+                dueDate.setDate(dueDate.getDate() + (row.borrow_days || 0));
+                // Set both dates to midnight to calculate full days accurately
+                dueDate.setHours(0,0,0,0);
+                const now = new Date();
+                now.setHours(0,0,0,0);
+                if (now > dueDate) {
+                    const diffTime = Math.abs(now - dueDate);
+                    overdue_days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    calculated_fine = overdue_days * 20;
+                }
+            } else if (row.status === 'returned' || row.status === 'fine_paid') {
+                calculated_fine = parseFloat(row.fine_amount) || 0;
+            }
 
             return {
                 id: row.id,
@@ -145,7 +202,9 @@ app.get('/api/admin/requests', async (req, res) => {
                 price: row.price,
                 borrow_date: row.borrow_date,
                 return_date: row.return_date,
-                status: row.status
+                status: row.status,
+                fine_amount: calculated_fine,
+                overdue_days: overdue_days
             };
         });
 
@@ -200,25 +259,42 @@ app.post('/api/admin/update-request', async (req, res) => {
         }
         
         if (action === 'return') {
-            await pool.query("UPDATE borrowed SET status = ?, return_date = NOW() WHERE id = ?", [new_status, parseInt(id)]);
-            if (borrowInfo && borrowInfo.student_email) {
-                mailer.sendReturnEmail(borrowInfo.student_email, borrowInfo.student_name, borrowInfo.equipment_name);
+            if (fine && parseFloat(fine) > 0) {
+                await pool.query("UPDATE borrowed SET status = ?, return_date = NOW(), fine_amount = ? WHERE id = ?", [new_status, parseFloat(fine), parseInt(id)]);
+                if (borrowInfo && borrowInfo.student_email) {
+                    mailer.sendReturnWithFineEmail(borrowInfo.student_email, borrowInfo.student_name, borrowInfo.equipment_name, fine);
+                }
+            } else {
+                await pool.query("UPDATE borrowed SET status = ?, return_date = NOW() WHERE id = ?", [new_status, parseInt(id)]);
+                if (borrowInfo && borrowInfo.student_email) {
+                    mailer.sendReturnEmail(borrowInfo.student_email, borrowInfo.student_name, borrowInfo.equipment_name);
+                }
             }
         } else if (action === 'lost') {
-            await pool.query("UPDATE borrowed SET status = ?, return_date = NOW() WHERE id = ?", [new_status, parseInt(id)]);
+            await pool.query("UPDATE borrowed SET status = ?, return_date = NOW(), fine_amount = ? WHERE id = ?", [new_status, parseFloat(fine || 0), parseInt(id)]);
             if (borrowInfo && borrowInfo.student_email) {
                 mailer.sendFineEmail(borrowInfo.student_email, borrowInfo.student_name, borrowInfo.equipment_name, fine || 0);
                 const notifTitle = "แจ้งเตือนค่าปรับอุปกรณ์";
                 const notifMsg = `อุปกรณ์ "${borrowInfo.equipment_name}" สูญหาย/ชำรุดเสียหาย คุณมียอดค่าปรับที่ต้องชำระจำนวน ${fine || 0} บาท ติดต่อบรรณารักษ์ด่วน`;
-                await pool.query("INSERT INTO notifications (target, title, message) VALUES (?, ?, ?)", [borrowInfo.student_email, notifTitle, notifMsg]);
+                await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [borrowInfo.student_email, notifTitle, notifMsg]);
             }
         } else if (action === 'fine_paid') {
             await pool.query("UPDATE borrowed SET status = ? WHERE id = ?", [new_status, parseInt(id)]);
-            if (borrowInfo && borrowInfo.student_email) {
+            
+            if (borrowInfo) {
+                // Restore damaged equipment back to available
+                const equip_id = borrowInfo.equipment_id;
+                const [lostItem] = await pool.query("SELECT item_id FROM equipment_items WHERE equipment_id = ? AND status = 'damaged_lost' LIMIT 1", [equip_id]);
+                if (lostItem.length > 0) {
+                    await pool.query("UPDATE equipment_items SET status = 'available' WHERE item_id = ?", [lostItem[0].item_id]);
+                }
+                
+                if (borrowInfo.student_email) {
                 mailer.sendFinePaidEmail(borrowInfo.student_email, borrowInfo.student_name, borrowInfo.equipment_name);
                 const notifTitle = "ชำระค่าปรับสำเร็จ";
                 const notifMsg = `ขอบคุณครับ/ค่ะ ระบบได้รับยอดชำระค่าปรับสำหรับอุปกรณ์ "${borrowInfo.equipment_name}" เรียบร้อยแล้ว`;
-                await pool.query("INSERT INTO notifications (target, title, message) VALUES (?, ?, ?)", [borrowInfo.student_email, notifTitle, notifMsg]);
+                await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [borrowInfo.student_email, notifTitle, notifMsg]);
+                }
             }
         } else {
             await pool.query("UPDATE borrowed SET status = ? WHERE id = ?", [new_status, parseInt(id)]);
@@ -249,26 +325,43 @@ app.post('/api/admin/notifications', async (req, res) => {
             emails.push(target);
         }
 
+        // Save notification to database for UI display
+        await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'announcement')", [target, title, message]);
+        req.app.get('io').emit('data_updated');
+
         if (emails.length === 0) {
-            return res.json({ success: false, message: "No users found with valid email addresses." });
+            return res.json({ success: true, message: "บันทึกประกาศสำเร็จ แต่ไม่มีผู้ใช้ที่มีอีเมลให้ส่ง" });
         }
 
-        let successCount = 0;
-        for (const email of emails) {
-            const sent = await mailer.sendManualNotification(email, title, message);
-            if (sent) successCount++;
-        }
+        // Respond immediately so the UI doesn't freeze
+        res.json({ success: true, message: "บันทึกประกาศสำเร็จ ระบบกำลังทยอยส่งอีเมลในพื้นหลัง" });
 
-        res.json({ success: true, message: `Sent ${successCount} notifications successfully.` });
+        // Send emails in the background
+        setImmediate(async () => {
+            try {
+                for (const email of emails) {
+                    await mailer.sendManualNotification(email, title, message);
+                }
+            } catch (e) {
+                console.error("Background email error:", e);
+            }
+        });
+
     } catch (error) {
         console.error(error);
         res.status(500).json({ success: false, message: "Database Error" });
     }
 });
 
-// Admin Get Notifications GET (Mock for now)
+// Admin Get Notifications GET
 app.get('/api/admin/notifications', async (req, res) => {
-    res.json({ success: true, data: [] });
+    try {
+        const [rows] = await pool.query("SELECT * FROM notifications WHERE type = 'announcement' ORDER BY created_at DESC");
+        res.json({ success: true, data: rows });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: "Database Error" });
+    }
 });
 
 // 5. Admin Get Equipments
@@ -374,7 +467,10 @@ app.get('/api/admin/users', async (req, res) => {
                 sp.student_id, 
                 sp.name_th, 
                 sp.department, 
-                sp.education_status 
+                sp.education_status,
+                sp.student_img,
+                sp.email,
+                sp.phone_number AS phone
             FROM users u
             JOIN student_profiles sp ON u.user_id = sp.user_id
             WHERE u.role = 'student'
@@ -412,18 +508,6 @@ app.delete('/api/admin/equipments/:id', async (req, res) => {
     }
 });
 
-// Admin Post Notification
-app.post('/api/admin/notifications', async (req, res) => {
-    const { target, title, message } = req.body;
-    try {
-        await pool.query("INSERT INTO notifications (target, title, message) VALUES (?, ?, ?)", [target, title, message]);
-        req.app.get('io').emit('data_updated');
-        res.json({ success: true, message: "Notification sent successfully" });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, message: "Database Error" });
-    }
-});
 
 // Admin Get User History
 app.get('/api/admin/user-history/:studentId', async (req, res) => {
@@ -496,6 +580,26 @@ app.get('/api/get_detail.php', async (req, res) => {
         res.json(rows[0] || {});
     } catch (error) {
         res.status(500).json({ error: "Database Error" });
+    }
+});
+
+// 4.5. get_notifications.php
+app.get('/api/get_notifications.php', async (req, res) => {
+    const studentId = req.query.student_id;
+    const type = req.query.type || 'announcement';
+    try {
+        let email = '';
+        if (studentId) {
+            const [users] = await pool.query("SELECT email FROM student_profiles WHERE student_id = ?", [studentId]);
+            if (users.length > 0) email = users[0].email;
+        }
+
+        const sql = "SELECT * FROM notifications WHERE (target = 'all' OR target = ?) AND type = ? ORDER BY created_at DESC";
+        const [rows] = await pool.query(sql, [email, type]);
+        res.json({ success: true, data: rows });
+    } catch (error) {
+        console.error("Notifications Error:", error);
+        res.status(500).json({ success: false, error: "Database Error" });
     }
 });
 

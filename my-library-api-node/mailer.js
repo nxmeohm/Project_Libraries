@@ -103,4 +103,36 @@ const sendFinePaidEmail = (email, studentName, equipmentName) => {
     return sendEmail(email, subject, html);
 };
 
-module.exports = { sendApprovalEmail, sendReturnEmail, sendManualNotification, sendFineEmail, sendFinePaidEmail };
+const sendOverdueEmail = (email, studentName, equipmentName) => {
+    const subject = "แจ้งเตือนอุปกรณ์เลยกำหนดคืน";
+    const html = `
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+            <h2 style="color: #F44336;">⚠️ แจ้งเตือนอุปกรณ์เลยกำหนดคืน</h2>
+            <p>เรียนคุณ <strong>${studentName}</strong>,</p>
+            <p>ระบบตรวจสอบพบว่าอุปกรณ์ <strong>"${equipmentName}"</strong> ที่คุณยืมไป ได้เลยกำหนดส่งคืนแล้ว</p>
+            <p style="font-size: 16px;"><strong>จะมีค่าปรับล่าช้า <span style="color: #F44336;">20 บาท/วัน</span></strong></p>
+            <p>กรุณานำอุปกรณ์มาคืนที่ห้องสมุดโดยเร็วที่สุด</p>
+            <hr />
+            <p style="font-size: 12px; color: #888;">ระบบห้องสมุด Project Libraries</p>
+        </div>
+    `;
+    return sendEmail(email, subject, html);
+};
+
+const sendReturnWithFineEmail = (email, studentName, equipmentName, fineAmount) => {
+    const subject = "คืนอุปกรณ์และชำระค่าปรับสำเร็จ";
+    const html = `
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+            <h2 style="color: #2196F3;">✅ คืนอุปกรณ์และชำระค่าปรับสำเร็จ</h2>
+            <p>สวัสดีคุณ <strong>${studentName}</strong>,</p>
+            <p>เราได้รับ <strong>"${equipmentName}"</strong> คืนเข้าสู่ระบบเรียบร้อยแล้ว!</p>
+            <p style="font-size: 16px;"><strong>ยอดชำระค่าปรับล่าช้า: <span style="color: #F44336;">${fineAmount} บาท</span></strong> (ชำระแล้ว)</p>
+            <p>ขอบคุณที่ใช้บริการครับ/ค่ะ</p>
+            <hr />
+            <p style="font-size: 12px; color: #888;">ระบบห้องสมุด Project Libraries</p>
+        </div>
+    `;
+    return sendEmail(email, subject, html);
+};
+
+module.exports = { sendApprovalEmail, sendReturnEmail, sendManualNotification, sendFineEmail, sendFinePaidEmail, sendOverdueEmail, sendReturnWithFineEmail };
