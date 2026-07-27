@@ -71,6 +71,7 @@ const NAV_ITEMS = [
     { key: "equipment", label: "คลังอุปกรณ์", icon: Package },
     { key: "users", label: "ผู้ใช้งาน", icon: Users },
     { key: "notify", label: "ประกาศ", icon: Bell },
+    { key: "userhistory", label: "ประวัติผู้ใช้งาน", icon: Search },
 ];
 
 /* ============================================================
@@ -114,7 +115,7 @@ export default function AdminDashboardScreen({ onLogout }) {
         } else {
             if (!confirm(`ยืนยันการดำเนินการ?`)) return;
         }
-        
+
         try {
             const response = await fetch("http://localhost:5000/api/admin/update-request", {
                 method: "POST",
@@ -164,7 +165,7 @@ export default function AdminDashboardScreen({ onLogout }) {
         total_quantity: 1, available_quantity: 1, borrow_days: 7,
         price: 0, description: "", status: "ใช้งานได้"
     });
-    
+
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editEquip, setEditEquip] = useState(null);
     const [inventorySearch, setInventorySearch] = useState("");
@@ -411,7 +412,7 @@ export default function AdminDashboardScreen({ onLogout }) {
                     {NAV_ITEMS.map((item) => {
                         const active = currentPage === item.key;
                         const Icon = item.icon;
-                        
+
                         let badgeCount = null;
                         if (item.key === "requests" && dashboardData?.kpi?.pending > 0) {
                             badgeCount = dashboardData.kpi.pending;
@@ -716,12 +717,11 @@ export default function AdminDashboardScreen({ onLogout }) {
                                                     <td className="py-4 px-4 text-[13px] text-slate-600">{eq.kit_code || '-'}</td>
                                                     <td className="py-4 px-4 text-[13px] text-slate-600">{eq.category || 'อุปกรณ์ทั่วไป'}</td>
                                                     <td className="py-4 px-4 whitespace-nowrap">
-                                                        <span className={`px-3 py-1 rounded-full text-[11.5px] font-bold ${
-                                                            eq.status === 'ใช้งานได้' ? 'bg-green-100 text-green-700' :
-                                                            eq.status === 'กำลังซ่อมแซม' ? 'bg-orange-100 text-orange-700' :
-                                                            eq.status === 'งดใช้ชั่วคราว' ? 'bg-red-100 text-red-700' :
-                                                            'bg-slate-100 text-slate-700'
-                                                        }`}>
+                                                        <span className={`px-3 py-1 rounded-full text-[11.5px] font-bold ${eq.status === 'ใช้งานได้' ? 'bg-green-100 text-green-700' :
+                                                                eq.status === 'กำลังซ่อมแซม' ? 'bg-orange-100 text-orange-700' :
+                                                                    eq.status === 'งดใช้ชั่วคราว' ? 'bg-red-100 text-red-700' :
+                                                                        'bg-slate-100 text-slate-700'
+                                                            }`}>
                                                             {eq.status || 'ใช้งานได้'}
                                                         </span>
                                                     </td>
@@ -831,7 +831,7 @@ export default function AdminDashboardScreen({ onLogout }) {
                                 </div>
                             </div>
                         )}
-                        
+
                         {/* Edit Equipment Modal */}
                         {isEditModalOpen && editEquip && (
                             <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -935,15 +935,15 @@ export default function AdminDashboardScreen({ onLogout }) {
                             </div>
                             <div className="relative flex items-center">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                                <input 
-                                    type="text" 
-                                    placeholder="ค้นหาชื่อ หรือ รหัสนศ." 
+                                <input
+                                    type="text"
+                                    placeholder="ค้นหาชื่อ หรือ รหัสนศ."
                                     className="pl-9 pr-10 py-2 bg-slate-50 border border-purple-100 rounded-xl text-[13px] focus:outline-none focus:border-purple-300 w-64 transition-colors"
                                     value={userSearchQuery}
                                     onChange={(e) => setUserSearchQuery(e.target.value)}
                                 />
                                 {userSearchQuery && (
-                                    <button 
+                                    <button
                                         onClick={() => setUserSearchQuery('')}
                                         className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 bg-slate-200 text-slate-500 hover:bg-slate-300 hover:text-slate-700 rounded-full focus:outline-none transition-colors"
                                     >
@@ -977,27 +977,12 @@ export default function AdminDashboardScreen({ onLogout }) {
                                                 const status = statusMap[user.education_status] || { label: user.education_status, cls: 'bg-slate-100 text-slate-600' };
 
                                                 return (
-                                                    <tr 
-                                                        key={user.student_id} 
+                                                    <tr
+                                                        key={user.student_id}
                                                         className="hover:bg-purple-50 transition border-b border-purple-50 last:border-0 cursor-pointer"
-                                                        onClick={async () => {
+                                                        onClick={() => {
                                                             setSelectedUser(user);
                                                             setIsUserModalOpen(true);
-                                                            setIsHistoryLoading(true);
-                                                            try {
-                                                                const response = await fetch(`http://localhost:5000/api/admin/user-history/${user.student_id}`);
-                                                                const data = await response.json();
-                                                                if (data.success) {
-                                                                    setUserHistoryData(data.data.history);
-                                                                } else {
-                                                                    setUserHistoryData([]);
-                                                                }
-                                                            } catch (err) {
-                                                                console.error(err);
-                                                                setUserHistoryData([]);
-                                                            } finally {
-                                                                setIsHistoryLoading(false);
-                                                            }
                                                         }}
                                                     >
                                                         <td className="py-4 px-4 first:pl-2 text-[13px] font-medium text-slate-700">{user.student_id}</td>
@@ -1008,8 +993,8 @@ export default function AdminDashboardScreen({ onLogout }) {
                                                                 {status.label}
                                                             </span>
                                                         </td>
-                                                        </tr>
-                                                    );
+                                                    </tr>
+                                                );
                                             }) : (
                                                 <tr><td colSpan="4" className="py-8 text-center text-slate-400 text-sm">ไม่มีข้อมูลผู้ใช้งาน</td></tr>
                                             )}
@@ -1018,110 +1003,57 @@ export default function AdminDashboardScreen({ onLogout }) {
                                 </div>
                             </div>
                         </div>
-                        
+
                         {/* User Detail Modal */}
                         {isUserModalOpen && selectedUser && (
                             <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                                <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl relative flex flex-col animate-in fade-in zoom-in duration-200">
-                                    <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
-                                        <h3 className="text-lg font-bold text-slate-800">ข้อมูลส่วนตัวและประวัติการใช้งาน</h3>
+                                <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200">
+                                    <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                        <h3 className="text-lg font-bold text-slate-800">ข้อมูลส่วนตัว</h3>
                                         <button onClick={() => setIsUserModalOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
                                             <X className="w-5 h-5 text-slate-500" />
                                         </button>
                                     </div>
-                                    <div className="p-6 overflow-y-auto flex-1 flex flex-col md:flex-row gap-6">
-                                        {/* User Details Sidebar */}
-                                        <div className="w-full md:w-1/3 space-y-4">
-                                            <div className="flex flex-col items-center mb-6">
-                                                <div className="w-24 h-24 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 mb-3 shadow-inner overflow-hidden">
-                                                    {selectedUser.student_img ? (
-                                                        <img src={`http://localhost/${selectedUser.student_img}`} alt={selectedUser.name_th} className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <User size={40} />
-                                                    )}
-                                                </div>
-                                                <h2 className="text-xl font-bold text-slate-800">{selectedUser.name_th}</h2>
-                                                <p className="text-slate-500 text-[13px]">{selectedUser.student_id}</p>
+                                    <div className="p-6 space-y-2">
+                                        <div className="flex flex-col items-center mb-6">
+                                            <div className="w-24 h-24 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 mb-3 shadow-inner overflow-hidden">
+                                                {selectedUser.student_img ? (
+                                                    <img src={`http://localhost/${selectedUser.student_img}`} alt={selectedUser.name_th} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <User size={40} />
+                                                )}
                                             </div>
-                                            
-                                            <div className="flex flex-col space-y-4">
-                                                <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-                                                    <span className="text-slate-500 text-[13px]">สาขาวิชา:</span>
-                                                    <span className="text-slate-800 font-medium text-[13px] text-right">{selectedUser.department || "-"}</span>
-                                                </div>
-                                                <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-                                                    <span className="text-slate-500 text-[13px]">อีเมล:</span>
-                                                    <span className="text-slate-800 font-medium text-[13px] text-right">{selectedUser.email || "-"}</span>
-                                                </div>
-                                                <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-                                                    <span className="text-slate-500 text-[13px]">เบอร์โทร:</span>
-                                                    <span className="text-slate-800 font-medium text-[13px] text-right">{selectedUser.phone || "-"}</span>
-                                                </div>
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-slate-500 text-[13px]">สถานะ:</span>
-                                                    <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                                                        selectedUser.education_status === 'active' ? 'bg-green-100 text-green-700' :
-                                                        selectedUser.education_status === 'suspended' ? 'bg-red-100 text-red-600' :
-                                                        'bg-slate-100 text-slate-600'
-                                                    }`}>
-                                                        {selectedUser.education_status === 'active' ? 'กำลังศึกษา' : 
-                                                         selectedUser.education_status === 'suspended' ? 'ระงับ' : 
-                                                         selectedUser.education_status || 'ไม่ทราบ'}
-                                                    </span>
-                                                </div>
-                                            </div>
+                                            <h2 className="text-xl font-bold text-slate-800">{selectedUser.name_th}</h2>
+                                            <p className="text-slate-500 text-[13px]">{selectedUser.student_id}</p>
                                         </div>
 
-                                        {/* History Table */}
-                                        <div className="w-full md:w-2/3 border-t md:border-t-0 md:border-l border-slate-100 pt-6 md:pt-0 md:pl-6">
-                                            <h4 className="font-bold text-slate-700 mb-4">ประวัติการยืม-คืนอุปกรณ์</h4>
-                                            {isHistoryLoading ? (
-                                                <div className="text-center text-slate-400 py-10">กำลังโหลดข้อมูล...</div>
-                                            ) : (
-                                                <div className="overflow-x-auto border border-purple-50 rounded-2xl">
-                                                    <table className="w-full border-collapse min-w-[450px]">
-                                                        <thead>
-                                                            <tr className="bg-purple-50">
-                                                                <th className="text-left text-[11.5px] uppercase tracking-wide text-slate-500 font-bold p-3 whitespace-nowrap pl-4">อุปกรณ์</th>
-                                                                <th className="text-left text-[11.5px] uppercase tracking-wide text-slate-500 font-bold p-3 whitespace-nowrap">วันที่ยืม</th>
-                                                                <th className="text-left text-[11.5px] uppercase tracking-wide text-slate-500 font-bold p-3 whitespace-nowrap">กำหนดคืน/คืนแล้ว</th>
-                                                                <th className="text-left text-[11.5px] uppercase tracking-wide text-slate-500 font-bold p-3 whitespace-nowrap pr-4">สถานะ</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            {userHistoryData.length > 0 ? userHistoryData.map((history) => {
-                                                                const status = STATUS_MAP[history.status] || { label: history.status, cls: "bg-slate-100 text-slate-600" };
-                                                                return (
-                                                                    <tr key={history.borrow_id} className="hover:bg-slate-50 transition border-b border-slate-100 last:border-0">
-                                                                        <td className="py-3 px-3 pl-4">
-                                                                            <p className="text-[13px] font-bold text-slate-700">{history.equipment_name}</p>
-                                                                            <p className="text-[11px] text-slate-400">รหัส: {history.kit_code}</p>
-                                                                        </td>
-                                                                        <td className="py-3 px-3 text-[12px] text-slate-600">{formatThaiDate(history.borrow_date)}</td>
-                                                                        <td className="py-3 px-3 text-[12px] text-slate-600">
-                                                                            {history.status === 'returned' && history.return_date ? formatThaiDate(history.return_date) : formatThaiDate(history.due_date)}
-                                                                        </td>
-                                                                        <td className="py-3 px-3 pr-4">
-                                                                            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${status.cls}`}>
-                                                                                {status.label}
-                                                                            </span>
-                                                                        </td>
-                                                                    </tr>
-                                                                );
-                                                            }) : (
-                                                                <tr>
-                                                                    <td colSpan="4" className="py-8 text-center text-slate-400 text-[13px]">
-                                                                        ไม่มีประวัติการยืม-คืนอุปกรณ์
-                                                                    </td>
-                                                                </tr>
-                                                            )}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            )}
+                                        <div className="flex flex-col space-y-4">
+                                            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                                                <span className="text-slate-500 text-[13px]">สาขาวิชา:</span>
+                                                <span className="text-slate-800 font-medium text-[13px]">{selectedUser.department || "-"}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                                                <span className="text-slate-500 text-[13px]">อีเมล:</span>
+                                                <span className="text-slate-800 font-medium text-[13px]">{selectedUser.email || "-"}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                                                <span className="text-slate-500 text-[13px]">เบอร์โทร:</span>
+                                                <span className="text-slate-800 font-medium text-[13px]">{selectedUser.phone || "-"}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-slate-500 text-[13px]">สถานะ:</span>
+                                                <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${selectedUser.education_status === 'active' ? 'bg-green-100 text-green-700' :
+                                                        selectedUser.education_status === 'suspended' ? 'bg-red-100 text-red-600' :
+                                                            'bg-slate-100 text-slate-600'
+                                                    }`}>
+                                                    {selectedUser.education_status === 'active' ? 'กำลังศึกษา' :
+                                                        selectedUser.education_status === 'suspended' ? 'ระงับ' :
+                                                            selectedUser.education_status || 'ไม่ทราบ'}
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end shrink-0">
+                                    <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
                                         <button onClick={() => setIsUserModalOpen(false)} className="px-5 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl font-medium text-[13px] hover:bg-slate-50 transition shadow-sm">
                                             ปิดหน้าต่าง
                                         </button>
@@ -1201,6 +1133,115 @@ export default function AdminDashboardScreen({ onLogout }) {
                                     </div>
                                 )}
                             </div>
+                        </div>
+                    </>
+                ) : currentPage === "userhistory" ? (
+                    <>
+                        <div className="bg-white border-b border-purple-100 px-8 py-5 sticky top-0 z-10">
+                            <h1 className="text-xl font-semibold">ประวัติผู้ใช้งาน</h1>
+                            <p className="text-[12.5px] text-slate-400 mt-0.5">ค้นหาด้วยรหัสนักศึกษาเพื่อดูข้อมูลและประวัติการยืม-คืนทั้งหมด</p>
+                        </div>
+                        <div className="p-8 pt-6 space-y-6">
+                            {/* Search Block */}
+                            <div className="bg-white border border-purple-100 rounded-3xl shadow-sm p-6 flex gap-3 items-center">
+                                <input
+                                    type="text"
+                                    placeholder="กรอกรหัสนักศึกษา เช่น B6501234..."
+                                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-[13.5px] outline-none focus:border-purple-400 focus:bg-white transition"
+                                    value={historySearchId}
+                                    onChange={(e) => setHistorySearchId(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleSearchUserHistory()}
+                                />
+                                <button
+                                    onClick={handleSearchUserHistory}
+                                    disabled={isHistoryLoading}
+                                    className="bg-[#3b2075] text-white px-6 py-3 rounded-xl text-[13.5px] font-semibold flex items-center gap-2 hover:bg-[#2d175e] transition disabled:opacity-70"
+                                >
+                                    <Search size={16} /> ค้นหา
+                                </button>
+                            </div>
+
+                            {/* Error Message */}
+                            {historyError && (
+                                <div className="bg-red-50 text-red-600 p-4 rounded-2xl text-[13px] border border-red-100 text-center">
+                                    {historyError}
+                                </div>
+                            )}
+
+                            {/* Loading State */}
+                            {isHistoryLoading && (
+                                <div className="text-center text-slate-400 py-10">กำลังค้นหาข้อมูล...</div>
+                            )}
+
+                            {/* Results Block */}
+                            {searchedUser && (
+                                <div className="bg-white border border-purple-100 rounded-3xl shadow-sm overflow-hidden">
+                                    <div className="bg-purple-50 p-6 flex items-center justify-between border-b border-purple-100">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 bg-[#3b2075] rounded-full flex items-center justify-center text-white font-bold text-lg">
+                                                {searchedUser.name_th.charAt(0)}
+                                            </div>
+                                            <div>
+                                                <h2 className="text-lg font-bold text-slate-800">{searchedUser.name_th}</h2>
+                                                <p className="text-[13px] text-slate-600">
+                                                    รหัสนักศึกษา: <span className="font-semibold text-slate-700">{searchedUser.student_id}</span> • {searchedUser.department}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className={`text-[12px] font-bold px-3 py-1.5 rounded-full ${searchedUser.education_status === 'active' ? 'bg-green-100 text-green-700' :
+                                                searchedUser.education_status === 'suspended' ? 'bg-red-100 text-red-600' :
+                                                    'bg-amber-100 text-amber-700'
+                                                }`}>
+                                                {searchedUser.education_status === 'active' ? 'ใช้งานได้' :
+                                                    searchedUser.education_status === 'suspended' ? 'ระงับการใช้งาน' : searchedUser.education_status}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="p-0">
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full border-collapse min-w-[800px]">
+                                                <thead>
+                                                    <tr>
+                                                        <th className="text-left text-[11.5px] uppercase tracking-wide text-slate-400 font-bold p-4 pb-3 border-b-2 border-purple-100 whitespace-nowrap pl-6">อุปกรณ์ที่ยืม</th>
+                                                        <th className="text-left text-[11.5px] uppercase tracking-wide text-slate-400 font-bold p-4 pb-3 border-b-2 border-purple-100 whitespace-nowrap">วันที่ยืม</th>
+                                                        <th className="text-left text-[11.5px] uppercase tracking-wide text-slate-400 font-bold p-4 pb-3 border-b-2 border-purple-100 whitespace-nowrap">กำหนดคืน/วันที่คืน</th>
+                                                        <th className="text-left text-[11.5px] uppercase tracking-wide text-slate-400 font-bold p-4 pb-3 border-b-2 border-purple-100 whitespace-nowrap">สถานะ</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {userHistoryData.length > 0 ? userHistoryData.map((history) => {
+                                                        const status = STATUS_MAP[history.status] || { label: history.status, cls: "bg-slate-100 text-slate-600" };
+                                                        return (
+                                                            <tr key={history.borrow_id} className="hover:bg-slate-50 transition border-b border-slate-100 last:border-0">
+                                                                <td className="py-4 px-4 pl-6">
+                                                                    <p className="text-[13px] font-bold text-slate-700">{history.equipment_name}</p>
+                                                                    <p className="text-[11.5px] text-slate-400">รหัส: {history.kit_code}</p>
+                                                                </td>
+                                                                <td className="py-4 px-4 text-[13px] text-slate-600">{formatThaiDate(history.borrow_date)}</td>
+                                                                <td className="py-4 px-4 text-[13px] text-slate-600">
+                                                                    {history.status === 'returned' && history.return_date ? formatThaiDate(history.return_date) : formatThaiDate(history.due_date)}
+                                                                </td>
+                                                                <td className="py-4 px-4">
+                                                                    <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${status.cls}`}>
+                                                                        {status.label}
+                                                                    </span>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    }) : (
+                                                        <tr>
+                                                            <td colSpan="4" className="py-8 text-center text-slate-400 text-[13px]">
+                                                                ไม่มีประวัติการยืม-คืนอุปกรณ์
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </>
                 ) : (

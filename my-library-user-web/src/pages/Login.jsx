@@ -1,7 +1,7 @@
 import { CreditCard, KeyRound, Info, BookOpen } from "lucide-react";
 import { useState } from "react";
 
-export default function UserLoginScreen({ onLoginSuccess = () => {} }) {
+export default function UserLoginScreen({ onLoginSuccess = () => { } }) {
     const [studentId, setStudentId] = useState("");
     const [citizenId, setCitizenId] = useState("");
     const [error, setError] = useState(false);
