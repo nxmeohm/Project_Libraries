@@ -474,6 +474,9 @@ app.get('/api/admin/users', async (req, res) => {
             FROM users u
             JOIN student_profiles sp ON u.user_id = sp.user_id
             WHERE u.role = 'student'
+            AND EXISTS (
+                SELECT 1 FROM borrowed b WHERE b.student_id = sp.student_id
+            )
             ORDER BY u.created_at DESC
         `;
         const [rows] = await pool.query(sql);
