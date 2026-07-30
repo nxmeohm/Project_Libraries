@@ -15,3 +15,9 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #d1c4e9; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #b39ddb; }
+
+/* Toast animation */
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}

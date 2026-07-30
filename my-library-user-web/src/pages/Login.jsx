@@ -27,7 +27,8 @@ export default function UserLoginScreen({ onLoginSuccess = () => { } }) {
         setIsLoading(true);
 
         try {
-            const response = await fetch("http://localhost:5000/api/login.php", {
+            const API_BASE = `http://${window.location.hostname}:5000/api`;
+            const response = await fetch(`${API_BASE}/auth/user-login`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ studentId, citizenId })
@@ -35,10 +36,10 @@ export default function UserLoginScreen({ onLoginSuccess = () => { } }) {
             const data = await response.json();
 
             if (data.success) {
-                onLoginSuccess(studentId);
+                onLoginSuccess(studentId, data.token);
             } else {
                 setError(true);
-                setErrorMessage("รหัสนักศึกษาหรือเลขบัตรประชาชนไม่ถูกต้อง");
+                setErrorMessage(data.message || "รหัสนักศึกษาหรือเลขบัตรประชาชนไม่ถูกต้อง");
             }
         } catch (err) {
             setError(true);

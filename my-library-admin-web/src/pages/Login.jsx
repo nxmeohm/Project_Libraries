@@ -40,8 +40,8 @@ export default function AdminLoginScreen({ onLoginSuccess = () => { } }) {
             const data = await response.json();
 
             if (data.success) {
-                // ส่งข้อมูลผู้ใช้งานกลับไปที่ App.jsx (เผื่อเอาไปใช้ต่อ)
-                onLoginSuccess(data.data);
+                // ส่งข้อมูลผู้ใช้งานและ JWT Token กลับไปที่ App.jsx
+                onLoginSuccess(data.data, data.token);
             } else {
                 setError(true);
                 setErrorMessage(data.message || "การเข้าสู่ระบบล้มเหลว");

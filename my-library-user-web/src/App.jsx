@@ -4,15 +4,24 @@ import UserLoginScreen from './pages/Login';
 import UserApp from './pages/UserApp';
 
 function App() {
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [studentId, setStudentId] = useState('');
+    // Session Persistence — ดึง token จาก sessionStorage เมื่อโหลดหน้า
+    const [isAuthenticated, setIsAuthenticated] = useState(() => {
+        return !!sessionStorage.getItem('user_token');
+    });
+    const [studentId, setStudentId] = useState(() => {
+        return sessionStorage.getItem('user_student_id') || '';
+    });
 
-    const handleLogin = (id) => {
+    const handleLogin = (id, token) => {
+        sessionStorage.setItem('user_token', token);
+        sessionStorage.setItem('user_student_id', id);
         setStudentId(id);
         setIsAuthenticated(true);
     };
 
     const handleLogout = () => {
+        sessionStorage.removeItem('user_token');
+        sessionStorage.removeItem('user_student_id');
         setIsAuthenticated(false);
         setStudentId('');
     };

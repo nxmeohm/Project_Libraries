@@ -75,13 +75,62 @@ const NAV_ITEMS = [
 ];
 
 /* ============================================================
+   Toast Component
+   ============================================================ */
+function Toast({ message, type, onClose }) {
+    const colors = {
+        success: 'bg-green-500',
+        error: 'bg-red-500',
+        info: 'bg-blue-500',
+        warning: 'bg-amber-500'
+    };
+    useEffect(() => {
+        const timer = setTimeout(onClose, 3500);
+        return () => clearTimeout(timer);
+    }, [onClose]);
+    return (
+        <div className={`fixed top-5 right-5 z-[9999] px-5 py-3 rounded-xl shadow-2xl text-white font-medium text-[14px] flex items-center gap-2 animate-[slideIn_0.3s_ease] ${colors[type] || colors.info}`} style={{animation: 'slideIn 0.3s ease'}}>
+            {type === 'success' && <Check size={18} />}
+            {type === 'error' && <X size={18} />}
+            <span>{message}</span>
+            <button onClick={onClose} className="ml-2 opacity-70 hover:opacity-100"><X size={14} /></button>
+        </div>
+    );
+}
+
+/* ============================================================
+   authFetch Helper — ส่ง JWT Token ไปกับทุก API Request
+   ============================================================ */
+const API_BASE = 'http://localhost:5000';
+async function authFetch(url, options = {}) {
+    const token = sessionStorage.getItem('admin_token');
+    const headers = {
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+    };
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    const res = await fetch(`${API_BASE}${url}`, { ...options, headers });
+    if (res.status === 401) {
+        sessionStorage.removeItem('admin_token');
+        sessionStorage.removeItem('admin_data');
+        window.location.href = '/login';
+        throw new Error('Session expired');
+    }
+    return res.json();
+}
+
+/* ============================================================
    Component
    ============================================================ */
-export default function AdminDashboardScreen({ onLogout }) {
+export default function AdminDashboardScreen({ adminData, onLogout }) {
     const [currentPage, setCurrentPage] = useState("dashboard");
     const [chartRange, setChartRange] = useState("day");
     const [dashboardData, setDashboardData] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [toast, setToast] = useState(null);
+    const showToast = (message, type = 'info') => setToast({ message, type });
 
     const [requestsData, setRequestsData] = useState([]);
     const [filterStatus, setFilterStatus] = useState("all");
@@ -89,8 +138,7 @@ export default function AdminDashboardScreen({ onLogout }) {
 
     const fetchRequests = () => {
         setIsRequestsLoading(true);
-        fetch("http://localhost:5000/api/admin/requests")
-            .then(res => res.json())
+        authFetch('/api/admin/requests')
             .then(data => {
                 if (data.success) {
                     setRequestsData(data.data);
@@ -117,19 +165,19 @@ export default function AdminDashboardScreen({ onLogout }) {
         }
 
         try {
-            const response = await fetch("http://localhost:5000/api/admin/update-request", {
+            const data = await authFetch('/api/admin/update-request', {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ id, action, fine })
             });
-            const data = await response.json();
             if (data.success) {
+                showToast('อัปเดตสถานะเรียบร้อยแล้ว', 'success');
                 fetchRequests();
             } else {
-                alert("Failed to update status");
+                showToast(data.message || 'ไม่สามารถอัปเดตสถานะได้', 'error');
             }
         } catch (err) {
             console.error("Error updating status", err);
+            showToast('เกิดข้อผิดพลาดในการอัปเดต', 'error');
         }
     };
 
@@ -172,8 +220,7 @@ export default function AdminDashboardScreen({ onLogout }) {
 
     const fetchEquipments = () => {
         setIsEquipmentsLoading(true);
-        fetch("http://localhost:5000/api/admin/equipments")
-            .then(res => res.json())
+        authFetch('/api/admin/equipments')
             .then(data => {
                 if (data.success) {
                     setEquipmentsData(data.data);
@@ -190,8 +237,7 @@ export default function AdminDashboardScreen({ onLogout }) {
 
     const fetchUsers = () => {
         setIsUsersLoading(true);
-        fetch("http://localhost:5000/api/admin/users")
-            .then(res => res.json())
+        authFetch('/api/admin/users')
             .then(data => {
                 if (data.success) {
                     setUsersData(data.data);
@@ -207,16 +253,14 @@ export default function AdminDashboardScreen({ onLogout }) {
     };
 
     const handleSaveEquipment = async () => {
-        if (!newEquip.name || !newEquip.kit_code) return alert("กรุณากรอกข้อมูลให้ครบถ้วน");
+        if (!newEquip.name || !newEquip.kit_code) return showToast('กรุณากรอกข้อมูลให้ครบถ้วน', 'warning');
         try {
-            const response = await fetch("http://localhost:5000/api/admin/equipments", {
+            const data = await authFetch('/api/admin/equipments', {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(newEquip)
             });
-            const data = await response.json();
             if (data.success) {
-                alert("เพิ่มอุปกรณ์สำเร็จ");
+                showToast('เพิ่มอุปกรณ์สำเร็จ', 'success');
                 setIsAddModalOpen(false);
                 setNewEquip({
                     name: "", kit_code: "", category: "อุปกรณ์อิเล็กทรอนิกส์",
@@ -225,60 +269,56 @@ export default function AdminDashboardScreen({ onLogout }) {
                 });
                 fetchEquipments();
             } else {
-                alert("เกิดข้อผิดพลาด: " + data.message);
+                showToast('เกิดข้อผิดพลาด: ' + data.message, 'error');
             }
         } catch (err) {
             console.error(err);
-            alert("ไม่สามารถติดต่อเซิร์ฟเวอร์ได้");
+            showToast('ไม่สามารถติดต่อเซิร์ฟเวอร์ได้', 'error');
         }
     };
 
     const handleUpdateEquipment = async () => {
-        if (!editEquip.name || !editEquip.kit_code) return alert("กรุณากรอกข้อมูลให้ครบถ้วน");
+        if (!editEquip.name || !editEquip.kit_code) return showToast('กรุณากรอกข้อมูลให้ครบถ้วน', 'warning');
         try {
-            const response = await fetch(`http://localhost:5000/api/admin/equipments/${editEquip.equipment_id}`, {
+            const data = await authFetch(`/api/admin/equipments/${editEquip.equipment_id}`, {
                 method: "PUT",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(editEquip)
             });
-            const data = await response.json();
             if (data.success) {
-                alert("แก้ไขอุปกรณ์สำเร็จ");
+                showToast('แก้ไขอุปกรณ์สำเร็จ', 'success');
                 setIsEditModalOpen(false);
                 setEditEquip(null);
                 fetchEquipments();
             } else {
-                alert("เกิดข้อผิดพลาด: " + data.message);
+                showToast('เกิดข้อผิดพลาด: ' + data.message, 'error');
             }
         } catch (err) {
             console.error(err);
-            alert("ไม่สามารถติดต่อเซิร์ฟเวอร์ได้");
+            showToast('ไม่สามารถติดต่อเซิร์ฟเวอร์ได้', 'error');
         }
     };
 
     const handleDeleteEquipment = async (id) => {
         if (!window.confirm("คุณต้องการลบอุปกรณ์นี้ใช่หรือไม่?")) return;
         try {
-            const response = await fetch(`http://localhost:5000/api/admin/equipments/${id}`, {
+            const data = await authFetch(`/api/admin/equipments/${id}`, {
                 method: "DELETE"
             });
-            const data = await response.json();
             if (data.success) {
-                alert("ลบอุปกรณ์สำเร็จ");
+                showToast('ลบอุปกรณ์สำเร็จ', 'success');
                 fetchEquipments();
             } else {
-                alert("ไม่สามารถลบได้: " + data.message);
+                showToast('ไม่สามารถลบได้: ' + data.message, 'error');
             }
         } catch (err) {
             console.error(err);
-            alert("ไม่สามารถติดต่อเซิร์ฟเวอร์ได้");
+            showToast('ไม่สามารถติดต่อเซิร์ฟเวอร์ได้', 'error');
         }
     };
 
     const fetchNotifications = () => {
         setIsNotificationsLoading(true);
-        fetch("http://localhost:5000/api/admin/notifications")
-            .then(res => res.json())
+        authFetch('/api/admin/notifications')
             .then(data => {
                 if (data.success) {
                     setNotificationsData(data.data);
@@ -292,37 +332,34 @@ export default function AdminDashboardScreen({ onLogout }) {
     };
 
     const handleSendNotification = async () => {
-        if (!newNotification.title || !newNotification.message) return alert("กรุณากรอกหัวข้อและข้อความให้ครบถ้วน");
+        if (!newNotification.title || !newNotification.message) return showToast('กรุณากรอกหัวข้อและข้อความให้ครบถ้วน', 'warning');
         try {
-            const response = await fetch("http://localhost:5000/api/admin/notifications", {
+            const data = await authFetch('/api/admin/notifications', {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(newNotification)
             });
-            const data = await response.json();
             if (data.success) {
-                alert("ส่งการแจ้งเตือนสำเร็จ");
+                showToast('ส่งการแจ้งเตือนสำเร็จ', 'success');
                 setNewNotification({ target: "all", title: "", message: "" });
                 fetchNotifications();
             } else {
-                alert("เกิดข้อผิดพลาด: " + data.message);
+                showToast('เกิดข้อผิดพลาด: ' + data.message, 'error');
             }
         } catch (err) {
             console.error(err);
-            alert("ไม่สามารถติดต่อเซิร์ฟเวอร์ได้");
+            showToast('ไม่สามารถติดต่อเซิร์ฟเวอร์ได้', 'error');
         }
     };
 
     const handleSearchUserHistory = async () => {
-        if (!historySearchId.trim()) return alert("กรุณากรอกรหัสนักศึกษา");
+        if (!historySearchId.trim()) return showToast('กรุณากรอกรหัสนักศึกษา', 'warning');
         setIsHistoryLoading(true);
         setHistoryError("");
         setSearchedUser(null);
         setUserHistoryData([]);
 
         try {
-            const response = await fetch(`http://localhost:5000/api/admin/user-history/${historySearchId.trim()}`);
-            const data = await response.json();
+            const data = await authFetch(`/api/admin/user-history/${historySearchId.trim()}`);
             if (data.success) {
                 setSearchedUser(data.data.user);
                 setUserHistoryData(data.data.history);
@@ -340,8 +377,7 @@ export default function AdminDashboardScreen({ onLogout }) {
     useEffect(() => {
         if (currentPage === "dashboard") {
             setIsLoading(true);
-            fetch("http://localhost:5000/api/admin/dashboard")
-                .then(res => res.json())
+            authFetch('/api/admin/dashboard')
                 .then(data => {
                     if (data.success) {
                         setDashboardData(data.data);
@@ -393,6 +429,8 @@ export default function AdminDashboardScreen({ onLogout }) {
 
     return (
         <div className="min-h-screen bg-purple-50 flex font-sans">
+            {/* ================= TOAST ================= */}
+            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             {/* ================= SIDEBAR ================= */}
             <div className="w-[236px] shrink-0 bg-[#3D2B56] text-white p-4 flex flex-col sticky top-0 h-screen">
                 <div className="flex items-center gap-2.5 px-2 pt-1.5 pb-6">
