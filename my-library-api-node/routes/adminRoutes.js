@@ -245,7 +245,21 @@ router.post('/update-request', validate(updateRequestSchema), async (req, res) =
             return res.status(404).json({ success: false, message: "ไม่พบรายการยืมนี้" });
         }
 
-        if (action === 'return' || action === 'reject' || action === 'lost') {
+        if (action === 'approve') {
+            const equip_id = borrowInfo.equipment_id;
+            const [item] = await connection.query(
+                "SELECT item_id FROM equipment_items WHERE equipment_id = ? AND status = 'available' LIMIT 1 FOR UPDATE",
+                [equip_id]
+            );
+            if (item.length === 0) {
+                await connection.rollback();
+                connection.release();
+                return res.status(400).json({ success: false, message: "อุปกรณ์หมด ไม่สามารถอนุมัติได้" });
+            }
+            await connection.query("UPDATE equipment_items SET status = 'borrowed' WHERE item_id = ?", [item[0].item_id]);
+        }
+
+        if (action === 'return' || action === 'lost' || (action === 'reject' && borrowInfo.status === 'borrowed')) {
             // If it was already returned/rejected, don't free another item
             if (borrowInfo.status !== 'returned' && borrowInfo.status !== 'rejected' && borrowInfo.status !== 'damaged_lost') {
                 const equip_id = borrowInfo.equipment_id;

@@ -1,0 +1,1 @@
+﻿const pool = require("./db"); async function run() { await pool.query("UPDATE equipment_items SET status = 'available' WHERE status = 'reserved'"); console.log("Fixed DB"); process.exit(0); } run().catch(console.error);

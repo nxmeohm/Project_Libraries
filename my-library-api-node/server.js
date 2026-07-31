@@ -122,13 +122,8 @@ cron.schedule('* * * * *', async () => {
         for (const row of expiredRows) {
             await pool.query("UPDATE borrowed SET status = 'rejected' WHERE id = ?", [row.id]);
 
-            const [item] = await pool.query("SELECT item_id FROM equipment_items WHERE equipment_id = ? AND status = 'borrowed' LIMIT 1", [row.equipment_id]);
-            if (item.length > 0) {
-                await pool.query("UPDATE equipment_items SET status = 'available' WHERE item_id = ?", [item[0].item_id]);
-            }
-
             const notifTitle = "ยกเลิกคำขอยืมอุปกรณ์อัตโนมัติ";
-            const notifMsg = `คำขอยืมอุปกรณ์ "${row.equipment_name}" ถูกยกเลิกอัตโนมัติ เนื่องจากเกินกำหนดเวลามารับ 30 นาที อุปกรณ์ถูกคืนเข้าสู่คลังเรียบร้อยแล้ว`;
+            const notifMsg = `คำขอยืมอุปกรณ์ "${row.equipment_name}" ถูกยกเลิกอัตโนมัติ เนื่องจากเกินกำหนดเวลามารับ 30 นาที`;
             if (row.student_email) {
                 await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [row.student_email, notifTitle, notifMsg]);
             }

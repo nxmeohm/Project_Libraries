@@ -133,7 +133,7 @@ router.get('/get_borrowed.php', async (req, res) => {
     const student_id = req.query.student_id;
     if (!student_id) return res.status(400).json({ success: false, message: "student_id is required" });
     try {
-        const sql = "SELECT b.id, b.student_id, b.equipment_id, b.borrow_date, b.return_date, b.lost_date, b.lost_note, b.pickup_time, b.reservation_expires_at, b.fine_amount, b.status, e.name, e.equipment_img, e.price FROM borrowed b LEFT JOIN equipments e ON b.equipment_id = e.equipment_id WHERE b.student_id = ? ORDER BY b.borrow_date DESC";
+        const sql = "SELECT b.id, b.student_id, b.equipment_id, b.borrow_date, b.return_date, b.lost_date, b.lost_note, b.pickup_time, b.reservation_expires_at, b.fine_amount, b.status, e.name, e.equipment_img, e.price, e.borrow_days FROM borrowed b LEFT JOIN equipments e ON b.equipment_id = e.equipment_id WHERE b.student_id = ? ORDER BY b.borrow_date DESC";
         const [rows] = await pool.query(sql, [student_id]);
         res.json({ success: true, data: rows });
     } catch (error) {
@@ -203,7 +203,6 @@ router.post('/checkout.php', validate(checkoutSchema), async (req, res) => {
             "INSERT INTO borrowed (student_id, equipment_id, borrow_date, pickup_time, reservation_expires_at, status) VALUES (?, ?, NOW(), ?, ?, 'pending')",
             [student_id, equipment_id, formattedPTime, formattedExpTime]
         );
-        await connection.query("UPDATE equipment_items SET status = 'borrowed' WHERE item_id = ?", [item_id]);
 
         await connection.commit();
         connection.release();

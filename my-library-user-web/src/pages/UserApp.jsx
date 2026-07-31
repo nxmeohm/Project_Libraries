@@ -73,8 +73,14 @@ const matchCategory = (name, cat) => {
 
 const getItemStatus = (item) => {
     const today = new Date();
+    today.setHours(0,0,0,0);
     if (item.status === 'fine_paid') return { label: 'ชำระค่าปรับแล้ว', type: 'fine_paid', fine: 0, overdueDays: 0, progress: 100, dueDate: new Date() };
-    if (item.status === 'damaged_lost') return { label: 'รอชำระค่าปรับ', type: 'damaged_lost', fine: 0, overdueDays: 0, progress: 100, dueDate: new Date() };
+    if (item.status === 'damaged_lost') {
+        const fine = parseFloat(item.fine_amount) || 0;
+        return { label: 'รอชำระค่าปรับ', type: 'damaged_lost', fine, overdueDays: 0, progress: 100, dueDate: new Date() };
+    }
+    if (item.status === 'rejected') return { label: 'ยกเลิกคำขอ', type: 'rejected', fine: 0, overdueDays: 0, progress: 0, dueDate: new Date() };
+    if (item.status === 'pending') return { label: 'รอรับอุปกรณ์', type: 'pending', fine: 0, overdueDays: 0, progress: 0, dueDate: new Date() };
     if (item.status === 'returned') {
         const borrowDate = new Date(item.borrow_date);
         const returnDate = item.return_date ? new Date(item.return_date) : null;
@@ -82,7 +88,8 @@ const getItemStatus = (item) => {
         dueDate.setDate(dueDate.getDate() + (item.borrow_days || 7));
         if (returnDate && returnDate > dueDate) {
             const overdueDays = daysBetween(dueDate, returnDate);
-            return { label: `คืนช้า ${overdueDays} วัน`, type: 'returned-late', fine: 0, overdueDays, progress: 100, dueDate };
+            const recordedFine = parseFloat(item.fine_amount) || (overdueDays * 20);
+            return { label: `คืนแล้ว (คืนช้า ${overdueDays} วัน · ค่าปรับ ${recordedFine} ฿)`, type: 'returned-late', fine: 0, overdueDays, progress: 100, dueDate };
         }
         return { label: 'คืนแล้ว', type: 'returned', fine: 0, overdueDays: 0, progress: 100, dueDate };
     }
@@ -93,8 +100,8 @@ const getItemStatus = (item) => {
     const daysLeft = daysBetween(today, dueDate);
     const elapsed = daysBetween(borrowDate, today);
     const progress = Math.min(100, Math.max(0, (elapsed / borrowDays) * 100));
-    if (daysLeft < 0) {
-        const overdueDays = Math.abs(daysLeft);
+    if (daysLeft < 0 || item.status === 'overdue') {
+        const overdueDays = Math.max(1, Math.abs(daysLeft));
         return { label: `เกิน ${overdueDays} วัน`, type: 'overdue', fine: overdueDays * 20, overdueDays, progress: 100, dueDate };
     }
     if (daysLeft === 0) return { label: 'ครบกำหนดวันนี้', type: 'due-today', fine: 0, overdueDays: 0, progress, dueDate };
@@ -195,6 +202,7 @@ export default function UserApp({ studentId, onLogout }) {
     const [cartItems, setCartItems] = useState([]);
     const [checkoutSuccess, setCheckoutSuccess] = useState(false);
     const [transactionId, setTransactionId] = useState("");
+    const [transactionDetails, setTransactionDetails] = useState(null);
     const [pickupDate, setPickupDate] = useState(new Date().toISOString().split('T')[0]);
     const [pickupTime, setPickupTime] = useState(`${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`);
 
@@ -396,6 +404,23 @@ export default function UserApp({ studentId, onLogout }) {
         }
         if (successItems.length > 0) {
             const txId = 'LB' + Math.floor(100000 + Math.random() * 900000);
+            
+            let borrowTime;
+            try {
+                borrowTime = new Date().toLocaleString('th-TH', { 
+                    timeZone: 'Asia/Bangkok', day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' 
+                });
+            } catch(e) {
+                borrowTime = new Date().toLocaleString('th-TH');
+            }
+            
+            setTransactionDetails({
+                transactionId: txId,
+                borrowTime: borrowTime,
+                pickupTime: `${pickupDate} ${pickupTime}`,
+                items: successItems
+            });
+
             setTransactionId(txId);
             setCheckoutSuccess(true);
             setCartItems([]);
@@ -430,7 +455,7 @@ export default function UserApp({ studentId, onLogout }) {
         if (statusTab === 'กำลังยืม') return item.status === 'borrowed';
         if (statusTab === 'เกินกำหนด') {
             const s = getItemStatus(item);
-            return s.type === 'overdue' || s.type === 'returned-late';
+            return item.status === 'overdue' || (item.status === 'borrowed' && s.type === 'overdue') || item.status === 'damaged_lost';
         }
         if (statusTab === 'สูญหาย/ชำรุด') return item.status === 'damaged_lost';
         if (statusTab === 'คืนแล้ว') return item.status === 'returned' || item.status === 'fine_paid';
@@ -750,25 +775,64 @@ export default function UserApp({ studentId, onLogout }) {
                             <p className="text-[12.5px] text-slate-400 mt-0.5">ตรวจสอบรายการก่อนยืนยันการยืม</p>
                         </div>
                         <div className="p-8 pt-6 space-y-6">
-                            {checkoutSuccess ? (
-                                /* Success Receipt */
-                                <div className="bg-white border border-green-200 rounded-3xl p-8 text-center max-w-lg mx-auto shadow-sm">
-                                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                        <CheckCircle size={32} className="text-green-600" />
+                            {checkoutSuccess && transactionDetails ? (
+                                /* Success Receipt matching Mobile App */
+                                <div className="bg-white border border-green-200 rounded-3xl p-8 max-w-lg mx-auto shadow-sm">
+                                    <div className="text-center mb-6">
+                                        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                            <CheckCircle size={32} className="text-green-600" />
+                                        </div>
+                                        <h2 className="text-xl font-bold text-slate-800 mb-1">ยืมสำเร็จ!</h2>
+                                        <p className="text-slate-500 text-[13px]">บันทึกรายการยืมของคุณเรียบร้อยแล้ว</p>
                                     </div>
-                                    <h2 className="text-xl font-bold text-slate-800 mb-1">ยืนยันยืมอุปกรณ์สำเร็จ!</h2>
-                                    <p className="text-slate-500 text-[13px] mb-4">รายการของคุณอยู่ในระบบแล้ว รอเจ้าหน้าที่อนุมัติ</p>
-                                    <div className="bg-slate-50 rounded-2xl p-4 mb-5">
-                                        <p className="text-[12px] text-slate-400">Transaction ID</p>
-                                        <p className="text-lg font-bold text-[#3D2B56] font-mono">{transactionId}</p>
+                                    
+                                    <div className="bg-[#F9F8FD] rounded-2xl p-5 mb-6 border border-purple-50 space-y-3">
+                                        <div className="flex justify-between items-center pb-3 border-b border-purple-100/50">
+                                            <span className="text-sm text-slate-500">เลขที่ทำรายการ</span>
+                                            <span className="text-[15px] font-bold text-slate-800 font-mono">{transactionDetails.transactionId}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center pb-3 border-b border-purple-100/50">
+                                            <span className="text-sm text-slate-500">วันเวลาที่ยืม</span>
+                                            <span className="text-sm font-bold text-slate-800">{transactionDetails.borrowTime}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center pb-3 border-b border-purple-100/50">
+                                            <span className="text-sm text-slate-500">กำหนดรับอุปกรณ์</span>
+                                            <span className="text-sm font-bold text-slate-800">{transactionDetails.pickupTime}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-sm text-slate-500">จำนวนรายการ</span>
+                                            <span className="text-sm font-bold text-slate-800">{transactionDetails.items.length} ชิ้น</span>
+                                        </div>
                                     </div>
+
+                                    <div className="mb-6">
+                                        <h3 className="font-bold text-slate-800 mb-3 text-sm">รายการอุปกรณ์ที่ยืม</h3>
+                                        <div className="space-y-3">
+                                            {transactionDetails.items.map((item, idx) => (
+                                                <div key={idx} className="flex gap-3 bg-white border border-slate-100 p-3 rounded-xl shadow-sm">
+                                                    <div className="w-12 h-12 bg-slate-50 rounded-lg overflow-hidden shrink-0 flex items-center justify-center border border-slate-100">
+                                                        {item.image_url ? (
+                                                            <img src={`${IMG_BASE}${item.image_url}`} alt={item.name} className="w-full h-full object-contain" />
+                                                        ) : (
+                                                            <Package size={20} className="text-slate-300" />
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1 overflow-hidden flex flex-col justify-center">
+                                                        <div className="text-[13px] font-bold text-slate-800 truncate">{item.name}</div>
+                                                        <div className="text-[11px] text-slate-500 truncate mt-0.5">{item.category} • {item.kit_code || item.equipment_id}</div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
                                     <div className="flex gap-3 justify-center">
                                         <button onClick={() => { setCheckoutSuccess(false); setCurrentPage("status"); }}
-                                            className="px-5 py-2.5 bg-[#3D2B56] text-white rounded-xl text-[13px] font-bold hover:bg-[#2d1f40] transition">
+                                            className="flex-1 py-3 bg-[#3D2B56] text-white rounded-xl text-[13px] font-bold hover:bg-[#2d1f40] transition">
                                             ดูรายการของฉัน
                                         </button>
                                         <button onClick={() => { setCheckoutSuccess(false); setCurrentPage("dashboard"); }}
-                                            className="px-5 py-2.5 bg-white border border-purple-100 text-slate-600 rounded-xl text-[13px] font-bold hover:bg-slate-50 transition">
+                                            className="flex-1 py-3 bg-white border border-purple-100 text-slate-600 rounded-xl text-[13px] font-bold hover:bg-slate-50 transition">
                                             กลับหน้าหลัก
                                         </button>
                                     </div>
