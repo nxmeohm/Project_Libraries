@@ -162,6 +162,17 @@ router.post('/checkout.php', validate(checkoutSchema), async (req, res) => {
             return res.json({ success: false, message: "นักศึกษา 1 คน ยืม/จองอุปกรณ์ชิ้นนี้ได้สูงสุด 1 ชิ้น" });
         }
 
+        // Limit to 5 items per day
+        const [dailyCount] = await connection.query(
+            "SELECT COUNT(id) as total FROM borrowed WHERE student_id = ? AND DATE(borrow_date) = CURDATE() AND status != 'rejected'",
+            [student_id]
+        );
+        if (dailyCount[0].total >= 5) {
+            await connection.rollback();
+            connection.release();
+            return res.json({ success: false, message: "ระบบจำกัดการยืมอุปกรณ์สูงสุด 5 ชิ้นต่อวัน" });
+        }
+
         // Lock available item with FOR UPDATE to prevent race condition
         const [avail] = await connection.query(
             "SELECT item_id FROM equipment_items WHERE equipment_id = ? AND status = 'available' LIMIT 1 FOR UPDATE",
@@ -208,6 +219,16 @@ router.post('/checkout.php', validate(checkoutSchema), async (req, res) => {
         connection.release();
 
         req.app.get('io').emit('data_updated');
+        
+        // Notify user via Email and In-App
+        const notifTitle = "ส่งคำขอยืมสำเร็จ";
+        const notifMsg = `ระบบได้รับคำขอยืมอุปกรณ์แล้ว กรุณามารับอุปกรณ์ภายใน 30 นาทีจากเวลานัดรับ (${pTime.toLocaleTimeString('th-TH', {timeZone: 'Asia/Bangkok'})})`;
+        const [studentProfile] = await pool.query("SELECT email FROM student_profiles WHERE student_id = ?", [student_id]);
+        if (studentProfile.length > 0 && studentProfile[0].email) {
+            await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [studentProfile[0].email, notifTitle, notifMsg]);
+            mailer.sendManualNotification(studentProfile[0].email, notifTitle, notifMsg);
+        }
+
         res.json({ success: true, message: "ส่งคำขอยืมอุปกรณ์สำเร็จ กรุณามารับอุปกรณ์ภายใน 30 นาทีจากเวลานัดรับ" });
     } catch (error) {
         await connection.rollback();
@@ -296,6 +317,7 @@ router.post('/report_lost.php', validate(reportLostSchema), async (req, res) => 
         const notifMsg = `คุณได้แจ้งอุปกรณ์ "${item.equipment_name}" สูญหาย/ชำรุด (วันที่หาย: ${lost_date}) กรุณาติดต่อบรรณารักษ์เพื่อชำระค่าปรับ`;
         if (item.student_email) {
             await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [item.student_email, notifTitle, notifMsg]);
+            mailer.sendManualNotification(item.student_email, notifTitle, notifMsg);
         }
 
         req.app.get('io').emit('data_updated');

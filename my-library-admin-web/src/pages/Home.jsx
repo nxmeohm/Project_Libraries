@@ -69,9 +69,8 @@ const NAV_ITEMS = [
     { key: "dashboard", label: "แดชบอร์ด", icon: LayoutGrid },
     { key: "requests", label: "คำขอยืม-คืน", icon: CheckSquare },
     { key: "equipment", label: "คลังอุปกรณ์", icon: Package },
-    { key: "users", label: "ผู้ใช้งาน", icon: Users },
+    { key: "users", label: "ผู้ใช้งาน / ประวัติ", icon: Users },
     { key: "notify", label: "ประกาศ", icon: Bell },
-    { key: "userhistory", label: "ประวัติผู้ใช้งาน", icon: Search },
 ];
 
 /* ============================================================
@@ -200,12 +199,27 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
         message: ""
     });
 
-    // User History state
-    const [historySearchId, setHistorySearchId] = useState("");
-    const [searchedUser, setSearchedUser] = useState(null);
-    const [userHistoryData, setUserHistoryData] = useState([]);
-    const [isHistoryLoading, setIsHistoryLoading] = useState(false);
-    const [historyError, setHistoryError] = useState("");
+    // User Modal History state
+    const [modalUserHistory, setModalUserHistory] = useState([]);
+    const [isModalHistoryLoading, setIsModalHistoryLoading] = useState(false);
+    const [modalHistorySearchDate, setModalHistorySearchDate] = useState("");
+
+    const fetchUserHistoryForModal = async (studentId) => {
+        setIsModalHistoryLoading(true);
+        try {
+            const data = await authFetch(`/api/admin/user-history/${studentId}`);
+            if (data.success) {
+                setModalUserHistory(data.data.history);
+            } else {
+                setModalUserHistory([]);
+            }
+        } catch (error) {
+            console.error(error);
+            setModalUserHistory([]);
+        } finally {
+            setIsModalHistoryLoading(false);
+        }
+    };
 
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [newEquip, setNewEquip] = useState({
@@ -351,29 +365,6 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
         }
     };
 
-    const handleSearchUserHistory = async () => {
-        if (!historySearchId.trim()) return showToast('กรุณากรอกรหัสนักศึกษา', 'warning');
-        setIsHistoryLoading(true);
-        setHistoryError("");
-        setSearchedUser(null);
-        setUserHistoryData([]);
-
-        try {
-            const data = await authFetch(`/api/admin/user-history/${historySearchId.trim()}`);
-            if (data.success) {
-                setSearchedUser(data.data.user);
-                setUserHistoryData(data.data.history);
-            } else {
-                setHistoryError(data.message || "ไม่พบข้อมูล");
-            }
-        } catch (err) {
-            console.error(err);
-            setHistoryError("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
-        } finally {
-            setIsHistoryLoading(false);
-        }
-    };
-
     useEffect(() => {
         if (currentPage === "dashboard") {
             setIsLoading(true);
@@ -399,8 +390,9 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
         }
     }, [currentPage]);
 
-    const chartData = CHART_DATA[chartRange];
-    const maxVal = Math.max(...chartData.map((d) => d.v));
+    const activeChartSource = dashboardData?.chartData || CHART_DATA;
+    const chartData = activeChartSource[chartRange];
+    const maxVal = Math.max(...chartData.map((d) => d.v), 5);
 
     const currentKpiData = dashboardData ? [
         { key: "today", label: "ยืมวันนี้", value: dashboardData.kpi.today.toString(), icon: CheckSquare, tone: "purple" },
@@ -427,23 +419,23 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
 
     const filteredRequests = requestsData.filter(r => filterStatus === "all" || r.status === filterStatus);
 
+    const filteredModalHistory = modalUserHistory.filter(h => {
+        if (!modalHistorySearchDate) return true;
+        const s = modalHistorySearchDate.toLowerCase();
+        const b = formatThaiDate(h.borrow_date).toLowerCase();
+        const r = h.return_date ? formatThaiDate(h.return_date).toLowerCase() : "-";
+        const n = h.equipment_name ? h.equipment_name.toLowerCase() : "";
+        return b.includes(s) || r.includes(s) || n.includes(s);
+    });
+
     return (
         <div className="min-h-screen bg-purple-50 flex font-sans">
             {/* ================= TOAST ================= */}
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             {/* ================= SIDEBAR ================= */}
             <div className="w-[236px] shrink-0 bg-[#3D2B56] text-white p-4 flex flex-col sticky top-0 h-screen">
-                <div className="flex items-center gap-2.5 px-2 pt-1.5 pb-6">
-                    <div className="w-8.5 h-8.5 w-[34px] h-[34px] rounded-[10px] bg-white/15 flex items-center justify-center shrink-0">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                            <path d="M4 5.5C4 4.67 4.67 4 5.5 4H11V19H5.5C4.67 19 4 18.33 4 17.5V5.5Z" fill="white" fillOpacity="0.9" />
-                            <path d="M13 4H18.5C19.33 4 20 4.67 20 5.5V17.5C20 18.33 19.33 19 18.5 19H13V4Z" fill="white" fillOpacity="0.6" />
-                        </svg>
-                    </div>
-                    <div>
-                        <div className="font-bold text-[16px] leading-tight">Libraries</div>
-                        <div className="text-[10.5px] text-purple-300">ระบบผู้ดูแลระบบ</div>
-                    </div>
+                <div className="flex items-center px-2 pt-0 pb-2 justify-center">
+                    <img src="/logo.png" alt="Libraries SUT" className="h-28 object-contain" />
                 </div>
 
                 <div className="flex flex-col gap-1 flex-1">
@@ -1020,6 +1012,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                                         className="hover:bg-purple-50 transition border-b border-purple-50 last:border-0 cursor-pointer"
                                                         onClick={() => {
                                                             setSelectedUser(user);
+                                                            fetchUserHistoryForModal(user.student_id);
                                                             setIsUserModalOpen(true);
                                                         }}
                                                     >
@@ -1045,14 +1038,15 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                         {/* User Detail Modal */}
                         {isUserModalOpen && selectedUser && (
                             <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                                <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200">
-                                    <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                <div className="bg-white rounded-3xl w-full max-w-6xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200 max-h-[90vh] flex flex-col">
+                                    <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
                                         <h3 className="text-lg font-bold text-slate-800">ข้อมูลส่วนตัว</h3>
                                         <button onClick={() => setIsUserModalOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
                                             <X className="w-5 h-5 text-slate-500" />
                                         </button>
                                     </div>
-                                    <div className="p-6 space-y-2">
+                                    <div className="flex-1 overflow-y-auto flex flex-col md:flex-row">
+                                        <div className="p-6 space-y-2 w-full md:w-[35%] shrink-0 md:border-r border-b md:border-b-0 border-slate-100 bg-white">
                                         <div className="flex flex-col items-center mb-6">
                                             <div className="w-24 h-24 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 mb-3 shadow-inner overflow-hidden">
                                                 {selectedUser.student_img ? (
@@ -1090,8 +1084,68 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                                 </span>
                                             </div>
                                         </div>
+                                        </div>
+                                        <div className="bg-slate-50 p-6 flex-1 w-full md:w-[65%]">
+                                            <div className="flex justify-between items-center mb-4 gap-4">
+                                                <h4 className="text-sm font-bold text-slate-800">ประวัติการยืม-คืน</h4>
+                                                <div className="relative">
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="ค้นหาวันที่, อุปกรณ์..."
+                                                        className="text-[12.5px] border border-slate-200 rounded-xl px-4 py-2 outline-none focus:border-purple-400 text-slate-600 bg-white w-48 shadow-sm"
+                                                        value={modalHistorySearchDate}
+                                                        onChange={(e) => setModalHistorySearchDate(e.target.value)}
+                                                    />
+                                                    {modalHistorySearchDate && (
+                                                        <button onClick={() => setModalHistorySearchDate("")} className="absolute right-2 top-1/2 -translate-y-1/2 bg-white px-1 text-slate-400 hover:text-slate-600">
+                                                            <X size={14} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            {isModalHistoryLoading ? (
+                                                <div className="text-center py-6 text-slate-400 text-[13px]">กำลังโหลดประวัติ...</div>
+                                            ) : (
+                                                <div className="border border-slate-200 rounded-xl bg-white overflow-hidden">
+                                                <table className="w-full border-collapse">
+                                                    <thead className="bg-slate-50 sticky top-0">
+                                                        <tr>
+                                                            <th className="text-left text-[11.5px] uppercase text-slate-500 font-bold p-3 border-b border-slate-200 pl-4 w-full">อุปกรณ์</th>
+                                                            <th className="text-left text-[11.5px] uppercase text-slate-500 font-bold p-3 border-b border-slate-200 whitespace-nowrap px-4">วันที่ยืม</th>
+                                                            <th className="text-left text-[11.5px] uppercase text-slate-500 font-bold p-3 border-b border-slate-200 whitespace-nowrap px-4">วันที่คืน</th>
+                                                            <th className="text-left text-[11.5px] uppercase text-slate-500 font-bold p-3 border-b border-slate-200 whitespace-nowrap">สถานะ</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {filteredModalHistory.length > 0 ? filteredModalHistory.map((h) => {
+                                                            const hStatus = STATUS_MAP[h.status] || { label: h.status, cls: "bg-slate-100 text-slate-600" };
+                                                            return (
+                                                                <tr key={h.borrow_id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                                                                    <td className="p-3 pl-4">
+                                                                        <div className="text-[12.5px] font-bold text-slate-700">{h.equipment_name}</div>
+                                                                        <div className="text-[11px] text-slate-400">รหัส: {h.kit_code}</div>
+                                                                    </td>
+                                                                    <td className="p-3 px-4 text-[13px] text-slate-600 whitespace-nowrap">{formatThaiDate(h.borrow_date)}</td>
+                                                                    <td className="p-3 px-4 text-[13px] text-slate-600 whitespace-nowrap">{h.return_date ? formatThaiDate(h.return_date) : '-'}</td>
+                                                                    <td className="p-3 whitespace-nowrap">
+                                                                        <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${hStatus.cls}`}>
+                                                                            {hStatus.label}
+                                                                        </span>
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        }) : (
+                                                            <tr>
+                                                                <td colSpan="4" className="p-6 text-center text-slate-400 text-[12.5px]">ไม่มีประวัติการยืมอุปกรณ์</td>
+                                                            </tr>
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+                                    <div className="p-4 border-t border-slate-100 bg-white flex justify-end shrink-0">
                                         <button onClick={() => setIsUserModalOpen(false)} className="px-5 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl font-medium text-[13px] hover:bg-slate-50 transition shadow-sm">
                                             ปิดหน้าต่าง
                                         </button>
@@ -1171,115 +1225,6 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                     </div>
                                 )}
                             </div>
-                        </div>
-                    </>
-                ) : currentPage === "userhistory" ? (
-                    <>
-                        <div className="bg-white border-b border-purple-100 px-8 py-5 sticky top-0 z-10">
-                            <h1 className="text-xl font-semibold">ประวัติผู้ใช้งาน</h1>
-                            <p className="text-[12.5px] text-slate-400 mt-0.5">ค้นหาด้วยรหัสนักศึกษาเพื่อดูข้อมูลและประวัติการยืม-คืนทั้งหมด</p>
-                        </div>
-                        <div className="p-8 pt-6 space-y-6">
-                            {/* Search Block */}
-                            <div className="bg-white border border-purple-100 rounded-3xl shadow-sm p-6 flex gap-3 items-center">
-                                <input
-                                    type="text"
-                                    placeholder="กรอกรหัสนักศึกษา เช่น B6501234..."
-                                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-[13.5px] outline-none focus:border-purple-400 focus:bg-white transition"
-                                    value={historySearchId}
-                                    onChange={(e) => setHistorySearchId(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleSearchUserHistory()}
-                                />
-                                <button
-                                    onClick={handleSearchUserHistory}
-                                    disabled={isHistoryLoading}
-                                    className="bg-[#3b2075] text-white px-6 py-3 rounded-xl text-[13.5px] font-semibold flex items-center gap-2 hover:bg-[#2d175e] transition disabled:opacity-70"
-                                >
-                                    <Search size={16} /> ค้นหา
-                                </button>
-                            </div>
-
-                            {/* Error Message */}
-                            {historyError && (
-                                <div className="bg-red-50 text-red-600 p-4 rounded-2xl text-[13px] border border-red-100 text-center">
-                                    {historyError}
-                                </div>
-                            )}
-
-                            {/* Loading State */}
-                            {isHistoryLoading && (
-                                <div className="text-center text-slate-400 py-10">กำลังค้นหาข้อมูล...</div>
-                            )}
-
-                            {/* Results Block */}
-                            {searchedUser && (
-                                <div className="bg-white border border-purple-100 rounded-3xl shadow-sm overflow-hidden">
-                                    <div className="bg-purple-50 p-6 flex items-center justify-between border-b border-purple-100">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-12 h-12 bg-[#3b2075] rounded-full flex items-center justify-center text-white font-bold text-lg">
-                                                {searchedUser.name_th.charAt(0)}
-                                            </div>
-                                            <div>
-                                                <h2 className="text-lg font-bold text-slate-800">{searchedUser.name_th}</h2>
-                                                <p className="text-[13px] text-slate-600">
-                                                    รหัสนักศึกษา: <span className="font-semibold text-slate-700">{searchedUser.student_id}</span> • {searchedUser.department}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <span className={`text-[12px] font-bold px-3 py-1.5 rounded-full ${searchedUser.education_status === 'active' ? 'bg-green-100 text-green-700' :
-                                                searchedUser.education_status === 'suspended' ? 'bg-red-100 text-red-600' :
-                                                    'bg-amber-100 text-amber-700'
-                                                }`}>
-                                                {searchedUser.education_status === 'active' ? 'ใช้งานได้' :
-                                                    searchedUser.education_status === 'suspended' ? 'ระงับการใช้งาน' : searchedUser.education_status}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div className="p-0">
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full border-collapse min-w-[800px]">
-                                                <thead>
-                                                    <tr>
-                                                        <th className="text-left text-[11.5px] uppercase tracking-wide text-slate-400 font-bold p-4 pb-3 border-b-2 border-purple-100 whitespace-nowrap pl-6">อุปกรณ์ที่ยืม</th>
-                                                        <th className="text-left text-[11.5px] uppercase tracking-wide text-slate-400 font-bold p-4 pb-3 border-b-2 border-purple-100 whitespace-nowrap">วันที่ยืม</th>
-                                                        <th className="text-left text-[11.5px] uppercase tracking-wide text-slate-400 font-bold p-4 pb-3 border-b-2 border-purple-100 whitespace-nowrap">กำหนดคืน/วันที่คืน</th>
-                                                        <th className="text-left text-[11.5px] uppercase tracking-wide text-slate-400 font-bold p-4 pb-3 border-b-2 border-purple-100 whitespace-nowrap">สถานะ</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {userHistoryData.length > 0 ? userHistoryData.map((history) => {
-                                                        const status = STATUS_MAP[history.status] || { label: history.status, cls: "bg-slate-100 text-slate-600" };
-                                                        return (
-                                                            <tr key={history.borrow_id} className="hover:bg-slate-50 transition border-b border-slate-100 last:border-0">
-                                                                <td className="py-4 px-4 pl-6">
-                                                                    <p className="text-[13px] font-bold text-slate-700">{history.equipment_name}</p>
-                                                                    <p className="text-[11.5px] text-slate-400">รหัส: {history.kit_code}</p>
-                                                                </td>
-                                                                <td className="py-4 px-4 text-[13px] text-slate-600">{formatThaiDate(history.borrow_date)}</td>
-                                                                <td className="py-4 px-4 text-[13px] text-slate-600">
-                                                                    {history.status === 'returned' && history.return_date ? formatThaiDate(history.return_date) : formatThaiDate(history.due_date)}
-                                                                </td>
-                                                                <td className="py-4 px-4">
-                                                                    <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${status.cls}`}>
-                                                                        {status.label}
-                                                                    </span>
-                                                                </td>
-                                                            </tr>
-                                                        );
-                                                    }) : (
-                                                        <tr>
-                                                            <td colSpan="4" className="py-8 text-center text-slate-400 text-[13px]">
-                                                                ไม่มีประวัติการยืม-คืนอุปกรณ์
-                                                            </td>
-                                                        </tr>
-                                                    )}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
                         </div>
                     </>
                 ) : (

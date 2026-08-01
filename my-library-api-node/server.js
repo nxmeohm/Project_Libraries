@@ -103,6 +103,44 @@ cron.schedule('0 0 * * *', async () => {
     }
 });
 
+// Cron job to check for items due soon (1, 2, 3 days left) every morning at 8:00 AM
+cron.schedule('0 8 * * *', async () => {
+    console.log('[Cron] Running daily due soon check...');
+    try {
+        const sql = `
+            SELECT b.id, b.student_id, b.equipment_id, e.name as equipment_name, 
+                   s.email as student_email, s.name_th as student_name,
+                   b.borrow_date, e.borrow_days
+            FROM borrowed b
+            LEFT JOIN equipments e ON b.equipment_id = e.equipment_id
+            LEFT JOIN student_profiles s ON b.student_id = s.student_id
+            WHERE b.status = 'borrowed'
+        `;
+        const [rows] = await pool.query(sql);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        for (const row of rows) {
+            const dueDate = new Date(row.borrow_date);
+            dueDate.setDate(dueDate.getDate() + (row.borrow_days || 0));
+            dueDate.setHours(0, 0, 0, 0);
+            
+            const diffTime = dueDate - today;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            if ([1, 2, 3].includes(diffDays) && row.student_email) {
+                const notifTitle = "แจ้งเตือนใกล้ครบกำหนดคืนอุปกรณ์";
+                const notifMsg = `อุปกรณ์ "${row.equipment_name}" จะครบกำหนดคืนในอีก ${diffDays} วัน กรุณานำมาคืนภายในวันที่กำหนดเพื่อหลีกเลี่ยงค่าปรับ`;
+                await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [row.student_email, notifTitle, notifMsg]);
+                mailer.sendManualNotification(row.student_email, notifTitle, notifMsg);
+            }
+        }
+        console.log('[Cron] Due soon check complete.');
+    } catch (error) {
+        console.error('[Cron] Error checking due soon items:', error);
+    }
+});
+
 // Cron job: Check every 1 minute for expired 30-min pickup reservations
 cron.schedule('* * * * *', async () => {
     try {
@@ -126,6 +164,7 @@ cron.schedule('* * * * *', async () => {
             const notifMsg = `คำขอยืมอุปกรณ์ "${row.equipment_name}" ถูกยกเลิกอัตโนมัติ เนื่องจากเกินกำหนดเวลามารับ 30 นาที`;
             if (row.student_email) {
                 await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [row.student_email, notifTitle, notifMsg]);
+                mailer.sendManualNotification(row.student_email, notifTitle, notifMsg);
             }
             console.log(`[Cron] Cancelled expired reservation #${row.id} for equipment ${row.equipment_name}`);
         }

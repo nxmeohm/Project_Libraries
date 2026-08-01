@@ -34,8 +34,8 @@ const generateChartData = async (pool, targetDate) => {
         GROUP BY y
         ORDER BY y DESC LIMIT 4
     `, [targetDate]);
-    let year = yearlyRes.reverse().map(r => ({ l: String(r.y), v: r.c }));
-    if(year.length === 0) year.push({ l: String(new Date().getFullYear()), v: 0 });
+    let year = yearlyRes.reverse().map(r => ({ l: String(r.y + 543), v: r.c }));
+    if(year.length === 0) year.push({ l: String(new Date().getFullYear() + 543), v: 0 });
 
     return { day: daily, month: month, year: year };
 };

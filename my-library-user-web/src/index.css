@@ -11,7 +11,7 @@ body {
 }
 
 /* Custom scrollbar */
-::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #d1c4e9; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #b39ddb; }

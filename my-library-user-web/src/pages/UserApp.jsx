@@ -17,7 +17,6 @@ const NAV_ITEMS = [
     { key: "search", label: "ค้นหาอุปกรณ์", icon: Search },
     { key: "cart", label: "ตะกร้ายืม", icon: ShoppingCart },
     { key: "status", label: "รายการของฉัน", icon: ClipboardList },
-    { key: "notifications", label: "แจ้งเตือน", icon: Bell },
     { key: "settings", label: "ตั้งค่า", icon: Settings },
 ];
 
@@ -341,6 +340,89 @@ function CalendarView() {
 }
 
 /* ============================================================
+   Notifications Helper Functions
+   ============================================================ */
+const formatTimeAgo = (date) => {
+    const seconds = Math.floor((new Date() - date) / 1000);
+    let interval = seconds / 31536000;
+    if (interval > 1) return Math.floor(interval) + ' ปีที่แล้ว';
+    interval = seconds / 2592000;
+    if (interval > 1) return Math.floor(interval) + ' เดือนที่แล้ว';
+    interval = seconds / 86400;
+    if (interval >= 1 && interval < 2) return 'เมื่อวานนี้';
+    if (interval >= 2) return Math.floor(interval) + ' วันที่แล้ว';
+    interval = seconds / 3600;
+    if (interval >= 1) return Math.floor(interval) + ' ชั่วโมงที่แล้ว';
+    interval = seconds / 60;
+    if (interval >= 1) return Math.floor(interval) + ' นาทีที่แล้ว';
+    return 'เพิ่งสำเร็จ';
+};
+
+const getNotifIcon = (type) => {
+    switch (type) {
+        case 'success': return { icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50' };
+        case 'info': return { icon: FileText, color: 'text-blue-600', bg: 'bg-blue-50' };
+        case 'warning': return { icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' };
+        case 'danger': return { icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' };
+        case 'system': return { icon: Megaphone, color: 'text-[#6A5ACD]', bg: 'bg-[#F3F0F9]' };
+        default: return { icon: Bell, color: 'text-[#3D2B56]', bg: 'bg-[#F3F0F9]' };
+    }
+};
+
+/* ============================================================
+   Notifications & Announcements View Component
+   ============================================================ */
+function NotificationsView({ title, notifications, isLoading, onNotificationClick }) {
+    if (isLoading) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                <div className="w-10 h-10 border-4 border-slate-200 border-t-[#3D2B56] rounded-full animate-spin mb-4"></div>
+                <p className="text-[14px]">กำลังโหลด...</p>
+            </div>
+        );
+    }
+
+    if (!notifications || notifications.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                <Bell size={48} className="text-slate-200 mb-4" />
+                <p className="text-[15px] font-medium">ไม่มี{title}</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="p-8 pt-6 max-w-3xl mx-auto w-full">
+            <h2 className="text-2xl font-bold text-[#3D2B56] mb-6">{title}</h2>
+            <div className="space-y-4">
+                {notifications.map((notif, index) => {
+                    const { icon: Icon, color, bg } = getNotifIcon(notif.type);
+                    return (
+                        <button 
+                            key={index}
+                            onClick={() => onNotificationClick && onNotificationClick(notif)}
+                            className={`w-full flex items-start gap-4 p-5 rounded-2xl transition text-left ${notif.action === 'none' ? 'bg-white border border-slate-100 cursor-default' : 'bg-white border border-slate-100 hover:shadow-md hover:border-purple-200 cursor-pointer group'}`}
+                        >
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${bg}`}>
+                                <Icon size={24} className={color} />
+                            </div>
+                            <div className="flex-1 pt-0.5">
+                                <h4 className="text-[15px] font-bold text-slate-800">{notif.title}</h4>
+                                <p className="text-[13px] text-slate-500 mt-1 leading-relaxed">{notif.desc}</p>
+                                <p className="text-[11.5px] text-slate-400 mt-2">{formatTimeAgo(notif.date)}</p>
+                            </div>
+                            {notif.action === 'receipt' && (
+                                <ChevronRight size={20} className="text-slate-300 group-hover:text-[#3D2B56] mt-4 transition" />
+                            )}
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+/* ============================================================
    Component
    ============================================================ */
 export default function UserApp({ studentId, onLogout }) {
@@ -354,6 +436,9 @@ export default function UserApp({ studentId, onLogout }) {
     const [isLoading, setIsLoading] = useState(false);
     const [toast, setToast] = useState(null);
     const showToast = (message, type = 'info') => setToast({ message, type });
+
+    // Settings states
+    const [notifyDue, setNotifyDue] = useState(true);
 
     // Search states
     const [searchText, setSearchText] = useState("");
@@ -418,6 +503,8 @@ export default function UserApp({ studentId, onLogout }) {
     const [isSavingSettings, setIsSavingSettings] = useState(false);
     const [settingsMsg, setSettingsMsg] = useState({ type: "", text: "" });
 
+    const [isNotificationsLoading, setIsNotificationsLoading] = useState(false);
+
     // Fetch student on mount
     useEffect(() => {
         if (studentId) {
@@ -447,7 +534,10 @@ export default function UserApp({ studentId, onLogout }) {
             fetchBorrowed();
         }
         if (currentPage === "notifications") {
-            fetchNotifications();
+            fetchNotificationsData('alert');
+        }
+        if (currentPage === "announcements") {
+            fetchNotificationsData('announcement');
         }
     }, [currentPage]);
 
@@ -456,6 +546,116 @@ export default function UserApp({ studentId, onLogout }) {
         authFetch(`/get_borrowed.php?student_id=${studentId}`)
             .then(result => { if (result.success) setBorrowedItems(result.data); })
             .catch(console.error);
+    };
+
+    const fetchNotificationsData = async (type) => {
+        setIsNotificationsLoading(true);
+        let notifs = [];
+        const today = new Date();
+
+        try {
+            if (type === 'alert') {
+                // 1. Process Receipts from borrowedItems
+                const groups = {};
+                borrowedItems.forEach(item => {
+                    const key = item.borrow_date ? item.borrow_date.substring(0, 16) : 'unknown';
+                    if (!groups[key]) groups[key] = [];
+                    groups[key].push(item);
+                });
+
+                Object.keys(groups).forEach(key => {
+                    const items = groups[key];
+                    const firstItem = items[0];
+                    if (!firstItem.borrow_date) return;
+                    
+                    const borrowDate = new Date(firstItem.borrow_date);
+                    const txId = firstItem.transaction_id || 'LB' + String(firstItem.id).padStart(6, '0');
+                    const allReturned = items.every(i => i.status === 'returned');
+                    
+                    const title = allReturned ? 'คืนอุปกรณ์สำเร็จ' : 'ยืนยันยืมอุปกรณ์สำเร็จ';
+                    const notifType = allReturned ? 'success' : 'info';
+                    
+                    notifs.push({
+                        id: `tx-${txId}`,
+                        type: notifType,
+                        title: title,
+                        desc: `หมายเลขทำรายการ ${txId} (${items.length} รายการ)`,
+                        date: borrowDate,
+                        receiptTxId: txId,
+                        action: 'receipt'
+                    });
+                });
+
+                // 2. Process Due Soon / Overdue
+                borrowedItems.forEach(item => {
+                    if (item.status === 'borrowed') {
+                        const borrowDate = new Date(item.borrow_date);
+                        const dueDate = new Date(borrowDate);
+                        dueDate.setDate(dueDate.getDate() + (item.borrow_days || 3));
+                        
+                        const oneDay = 24 * 60 * 60 * 1000;
+                        const daysLeft = Math.round((dueDate.getTime() - today.getTime()) / oneDay);
+
+                        if (daysLeft < 0) {
+                            notifs.push({
+                                id: `overdue-${item.id}`,
+                                type: 'danger',
+                                title: 'เลยกำหนดคืนอุปกรณ์!',
+                                desc: `"${item.name || item.equipment_id}" เลยกำหนดคืนมา ${Math.abs(daysLeft)} วัน`,
+                                date: today,
+                                action: 'status'
+                            });
+                        } else if (daysLeft <= 1) {
+                            notifs.push({
+                                id: `due-${item.id}`,
+                                type: 'warning',
+                                title: 'ใกล้ครบกำหนดคืนอุปกรณ์',
+                                desc: `"${item.name || item.equipment_id}" จะครบกำหนดในอีก ${daysLeft === 0 ? 'วันนี้' : daysLeft + ' วัน'}`,
+                                date: today,
+                                action: 'status'
+                            });
+                        }
+                    }
+                });
+            }
+
+            // 3. Fetch from API (alerts or announcements)
+            try {
+                const sysRes = await authFetch(`/get_notifications.php?student_id=${studentId}&type=${type}`);
+                if (sysRes.success && Array.isArray(sysRes.data)) {
+                    sysRes.data.forEach(item => {
+                        notifs.push({
+                            id: `db-${type}-${item.id}`,
+                            type: type === 'announcement' ? 'system' : 'warning',
+                            title: item.title,
+                            desc: item.message,
+                            date: new Date(item.created_at),
+                            action: 'none'
+                        });
+                    });
+                }
+            } catch (err) { console.error('Error fetching API notifications:', err); }
+
+            // Default announcement if none
+            if (type === 'announcement' && notifs.length === 0) {
+                notifs.push({
+                    id: 'system-welcome',
+                    type: 'system',
+                    title: 'ยินดีต้อนรับสู่ระบบยืมคืนอุปกรณ์',
+                    desc: 'สามารถติดตามข่าวสารและการอัปเดตใหม่ๆ ได้ที่นี่',
+                    date: today,
+                    action: 'none'
+                });
+            }
+
+            notifs.sort((a, b) => b.date - a.date);
+            setNotifications(notifs);
+
+        } catch (e) {
+            console.error('Error in fetchNotificationsData:', e);
+        } finally {
+            setIsNotificationsLoading(false);
+        }
     };
 
     // Open report lost modal
@@ -542,8 +742,25 @@ export default function UserApp({ studentId, onLogout }) {
 
     // Cart functions
     const addToCart = (item) => {
-        if (cartItems.find(c => c.equipment_id === item.equipment_id)) return false;
-        if (cartItems.length >= 5) return false;
+        if (cartItems.find(c => c.equipment_id === item.equipment_id)) {
+            showToast('อุปกรณ์นี้อยู่ในตะกร้าแล้ว', 'warning');
+            return false;
+        }
+        
+        const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+        const borrowedTodayCount = borrowedItems.filter(i => {
+            if (!i.borrow_date || i.status === 'rejected') return false;
+            try {
+                const bDate = new Date(i.borrow_date).toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+                return bDate === todayStr;
+            } catch(e) { return false; }
+        }).length;
+
+        if (borrowedTodayCount + cartItems.length >= 5) {
+            showToast(`คุณสามารถยืมอุปกรณ์ได้สูงสุด 5 ชิ้นต่อวัน`, 'error');
+            return false;
+        }
+
         setCartItems(prev => [...prev, item]);
         return true;
     };
@@ -631,7 +848,7 @@ export default function UserApp({ studentId, onLogout }) {
     };
 
     // Derived data
-    const activeItems = borrowedItems.filter(i => i.status === 'borrowed');
+    const activeItems = borrowedItems.filter(i => i.status === 'borrowed' || i.status === 'pending');
     const returnedCount = borrowedItems.filter(i => i.status === 'returned').length;
 
     // Status filtered items
@@ -670,38 +887,30 @@ export default function UserApp({ studentId, onLogout }) {
             {/* ================= MOBILE HEADER ================= */}
             <div className="md:hidden sticky top-0 z-30 bg-[#3D2B56] text-white px-4 py-3 flex items-center justify-between shadow-md border-b border-white/10">
                 <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center">
-                        <BookOpen size={16} className="text-white" />
-                    </div>
-                    <div>
-                        <div className="font-bold text-[14px] leading-none">Libraries</div>
-                        <div className="text-[10px] text-purple-200 leading-none mt-0.5">ระบบยืมคืนอุปกรณ์</div>
-                    </div>
+                    <img src="/logo.png" alt="Libraries SUT" className="h-16 object-contain ml-1" />
                 </div>
                 <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center overflow-hidden shrink-0">
+                    <button onClick={() => setCurrentPage("announcements")} className="p-1.5 text-purple-200 hover:text-white rounded-lg hover:bg-white/10 transition relative">
+                        <Megaphone size={16} />
+                    </button>
+                    <button onClick={() => setCurrentPage("notifications")} className="p-1.5 text-purple-200 hover:text-white rounded-lg hover:bg-white/10 transition relative">
+                        <Bell size={16} />
+                        <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full"></span>
+                    </button>
+                    <div className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center overflow-hidden shrink-0 ml-1">
                         {student?.student_img ? (
                             <img src={`${IMG_BASE}${student.student_img}`} alt="" className="w-full h-full object-cover" />
                         ) : (
                             <User size={13} />
                         )}
                     </div>
-                    <button onClick={onLogout} title="ออกจากระบบ" className="p-1.5 text-purple-200 hover:text-white rounded-lg hover:bg-white/10 transition">
-                        <LogOut size={16} />
-                    </button>
                 </div>
             </div>
 
             {/* ================= DESKTOP SIDEBAR ================= */}
             <div className="hidden md:flex w-[250px] shrink-0 bg-[#3D2B56] text-white p-5 flex-col sticky top-0 h-screen">
-                <div className="flex items-center gap-3 px-1 pt-1 pb-7">
-                    <div className="w-[38px] h-[38px] rounded-[12px] bg-white/15 flex items-center justify-center shrink-0">
-                        <BookOpen size={18} className="text-white" />
-                    </div>
-                    <div>
-                        <div className="font-bold text-[15px] leading-tight">Libraries</div>
-                        <div className="text-[11px] text-purple-200 leading-tight mt-0.5">ระบบยืมคืนอุปกรณ์</div>
-                    </div>
+                <div className="flex items-center px-1 pt-0 pb-2 justify-center">
+                    <img src="/logo.png" alt="Libraries SUT" className="h-28 object-contain" />
                 </div>
 
                 <div className="flex-1 flex flex-col gap-1.5">
@@ -782,9 +991,44 @@ export default function UserApp({ studentId, onLogout }) {
             </div>
 
             {/* ================= MAIN CONTENT ================= */}
-            <div className="flex-1 overflow-y-auto">
-                {/* ===== DASHBOARD ===== */}
-                {currentPage === "dashboard" ? (
+            <div className="flex-1 overflow-y-auto relative">
+                {/* Desktop Top Header */}
+                <div className="hidden md:flex sticky top-0 z-20 bg-[#F9F8FD]/90 backdrop-blur-md border-b border-purple-100/50 px-8 py-3 items-center justify-end gap-3">
+                    <button onClick={() => setCurrentPage("announcements")} className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-500 hover:text-[#3D2B56] hover:bg-purple-50 transition relative border border-slate-100">
+                        <Megaphone size={18} />
+                    </button>
+                    <button onClick={() => setCurrentPage("notifications")} className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-500 hover:text-[#3D2B56] hover:bg-purple-50 transition relative border border-slate-100">
+                        <Bell size={18} />
+                        <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full"></span>
+                    </button>
+                </div>
+
+                {/* ===== NOTIFICATIONS ===== */}
+                {currentPage === "notifications" ? (
+                    <NotificationsView 
+                        title="การแจ้งเตือน"
+                        notifications={notifications}
+                        isLoading={isNotificationsLoading}
+                        onNotificationClick={(notif) => {
+                            if (notif.action === 'receipt' && notif.receiptTxId) {
+                                const receipt = groupedReceipts.find(g => g.txId === notif.receiptTxId);
+                                if (receipt) {
+                                    setSelectedReceipt(receipt);
+                                    setSettingsModal('receipt');
+                                }
+                            } else if (notif.action === 'status') {
+                                setCurrentPage("status");
+                            }
+                        }}
+                    />
+                ) : currentPage === "announcements" ? (
+                    <NotificationsView 
+                        title="ประกาศจากแอดมิน"
+                        notifications={notifications}
+                        isLoading={isNotificationsLoading}
+                        onNotificationClick={(notif) => {}}
+                    />
+                ) : currentPage === "dashboard" ? (
                     <>
 
                         <div className="p-8 pt-6 space-y-6">
@@ -861,12 +1105,14 @@ export default function UserApp({ studentId, onLogout }) {
                             </div>
 
                             {/* Currently Borrowing */}
-                            {activeItems.length > 0 && (
-                                <div>
-                                    <div className="flex items-center justify-between mb-4">
-                                        <h3 className="text-[16px] font-bold text-slate-800">รายการที่กำลังยืมอยู่</h3>
+                            <div>
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-[16px] font-bold text-slate-800">รายการที่กำลังยืมอยู่</h3>
+                                    {activeItems.length > 0 && (
                                         <button onClick={() => setCurrentPage("status")} className="text-[13px] font-bold text-purple-600 hover:underline">ดูทั้งหมด</button>
-                                    </div>
+                                    )}
+                                </div>
+                                {activeItems.length > 0 ? (
                                     <div className="space-y-3">
                                         {activeItems.slice(0, 3).map((item) => {
                                             const s = getItemStatus(item);
@@ -881,15 +1127,23 @@ export default function UserApp({ studentId, onLogout }) {
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <p className="text-[14px] font-bold text-slate-800 truncate">{item.name || `อุปกรณ์ #${item.equipment_id}`}</p>
-                                                        <p className="text-[12px] text-slate-400">กำหนดคืน {formatThaiDate(s.dueDate)}</p>
+                                                        {item.status === 'pending' ? (
+                                                            <p className="text-[12px] text-amber-600">นัดรับ {new Date(item.pickup_time || item.borrow_date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</p>
+                                                        ) : (
+                                                            <p className="text-[12px] text-slate-400">กำหนดคืน {formatThaiDate(s.dueDate)}</p>
+                                                        )}
                                                     </div>
                                                     <span className={`text-[11px] font-bold px-3 py-1.5 rounded-full border ${getBadgeStyle(s.type)}`}>{s.label}</span>
                                                 </div>
                                             );
                                         })}
                                     </div>
-                                </div>
-                            )}
+                                ) : (
+                                    <div className="bg-white border border-purple-100 border-dashed rounded-2xl p-6 text-center">
+                                        <p className="text-[14px] text-slate-500">ไม่มีรายการที่กำลังยืมอยู่</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </>
 
@@ -909,7 +1163,7 @@ export default function UserApp({ studentId, onLogout }) {
                             </div>
 
                             {/* Category tabs */}
-                            <div className="flex gap-2 overflow-x-auto pb-2 mb-5 whitespace-nowrap">
+                            <div className="flex gap-2 overflow-x-auto pb-3 mb-5 whitespace-nowrap">
                                 {CATEGORIES.map(cat => (
                                     <button key={cat} onClick={() => setActiveCategory(cat)}
                                         className={`px-4 py-2 rounded-full text-[13px] font-semibold transition shrink-0 ${activeCategory === cat ? 'bg-[#3D2B56] text-white shadow-md' : 'bg-white border border-purple-100 text-slate-600 hover:border-purple-300'}`}>
@@ -1366,24 +1620,13 @@ export default function UserApp({ studentId, onLogout }) {
                                         </div>
                                         <div className="flex-1">
                                             <div className="text-[14px] font-bold text-slate-800">แจ้งเตือนก่อนครบกำหนดคืน</div>
-                                            <div className="text-[12px] text-slate-500 mt-0.5">แจ้งล่วงหน้า 1 วัน</div>
+                                            <div className="text-[12px] text-slate-500 mt-0.5">แจ้งเตือนเป็นระยะช่วงๆ</div>
                                         </div>
-                                        <div className="w-12 h-6 bg-[#2196F3] rounded-full flex items-center px-1 shrink-0 cursor-pointer">
-                                            <div className="w-4 h-4 bg-white rounded-full translate-x-6 shadow-sm"></div>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-4 p-4">
-                                        <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center shrink-0">
-                                            <Package size={18} className="text-[#3D2B56]" />
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="text-[14px] font-bold text-slate-800">แจ้งเตือนอุปกรณ์ใหม่</div>
-                                            <div className="text-[12px] text-slate-500 mt-0.5">อัปเดตของเข้าใหม่ในระบบ</div>
-                                        </div>
-                                        <div className="w-12 h-6 bg-slate-200 rounded-full flex items-center px-1 shrink-0 cursor-pointer">
-                                            <div className="w-4 h-4 bg-white rounded-full shadow-sm"></div>
+                                        <div onClick={() => setNotifyDue(!notifyDue)} className={`w-12 h-6 ${notifyDue ? 'bg-[#2196F3]' : 'bg-slate-200'} rounded-full flex items-center px-1 shrink-0 cursor-pointer transition-colors duration-200`}>
+                                            <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ${notifyDue ? 'translate-x-6' : ''}`}></div>
                                         </div>
                                     </div>
+
                                 </div>
                             </div>
 
@@ -1779,14 +2022,13 @@ export default function UserApp({ studentId, onLogout }) {
                                     <button
                                         onClick={() => {
                                             if (detailItem.status && detailItem.status !== 'ใช้งานได้') {
-                                                alert(`อุปกรณ์นี้ไม่อยู่ในสถานะพร้อมใช้งาน (${detailItem.status})`);
+                                                showToast(`อุปกรณ์นี้ไม่อยู่ในสถานะพร้อมใช้งาน (${detailItem.status})`, 'warning');
                                                 return;
                                             }
                                             const ok = addToCart(detailItem);
-                                            if (!ok) alert("ไม่สามารถเพิ่มได้ (ตะกร้าเต็ม หรือ มีอยู่แล้ว)");
-                                            else {
+                                            if (ok) {
                                                 setIsDetailOpen(false);
-                                                setCurrentPage("cart");
+                                                setCurrentPage("search");
                                             }
                                         }}
                                         disabled={detailItem.status && detailItem.status !== 'ใช้งานได้'}
