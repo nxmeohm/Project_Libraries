@@ -135,4 +135,19 @@ const sendReturnWithFineEmail = (email, studentName, equipmentName, fineAmount) 
     return sendEmail(email, subject, html);
 };
 
-module.exports = { sendApprovalEmail, sendReturnEmail, sendManualNotification, sendFineEmail, sendFinePaidEmail, sendOverdueEmail, sendReturnWithFineEmail };
+const sendUrgentReminderEmail = (email, studentName, equipmentName) => {
+    const subject = "⚠️ แจ้งเตือนด่วน: อุปกรณ์ครบกำหนดคืนวันนี้";
+    const html = `
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+            <h2 style="color: #F44336;">⚠️ แจ้งเตือนด่วน: ครบกำหนดคืนวันนี้</h2>
+            <p>เรียนคุณ <strong>${studentName}</strong>,</p>
+            <p>อุปกรณ์ <strong>"${equipmentName}"</strong> ที่คุณยืมไป <strong><span style="color: #F44336;">ครบกำหนดคืนภายในวันนี้</span></strong></p>
+            <p>เพื่อป้องกันค่าปรับล่าช้าและเพื่อให้คิวจองถัดไปสามารถใช้งานอุปกรณ์ต่อได้ กรุณานำอุปกรณ์มาคืนที่ห้องสมุดก่อนเวลาปิดทำการในวันนี้ครับ</p>
+            <hr />
+            <p style="font-size: 12px; color: #888;">ระบบห้องสมุด Project Libraries</p>
+        </div>
+    `;
+    return sendEmail(email, subject, html);
+};
+
+module.exports = { sendApprovalEmail, sendReturnEmail, sendManualNotification, sendFineEmail, sendFinePaidEmail, sendOverdueEmail, sendReturnWithFineEmail, sendUrgentReminderEmail };

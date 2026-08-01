@@ -412,8 +412,13 @@ router.get('/notifications', async (req, res) => {
 // ============================================================
 router.get('/equipments', async (req, res) => {
     try {
-        const sql = "SELECT e.*, (SELECT COUNT(*) FROM equipment_items WHERE equipment_id = e.equipment_id AND status = 'available') AS available_quantity FROM equipments e ORDER BY e.equipment_id DESC";
+        const sql = `SELECT e.*, 
+            (SELECT COUNT(*) FROM equipment_items WHERE equipment_id = e.equipment_id AND status = 'available') 
+            - (SELECT COUNT(*) FROM borrowed WHERE equipment_id = e.equipment_id AND status = 'pending' AND DATE(pickup_time) <= CURDATE()) 
+            AS available_quantity 
+            FROM equipments e ORDER BY e.equipment_id DESC`;
         const [rows] = await pool.query(sql);
+        rows.forEach(r => { if (r.available_quantity < 0) r.available_quantity = 0; });
         res.json({ success: true, data: rows });
     } catch (error) {
         console.error(error);

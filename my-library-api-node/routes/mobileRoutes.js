@@ -58,8 +58,14 @@ router.post('/login.php', async (req, res) => {
 // ============================================================
 router.get('/get_equipments.php', async (req, res) => {
     try {
-        const sql = "SELECT e.*, (SELECT COUNT(*) FROM equipment_items WHERE equipment_id = e.equipment_id AND status = 'available') AS available_quantity FROM equipments e";
+        const sql = `SELECT e.*, 
+            (SELECT COUNT(*) FROM equipment_items WHERE equipment_id = e.equipment_id AND status = 'available') 
+            - (SELECT COUNT(*) FROM borrowed WHERE equipment_id = e.equipment_id AND status = 'pending' AND DATE(pickup_time) <= CURDATE()) 
+            AS available_quantity 
+            FROM equipments e`;
         const [rows] = await pool.query(sql);
+        // Ensure available_quantity is never negative
+        rows.forEach(r => { if (r.available_quantity < 0) r.available_quantity = 0; });
         res.json(rows);
     } catch (error) {
         res.status(500).json({ error: "Database Error" });
@@ -72,8 +78,13 @@ router.get('/get_equipments.php', async (req, res) => {
 router.get('/get_detail.php', async (req, res) => {
     const id = parseInt(req.query.id);
     try {
-        const sql = "SELECT e.*, (SELECT COUNT(*) FROM equipment_items WHERE equipment_id = e.equipment_id AND status = 'available') AS available_quantity FROM equipments e WHERE e.equipment_id = ?";
+        const sql = `SELECT e.*, 
+            (SELECT COUNT(*) FROM equipment_items WHERE equipment_id = e.equipment_id AND status = 'available') 
+            - (SELECT COUNT(*) FROM borrowed WHERE equipment_id = e.equipment_id AND status = 'pending' AND DATE(pickup_time) <= CURDATE()) 
+            AS available_quantity 
+            FROM equipments e WHERE e.equipment_id = ?`;
         const [rows] = await pool.query(sql, [id]);
+        if (rows[0] && rows[0].available_quantity < 0) rows[0].available_quantity = 0;
         res.json(rows[0] || {});
     } catch (error) {
         res.status(500).json({ error: "Database Error" });
@@ -173,19 +184,6 @@ router.post('/checkout.php', validate(checkoutSchema), async (req, res) => {
             return res.json({ success: false, message: "ระบบจำกัดการยืมอุปกรณ์สูงสุด 5 ชิ้นต่อวัน" });
         }
 
-        // Lock available item with FOR UPDATE to prevent race condition
-        const [avail] = await connection.query(
-            "SELECT item_id FROM equipment_items WHERE equipment_id = ? AND status = 'available' LIMIT 1 FOR UPDATE",
-            [equipment_id]
-        );
-        if (avail.length === 0) {
-            await connection.rollback();
-            connection.release();
-            return res.json({ success: false, message: "อุปกรณ์ชิ้นนี้ไม่มีให้ยืมในขณะนี้" });
-        }
-
-        const item_id = avail[0].item_id;
-
         // Calculate pickup time and max 1 day advance validation
         let pTime = pickup_time ? new Date(pickup_time) : new Date();
         const now = new Date();
@@ -202,6 +200,21 @@ router.post('/checkout.php', validate(checkoutSchema), async (req, res) => {
 
         if (pTime < new Date(now.getTime() - 5 * 60 * 1000)) {
             pTime = new Date();
+        }
+
+        // Smart stock check: count available items minus pending reservations for the same pickup date
+        const pickupDateStr = pTime.toISOString().slice(0, 10); // YYYY-MM-DD
+        const [stockCheck] = await connection.query(
+            `SELECT 
+                (SELECT COUNT(*) FROM equipment_items WHERE equipment_id = ? AND status = 'available') 
+                - (SELECT COUNT(*) FROM borrowed WHERE equipment_id = ? AND status = 'pending' AND DATE(pickup_time) = ?) 
+                AS smart_available`,
+            [equipment_id, equipment_id, pickupDateStr]
+        );
+        if (stockCheck[0].smart_available <= 0) {
+            await connection.rollback();
+            connection.release();
+            return res.json({ success: false, message: "อุปกรณ์ชิ้นนี้ไม่มีให้ยืมในวันที่เลือก" });
         }
 
         // Expiration time = pickup_time + 30 minutes

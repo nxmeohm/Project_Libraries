@@ -141,6 +141,46 @@ cron.schedule('0 8 * * *', async () => {
     }
 });
 
+// Cron job to send urgent reminder at 16:00 for items due TODAY
+cron.schedule('0 16 * * *', async () => {
+    console.log('[Cron] Running daily urgent reminder check (16:00)...');
+    try {
+        const sql = `
+            SELECT b.id, b.student_id, b.equipment_id, e.name as equipment_name, 
+                   s.email as student_email, s.name_th as student_name,
+                   b.borrow_date, e.borrow_days
+            FROM borrowed b
+            LEFT JOIN equipments e ON b.equipment_id = e.equipment_id
+            LEFT JOIN student_profiles s ON b.student_id = s.student_id
+            WHERE b.status = 'borrowed'
+        `;
+        const [rows] = await pool.query(sql);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        for (const row of rows) {
+            const dueDate = new Date(row.borrow_date);
+            dueDate.setDate(dueDate.getDate() + (row.borrow_days || 0));
+            dueDate.setHours(0, 0, 0, 0);
+            
+            // If it's due TODAY, diffDays should be exactly 0
+            const diffTime = dueDate - today;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            if (diffDays === 0 && row.student_email) {
+                const notifTitle = "แจ้งเตือนด่วน: อุปกรณ์ครบกำหนดคืนวันนี้";
+                const notifMsg = `อุปกรณ์ "${row.equipment_name}" จะครบกำหนดคืนภายในวันนี้ กรุณานำมาคืนก่อนห้องสมุดปิด เพื่อหลีกเลี่ยงค่าปรับล่าช้าและเพื่อให้คิวจองถัดไปใช้งานต่อได้`;
+                await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [row.student_email, notifTitle, notifMsg]);
+                if (mailer.sendUrgentReminderEmail) {
+                    mailer.sendUrgentReminderEmail(row.student_email, row.student_name, row.equipment_name);
+                }
+            }
+        }
+        console.log('[Cron] Urgent reminder check complete.');
+    } catch (error) {
+        console.error('[Cron] Error checking urgent items:', error);
+    }
+});
 // Cron job: Check every 1 minute for expired 30-min pickup reservations
 cron.schedule('* * * * *', async () => {
     try {
