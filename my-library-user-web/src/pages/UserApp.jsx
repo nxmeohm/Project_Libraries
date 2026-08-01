@@ -1,9 +1,10 @@
 import {
     Home, Search, ShoppingCart, ClipboardList, Bell, LogOut, User, Package,
     ChevronRight, Clock, AlertCircle, Info, X, Trash2, CheckCircle, BookOpen,
-    Calendar, ChevronLeft, Megaphone, Settings, AlertTriangle, Save, Key, ShieldCheck
+    Calendar, ChevronLeft, Megaphone, Settings, AlertTriangle, Save, Key, ShieldCheck, FileText, Lock
 } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
+import QRCode from "react-qr-code";
+import { useState, useEffect, useCallback, useMemo } from "react";
 
 const API_BASE = typeof window !== 'undefined' ? `http://${window.location.hostname}:5000/api` : "http://localhost:5000/api";
 const IMG_BASE = typeof window !== 'undefined' ? `http://${window.location.hostname}/` : "http://localhost/";
@@ -180,6 +181,166 @@ async function authFetch(url, options = {}) {
 }
 
 /* ============================================================
+   Calendar View Component
+   ============================================================ */
+function CalendarView() {
+    const [currentMonthDate, setCurrentMonthDate] = useState(new Date(2026, 6, 1));
+    const [selectedDateObj, setSelectedDateObj] = useState(new Date(2026, 6, 17));
+
+    const events = {
+        '2026-07-27': 'exam', '2026-07-31': 'exam',
+        '2026-07-28': 'holiday', '2026-07-29': 'holiday', '2026-07-30': 'holiday',
+        '2026-08-03': 'exam', '2026-08-04': 'exam', '2026-08-05': 'exam', '2026-08-06': 'exam', '2026-08-07': 'exam',
+        '2026-08-12': 'holiday',
+        '2026-09-07': 'exam', '2026-09-08': 'exam', '2026-09-09': 'exam', '2026-09-10': 'exam', '2026-09-11': 'exam',
+        '2026-09-14': 'exam', '2026-09-15': 'exam', '2026-09-16': 'exam', '2026-09-17': 'exam', '2026-09-18': 'exam',
+        '2026-10-13': 'holiday', '2026-10-23': 'holiday'
+    };
+
+    const getDayInfo = (dateObj) => {
+        const y = dateObj.getFullYear();
+        const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const d = String(dateObj.getDate()).padStart(2, '0');
+        const dateStr = `${y}-${m}-${d}`;
+        const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+        const eventType = events[dateStr] || (isWeekend ? 'weekend' : 'normal');
+
+        let bg = 'transparent', dot = 'transparent';
+        if (eventType === 'weekend') { bg = '#F5F3FA'; dot = '#6A5ACD'; }
+        else if (eventType === 'holiday') { bg = '#FDEAEA'; dot = '#E57373'; }
+        else if (eventType === 'exam') { bg = '#FEF3C7'; dot = '#F59E0B'; }
+        
+        return { type: eventType, bg, dot };
+    };
+
+    const getTimeDetail = (dateObj) => {
+        const type = getDayInfo(dateObj).type;
+        if (type === 'weekend') return { hours: '09:00 - 17:00 น.', desc: 'เวลาทำการวันเสาร์-อาทิตย์' };
+        if (type === 'holiday') return { hours: '09:00 - 17:00 น.', desc: 'เวลาทำการวันหยุดนักขัตฤกษ์' };
+        if (type === 'exam') return { hours: '08:30 - 00:00 น.', desc: 'เวลาทำการวันจันทร์-ศุกร์ (ช่วง 2 สัปดาห์ก่อนสอบ)' };
+        return { hours: '08:30 - 20:00 น.', desc: 'เวลาทำการวันจันทร์-ศุกร์ (ปกติ)' };
+    };
+
+    const generateCalendar = (date) => {
+        const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
+        const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+        const startDate = new Date(firstDay);
+        startDate.setDate(startDate.getDate() - startDate.getDay());
+        const endDate = new Date(lastDay);
+        if (endDate.getDay() !== 6) endDate.setDate(endDate.getDate() + (6 - endDate.getDay()));
+
+        const weeks = [];
+        let current = new Date(startDate);
+        while (current <= endDate) {
+            const week = [];
+            for (let i = 0; i < 7; i++) {
+                week.push(new Date(current));
+                current.setDate(current.getDate() + 1);
+            }
+            weeks.push(week);
+        }
+        return weeks;
+    };
+
+    const formatThaiDate = (d) => {
+        const days = ['วันอาทิตย์', 'วันจันทร์', 'วันอังคาร', 'วันพุธ', 'วันพฤหัสบดี', 'วันศุกร์', 'วันเสาร์'];
+        const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+        return `${days[d.getDay()]}ที่ ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543}`;
+    };
+
+    const formatMonthYear = (d) => {
+        const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+        return `${months[d.getMonth()]} ${d.getFullYear() + 543}`;
+    };
+
+    const changeMonth = (offset) => {
+        const newMonth = new Date(currentMonthDate);
+        newMonth.setMonth(newMonth.getMonth() + offset);
+        setCurrentMonthDate(newMonth);
+    };
+
+    const isSameDate = (d1, d2) => d1.getDate() === d2.getDate() && d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
+
+    const calendarWeeks = generateCalendar(currentMonthDate);
+
+    return (
+        <div>
+            <div className="flex justify-between items-center mb-5 px-2">
+                <button onClick={() => changeMonth(-1)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition">
+                    <ChevronLeft size={20} className="text-slate-600" />
+                </button>
+                <h4 className="font-bold text-[16px] text-[#3D2B56]">{formatMonthYear(currentMonthDate)}</h4>
+                <button onClick={() => changeMonth(1)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition">
+                    <ChevronRight size={20} className="text-slate-600" />
+                </button>
+            </div>
+            
+            <div className="mb-5">
+                <div className="grid grid-cols-7 gap-1 mb-2">
+                    {['อา','จ','อ','พ','พฤ','ศ','ส'].map((d, i) => (
+                        <div key={i} className="text-center text-[12px] font-semibold text-slate-400">{d}</div>
+                    ))}
+                </div>
+                {calendarWeeks.map((week, rowIndex) => (
+                    <div key={rowIndex} className="grid grid-cols-7 gap-1 mb-1">
+                        {week.map((dayObj, colIndex) => {
+                            const isSelected = isSameDate(dayObj, selectedDateObj);
+                            const isCurrentMonth = dayObj.getMonth() === currentMonthDate.getMonth();
+                            const { bg, dot } = getDayInfo(dayObj);
+                            
+                            return (
+                                <button 
+                                    key={colIndex}
+                                    onClick={() => setSelectedDateObj(dayObj)}
+                                    className={`w-9 h-9 mx-auto rounded-xl flex flex-col items-center justify-center transition-all ${!isCurrentMonth ? 'opacity-40' : ''}`}
+                                    style={{ 
+                                        backgroundColor: isSelected ? '#3D2B56' : bg,
+                                        transform: isSelected ? 'scale(1.05)' : 'scale(1)',
+                                        boxShadow: isSelected ? '0 4px 10px rgba(61, 43, 86, 0.2)' : 'none'
+                                    }}
+                                >
+                                    <span className={`text-[13px] font-bold ${isSelected ? 'text-white' : (isCurrentMonth ? 'text-slate-700' : 'text-slate-400')}`}>
+                                        {dayObj.getDate()}
+                                    </span>
+                                    {!isSelected && dot !== 'transparent' && (
+                                        <div className="w-1 h-1 rounded-full mt-0.5" style={{ backgroundColor: dot }}></div>
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </div>
+                ))}
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-2xl mb-5 border border-slate-100">
+                <p className="text-[13px] text-slate-500 mb-1">{formatThaiDate(selectedDateObj)}</p>
+                <h3 className="text-[18px] font-bold text-[#3D2B56] leading-tight mb-1">{getTimeDetail(selectedDateObj).hours}</h3>
+                <p className="text-[13px] text-slate-600">{getTimeDetail(selectedDateObj).desc}</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-y-3 px-2">
+                <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full border border-slate-200"></div>
+                    <span className="text-[12px] text-slate-600">วันธรรมดา</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-[#F5F3FA]"></div>
+                    <span className="text-[12px] text-slate-600">เสาร์-อาทิตย์</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-[#FDEAEA]"></div>
+                    <span className="text-[12px] text-slate-600">วันหยุดขัตฤกษ์</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-[#FEF3C7]"></div>
+                    <span className="text-[12px] text-slate-600">ช่วงใกล้สอบ</span>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/* ============================================================
    Component
    ============================================================ */
 export default function UserApp({ studentId, onLogout }) {
@@ -201,10 +362,35 @@ export default function UserApp({ studentId, onLogout }) {
     // Cart states
     const [cartItems, setCartItems] = useState([]);
     const [checkoutSuccess, setCheckoutSuccess] = useState(false);
+    const [settingsModal, setSettingsModal] = useState(null);
     const [transactionId, setTransactionId] = useState("");
     const [transactionDetails, setTransactionDetails] = useState(null);
     const [pickupDate, setPickupDate] = useState(new Date().toISOString().split('T')[0]);
     const [pickupTime, setPickupTime] = useState(`${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`);
+    
+    // Receipt Modal State
+    const [selectedReceipt, setSelectedReceipt] = useState(null);
+    // PIN Modal State
+    const [pinCode, setPinCode] = useState(localStorage.getItem('user_pin') || '');
+    const [isPinVisible, setIsPinVisible] = useState(false);
+
+    // Memoized grouped receipts
+    const groupedReceipts = useMemo(() => {
+        const groups = {};
+        borrowedItems.forEach(item => {
+            const txId = item.transaction_id || new Date(item.borrow_date).getTime().toString();
+            if (!groups[txId]) {
+                groups[txId] = {
+                    txId: txId,
+                    borrowDate: new Date(item.borrow_date),
+                    status: item.status,
+                    items: []
+                };
+            }
+            groups[txId].items.push(item);
+        });
+        return Object.values(groups).sort((a, b) => b.borrowDate - a.borrowDate);
+    }, [borrowedItems]);
 
     // Detail modal
     const [detailItem, setDetailItem] = useState(null);
@@ -600,10 +786,7 @@ export default function UserApp({ studentId, onLogout }) {
                 {/* ===== DASHBOARD ===== */}
                 {currentPage === "dashboard" ? (
                     <>
-                        <div className="bg-white border-b border-purple-100 px-8 py-5 sticky top-0 z-10">
-                            <h1 className="text-xl font-bold text-slate-800">ข้อมูลนักศึกษา</h1>
-                            <p className="text-[12.5px] text-slate-400 mt-0.5">ยินดีต้อนรับเข้าสู่ระบบยืม-คืนอุปกรณ์ห้องสมุด</p>
-                        </div>
+
                         <div className="p-8 pt-6 space-y-6">
                             {/* Profile Card */}
                             <div className="bg-[#3D2B56] rounded-3xl p-6 text-white shadow-lg shadow-[#3D2B56]/20">
@@ -713,10 +896,7 @@ export default function UserApp({ studentId, onLogout }) {
                 /* ===== SEARCH ===== */
                 ) : currentPage === "search" ? (
                     <>
-                        <div className="bg-white border-b border-purple-100 px-8 py-5 sticky top-0 z-10">
-                            <h1 className="text-xl font-bold text-slate-800">อุปกรณ์อิเล็กทรอนิกส์</h1>
-                            <p className="text-[12.5px] text-slate-400 mt-0.5">ค้นหาและเลือกอุปกรณ์ที่ต้องการยืม</p>
-                        </div>
+
                         <div className="p-8 pt-6">
                             {/* Search bar */}
                             <div className="relative mb-5">
@@ -770,10 +950,7 @@ export default function UserApp({ studentId, onLogout }) {
                 /* ===== CART ===== */
                 ) : currentPage === "cart" ? (
                     <>
-                        <div className="bg-white border-b border-purple-100 px-8 py-5 sticky top-0 z-10">
-                            <h1 className="text-xl font-bold text-slate-800">ตะกร้ายืมอุปกรณ์</h1>
-                            <p className="text-[12.5px] text-slate-400 mt-0.5">ตรวจสอบรายการก่อนยืนยันการยืม</p>
-                        </div>
+
                         <div className="p-8 pt-6 space-y-6">
                             {checkoutSuccess && transactionDetails ? (
                                 /* Success Receipt matching Mobile App */
@@ -786,11 +963,14 @@ export default function UserApp({ studentId, onLogout }) {
                                         <p className="text-slate-500 text-[13px]">บันทึกรายการยืมของคุณเรียบร้อยแล้ว</p>
                                     </div>
                                     
-                                    <div className="bg-[#F9F8FD] rounded-2xl p-5 mb-6 border border-purple-50 space-y-3">
-                                        <div className="flex justify-between items-center pb-3 border-b border-purple-100/50">
-                                            <span className="text-sm text-slate-500">เลขที่ทำรายการ</span>
-                                            <span className="text-[15px] font-bold text-slate-800 font-mono">{transactionDetails.transactionId}</span>
+                                    <div className="flex flex-col items-center justify-center mb-6">
+                                        <div className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100">
+                                            <QRCode value={transactionDetails.transactionId} size={150} />
                                         </div>
+                                        <p className="text-[12px] text-slate-400 mt-3 font-mono">{transactionDetails.transactionId}</p>
+                                    </div>
+                                    
+                                    <div className="bg-[#F9F8FD] rounded-2xl p-5 mb-6 border border-purple-50 space-y-3">
                                         <div className="flex justify-between items-center pb-3 border-b border-purple-100/50">
                                             <span className="text-sm text-slate-500">วันเวลาที่ยืม</span>
                                             <span className="text-sm font-bold text-slate-800">{transactionDetails.borrowTime}</span>
@@ -811,8 +991,8 @@ export default function UserApp({ studentId, onLogout }) {
                                             {transactionDetails.items.map((item, idx) => (
                                                 <div key={idx} className="flex gap-3 bg-white border border-slate-100 p-3 rounded-xl shadow-sm">
                                                     <div className="w-12 h-12 bg-slate-50 rounded-lg overflow-hidden shrink-0 flex items-center justify-center border border-slate-100">
-                                                        {item.image_url ? (
-                                                            <img src={`${IMG_BASE}${item.image_url}`} alt={item.name} className="w-full h-full object-contain" />
+                                                        {item.equipment_img || item.image_url ? (
+                                                            <img src={`${IMG_BASE}${(item.equipment_img || item.image_url).replace(/\\.jpeg$/i, '.jpg')}`} alt={item.name} className="w-full h-full object-contain" />
                                                         ) : (
                                                             <Package size={20} className="text-slate-300" />
                                                         )}
@@ -934,10 +1114,7 @@ export default function UserApp({ studentId, onLogout }) {
                 /* ===== STATUS ===== */
                 ) : currentPage === "status" ? (
                     <>
-                        <div className="bg-white border-b border-purple-100 px-8 py-5 sticky top-0 z-10">
-                            <h1 className="text-xl font-bold text-slate-800">รายการยืมของฉัน</h1>
-                            <p className="text-[12.5px] text-slate-400 mt-0.5">ตรวจสอบสถานะการยืม-คืนอุปกรณ์ทั้งหมด</p>
-                        </div>
+
                         <div className="p-8 pt-6 space-y-5">
                             {/* Filter tabs */}
                             <div className="flex gap-2 overflow-x-auto pb-1 whitespace-nowrap">
@@ -1068,10 +1245,7 @@ export default function UserApp({ studentId, onLogout }) {
                 /* ===== NOTIFICATIONS ===== */
                 ) : currentPage === "notifications" ? (
                     <>
-                        <div className="bg-white border-b border-purple-100 px-8 py-5 sticky top-0 z-10">
-                            <h1 className="text-xl font-bold text-slate-800">แจ้งเตือนและประกาศ</h1>
-                            <p className="text-[12.5px] text-slate-400 mt-0.5">ข่าวสารและประกาศจากระบบห้องสมุด</p>
-                        </div>
+
                         <div className="p-8 pt-6 space-y-4">
                             {notifications.length > 0 ? notifications.map(notif => (
                                 <div key={notif.id} className="bg-white border border-purple-100 rounded-2xl p-5 shadow-sm">
@@ -1100,81 +1274,219 @@ export default function UserApp({ studentId, onLogout }) {
                 /* ===== SETTINGS ===== */
                 ) : currentPage === "settings" ? (
                     <>
-                        <div className="bg-white border-b border-purple-100 px-8 py-5 sticky top-0 z-10">
-                            <h1 className="text-xl font-bold text-slate-800">ตั้งค่าบัญชีผู้ใช้</h1>
-                            <p className="text-[12.5px] text-slate-400 mt-0.5">จัดการข้อมูลส่วนตัวของผู้ใช้</p>
+
+                        <div className="p-8 pt-6 max-w-4xl mx-auto space-y-8">
+                            
+                            {/* Profile Card */}
+                            <div className="bg-[#3D2B56] rounded-[24px] p-6 shadow-xl shadow-[#3D2B56]/20 text-white flex items-center gap-5">
+                                <div className="w-20 h-20 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center overflow-hidden shrink-0">
+                                    {student?.student_img ? (
+                                        <img src={`${IMG_BASE}${student.student_img}`} alt="Profile" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <User size={32} className="text-white/60" />
+                                    )}
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold">{student?.name_th || 'ผู้ใช้งานทั่วไป'}</h2>
+                                    <p className="text-white/70 text-[14px] mt-1">รหัสนักศึกษา {studentId || '-'}</p>
+                                </div>
+                            </div>
+
+                            {/* Section 1: บัญชีผู้ใช้ */}
+                            <div>
+                                <h3 className="text-[15px] font-bold text-slate-800 mb-3 ml-2">บัญชีผู้ใช้</h3>
+                                <div className="bg-white border border-purple-100 rounded-3xl overflow-hidden shadow-sm divide-y divide-slate-100">
+                                    <button onClick={() => setSettingsModal('personal')} className="w-full flex items-center gap-4 p-4 hover:bg-slate-50 transition text-left">
+                                        <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center shrink-0">
+                                            <User size={18} className="text-[#3D2B56]" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="text-[14px] font-bold text-slate-800">ข้อมูลส่วนตัว</div>
+                                            <div className="text-[12px] text-slate-500 mt-0.5">ดูอีเมลและเบอร์โทรศัพท์</div>
+                                        </div>
+                                        <ChevronRight size={18} className="text-slate-300" />
+                                    </button>
+                                    <button onClick={() => setSettingsModal('history')} className="w-full flex items-center gap-4 p-4 hover:bg-slate-50 transition text-left">
+                                        <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center shrink-0">
+                                            <ClipboardList size={18} className="text-[#3D2B56]" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="text-[14px] font-bold text-slate-800">ประวัติการยืม-คืน</div>
+                                            <div className="text-[12px] text-slate-500 mt-0.5">ดูรายการทั้งหมดย้อนหลัง</div>
+                                        </div>
+                                        <ChevronRight size={18} className="text-slate-300" />
+                                    </button>
+                                    <button onClick={() => setSettingsModal('receipt')} className="w-full flex items-center gap-4 p-4 hover:bg-slate-50 transition text-left">
+                                        <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center shrink-0">
+                                            <FileText size={18} className="text-[#3D2B56]" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="text-[14px] font-bold text-slate-800">ใบเสร็จการยืม</div>
+                                            <div className="text-[12px] text-slate-500 mt-0.5">ดูสลิปรายละเอียดการทำรายการยืม</div>
+                                        </div>
+                                        <ChevronRight size={18} className="text-slate-300" />
+                                    </button>
+                                    <button onClick={() => setSettingsModal('security')} className="w-full flex items-center gap-4 p-4 hover:bg-slate-50 transition text-left">
+                                        <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center shrink-0">
+                                            <Lock size={18} className="text-[#3D2B56]" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="text-[14px] font-bold text-slate-800">ความปลอดภัย</div>
+                                            <div className="text-[12px] text-slate-500 mt-0.5">{localStorage.getItem('user_pin') ? 'ตั้งค่าแล้ว' : 'ยังไม่ได้ตั้งค่า'}</div>
+                                        </div>
+                                        <ChevronRight size={18} className="text-slate-300" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Section 2: ข้อมูลห้องสมุด */}
+                            <div>
+                                <h3 className="text-[15px] font-bold text-slate-800 mb-3 ml-2">ข้อมูลห้องสมุด</h3>
+                                <div className="bg-white border border-purple-100 rounded-3xl overflow-hidden shadow-sm">
+                                    <button onClick={() => setSettingsModal('calendar')} className="w-full flex items-center gap-4 p-4 hover:bg-slate-50 transition text-left">
+                                        <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center shrink-0">
+                                            <Calendar size={18} className="text-[#3D2B56]" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="text-[14px] font-bold text-slate-800">ปฏิทินและเวลาทำการ</div>
+                                            <div className="text-[12px] text-slate-500 mt-0.5">ดูวันเปิด-ปิดของห้องสมุด</div>
+                                        </div>
+                                        <ChevronRight size={18} className="text-slate-300" />
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            {/* Section 3: การแจ้งเตือน */}
+                            <div>
+                                <h3 className="text-[15px] font-bold text-slate-800 mb-3 ml-2">การแจ้งเตือน</h3>
+                                <div className="bg-white border border-purple-100 rounded-3xl overflow-hidden shadow-sm divide-y divide-slate-100">
+                                    <div className="flex items-center gap-4 p-4">
+                                        <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center shrink-0">
+                                            <Bell size={18} className="text-[#3D2B56]" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="text-[14px] font-bold text-slate-800">แจ้งเตือนก่อนครบกำหนดคืน</div>
+                                            <div className="text-[12px] text-slate-500 mt-0.5">แจ้งล่วงหน้า 1 วัน</div>
+                                        </div>
+                                        <div className="w-12 h-6 bg-[#2196F3] rounded-full flex items-center px-1 shrink-0 cursor-pointer">
+                                            <div className="w-4 h-4 bg-white rounded-full translate-x-6 shadow-sm"></div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-4 p-4">
+                                        <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center shrink-0">
+                                            <Package size={18} className="text-[#3D2B56]" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="text-[14px] font-bold text-slate-800">แจ้งเตือนอุปกรณ์ใหม่</div>
+                                            <div className="text-[12px] text-slate-500 mt-0.5">อัปเดตของเข้าใหม่ในระบบ</div>
+                                        </div>
+                                        <div className="w-12 h-6 bg-slate-200 rounded-full flex items-center px-1 shrink-0 cursor-pointer">
+                                            <div className="w-4 h-4 bg-white rounded-full shadow-sm"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Section 4: ทั่วไป */}
+                            <div>
+                                <h3 className="text-[15px] font-bold text-slate-800 mb-3 ml-2">ทั่วไป</h3>
+                                <div className="bg-white border border-purple-100 rounded-3xl overflow-hidden shadow-sm divide-y divide-slate-100">
+                                    <button onClick={() => setSettingsModal('guide')} className="w-full flex items-center gap-4 p-4 hover:bg-slate-50 transition text-left">
+                                        <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center shrink-0">
+                                            <BookOpen size={18} className="text-[#3D2B56]" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="text-[14px] font-bold text-slate-800">คู่มือการใช้งานเบื้องต้น</div>
+                                            <div className="text-[12px] text-slate-500 mt-0.5">วิธีการใช้งานแอปพลิเคชัน</div>
+                                        </div>
+                                        <ChevronRight size={18} className="text-slate-300" />
+                                    </button>
+                                    <button onClick={onLogout} className="w-full flex items-center gap-4 p-4 hover:bg-red-50 transition text-left">
+                                        <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center shrink-0">
+                                            <LogOut size={18} className="text-red-500" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="text-[14px] font-bold text-red-500">ออกจากระบบ</div>
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                        <div className="p-8 pt-6 max-w-4xl mx-auto space-y-6">
+                    </>
+                ) : null}
+            </div>
+
+            {/* ================= SETTINGS MODALS ================= */}
+            {settingsModal === 'personal' && (
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+                        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
+                            <h3 className="text-[16px] font-bold text-slate-800 flex items-center gap-2"><User size={18} className="text-[#3D2B56]" /> ข้อมูลส่วนตัว</h3>
+                            <button onClick={() => setSettingsModal(null)} className="p-1.5 hover:bg-slate-100 rounded-full transition text-slate-500">
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <div className="p-6 overflow-y-auto">
                             {settingsMsg.text && (
-                                <div className={`p-4 rounded-2xl border flex items-center gap-3 ${settingsMsg.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+                                <div className={`p-4 mb-5 rounded-2xl border flex items-center gap-3 ${settingsMsg.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
                                     {settingsMsg.type === 'success' ? <CheckCircle size={20} className="shrink-0" /> : <AlertCircle size={20} className="shrink-0" />}
                                     <span className="text-[13.5px] font-semibold">{settingsMsg.text}</span>
                                 </div>
                             )}
-
-                            <form onSubmit={handleSaveSettings} className="space-y-6">
-                                {/* Profile info card */}
-                                <div className="bg-white border border-purple-100 rounded-3xl p-6 shadow-sm space-y-5">
-                                    <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
-                                        <User className="text-[#3D2B56]" size={22} />
-                                        <h2 className="text-[16px] font-bold text-slate-800">ข้อมูลส่วนตัว (Personal Profile)</h2>
+                            <form onSubmit={(e) => { handleSaveSettings(e); setSettingsModal(null); }} className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[12.5px] font-semibold text-slate-600 mb-1.5">ชื่อ-นามสกุล (ภาษาไทย)</label>
+                                        <input
+                                            type="text"
+                                            value={settingsForm.name_th}
+                                            onChange={e => setSettingsForm({ ...settingsForm, name_th: e.target.value })}
+                                            placeholder="ชื่อ-นามสกุล"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13.5px] outline-none focus:border-purple-500 focus:bg-white transition"
+                                        />
                                     </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-[12.5px] font-semibold text-slate-600 mb-1.5">ชื่อ-นามสกุล (ภาษาไทย)</label>
-                                            <input
-                                                type="text"
-                                                value={settingsForm.name_th}
-                                                onChange={e => setSettingsForm({ ...settingsForm, name_th: e.target.value })}
-                                                placeholder="ชื่อ-นามสกุล"
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13.5px] outline-none focus:border-purple-500 focus:bg-white transition"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-[12.5px] font-semibold text-slate-600 mb-1.5">Name - Surname (English)</label>
-                                            <input
-                                                type="text"
-                                                value={settingsForm.name_en}
-                                                onChange={e => setSettingsForm({ ...settingsForm, name_en: e.target.value })}
-                                                placeholder="Full name in English"
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13.5px] outline-none focus:border-purple-500 focus:bg-white transition"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-[12.5px] font-semibold text-slate-600 mb-1.5">อีเมล (Email)</label>
-                                            <input
-                                                type="email"
-                                                value={settingsForm.email}
-                                                onChange={e => setSettingsForm({ ...settingsForm, email: e.target.value })}
-                                                placeholder="student@g.sut.ac.th"
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13.5px] outline-none focus:border-purple-500 focus:bg-white transition"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-[12.5px] font-semibold text-slate-600 mb-1.5">เบอร์โทรศัพท์ (Phone)</label>
-                                            <input
-                                                type="tel"
-                                                value={settingsForm.phone_number}
-                                                onChange={e => setSettingsForm({ ...settingsForm, phone_number: e.target.value })}
-                                                placeholder="0812345678"
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13.5px] outline-none focus:border-purple-500 focus:bg-white transition"
-                                            />
-                                        </div>
-                                        <div className="md:col-span-2">
-                                            <label className="block text-[12.5px] font-semibold text-slate-600 mb-1.5">สาขาวิชา / คณะ (Department)</label>
-                                            <input
-                                                type="text"
-                                                value={settingsForm.department}
-                                                onChange={e => setSettingsForm({ ...settingsForm, department: e.target.value })}
-                                                placeholder="วิศวกรรมซอฟต์แวร์"
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13.5px] outline-none focus:border-purple-500 focus:bg-white transition"
-                                            />
-                                        </div>
+                                    <div>
+                                        <label className="block text-[12.5px] font-semibold text-slate-600 mb-1.5">Name - Surname (English)</label>
+                                        <input
+                                            type="text"
+                                            value={settingsForm.name_en}
+                                            onChange={e => setSettingsForm({ ...settingsForm, name_en: e.target.value })}
+                                            placeholder="Full name in English"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13.5px] outline-none focus:border-purple-500 focus:bg-white transition"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[12.5px] font-semibold text-slate-600 mb-1.5">อีเมล (Email)</label>
+                                        <input
+                                            type="email"
+                                            value={settingsForm.email}
+                                            onChange={e => setSettingsForm({ ...settingsForm, email: e.target.value })}
+                                            placeholder="student@g.sut.ac.th"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13.5px] outline-none focus:border-purple-500 focus:bg-white transition"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[12.5px] font-semibold text-slate-600 mb-1.5">เบอร์โทรศัพท์ (Phone)</label>
+                                        <input
+                                            type="tel"
+                                            value={settingsForm.phone_number}
+                                            onChange={e => setSettingsForm({ ...settingsForm, phone_number: e.target.value })}
+                                            placeholder="0812345678"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13.5px] outline-none focus:border-purple-500 focus:bg-white transition"
+                                        />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-[12.5px] font-semibold text-slate-600 mb-1.5">สาขาวิชา / คณะ (Department)</label>
+                                        <input
+                                            type="text"
+                                            value={settingsForm.department}
+                                            onChange={e => setSettingsForm({ ...settingsForm, department: e.target.value })}
+                                            placeholder="วิศวกรรมซอฟต์แวร์"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13.5px] outline-none focus:border-purple-500 focus:bg-white transition"
+                                        />
                                     </div>
                                 </div>
-
-                                <div className="flex justify-end">
+                                <div className="flex justify-end pt-2">
                                     <button
                                         type="submit"
                                         disabled={isSavingSettings}
@@ -1186,9 +1498,224 @@ export default function UserApp({ studentId, onLogout }) {
                                 </div>
                             </form>
                         </div>
-                    </>
-                ) : null}
-            </div>
+                    </div>
+                </div>
+            )}
+
+            {settingsModal === 'calendar' && (
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden">
+                        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white">
+                            <h3 className="text-[16px] font-bold text-slate-800 flex items-center gap-2"><Calendar size={18} className="text-[#3D2B56]" /> ปฏิทินและเวลาเปิด-ปิด</h3>
+                            <button onClick={() => setSettingsModal(null)} className="p-1.5 hover:bg-slate-100 rounded-full transition text-slate-500">
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <CalendarView />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {settingsModal === 'history' && (
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+                        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
+                            <h3 className="text-[16px] font-bold text-slate-800 flex items-center gap-2"><ClipboardList size={18} className="text-[#3D2B56]" /> ประวัติการยืม-คืน</h3>
+                            <button onClick={() => setSettingsModal(null)} className="p-1.5 hover:bg-slate-100 rounded-full transition text-slate-500">
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <div className="p-6 overflow-y-auto space-y-4">
+                            {borrowedItems.length > 0 ? borrowedItems.map((item, idx) => (
+                                <div key={idx} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <h4 className="font-bold text-slate-800">{item.name || `อุปกรณ์ #${item.equipment_id}`}</h4>
+                                        <span className={`text-[12px] font-bold px-2.5 py-1 rounded-lg ${getBadgeStyle(item.status)}`}>
+                                            {item.status === 'returned' ? 'คืนแล้ว' : 'กำลังยืม'}
+                                        </span>
+                                    </div>
+                                    <p className="text-[13px] text-slate-500">ยืมเมื่อ {new Date(item.borrow_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })} • กำหนดคืน {(() => {
+                                        const d = new Date(item.borrow_date); d.setDate(d.getDate() + 3); return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
+                                    })()}</p>
+                                </div>
+                            )) : (
+                                <div className="text-center py-12 text-slate-400">
+                                    <ClipboardList size={48} className="mx-auto mb-3 text-slate-200" />
+                                    <p>ยังไม่มีประวัติการยืม-คืน</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {settingsModal === 'receipt' && (
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+                        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
+                            <h3 className="text-[16px] font-bold text-slate-800 flex items-center gap-2"><FileText size={18} className="text-[#3D2B56]" /> ประวัติใบเสร็จ</h3>
+                            <button onClick={() => setSettingsModal(null)} className="p-1.5 hover:bg-slate-100 rounded-full transition text-slate-500">
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <div className="p-6 overflow-y-auto space-y-4">
+                            {groupedReceipts.length > 0 ? groupedReceipts.map((group, idx) => (
+                                <button key={idx} onClick={() => setSelectedReceipt(group)} className="w-full text-left bg-white border border-slate-200 hover:border-purple-300 rounded-2xl p-4 shadow-sm transition">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <h4 className="font-bold text-[#3D2B56] text-[15px]">เลขที่: {group.txId}</h4>
+                                        <span className="text-[13px] text-slate-500">{group.borrowDate.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}</span>
+                                    </div>
+                                    <div className="space-y-1 mb-4">
+                                        {group.items.map((it, i) => (
+                                            <p key={i} className="text-[13px] text-slate-600 truncate">- {it.name}</p>
+                                        ))}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${group.status === 'returned' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+                                            {group.status === 'returned' ? 'คืนแล้ว' : 'กำลังยืม'}
+                                        </span>
+                                        <span className="text-[12px] text-slate-400">{group.items.length} รายการ</span>
+                                    </div>
+                                </button>
+                            )) : (
+                                <div className="text-center py-12 text-slate-400">
+                                    <FileText size={48} className="mx-auto mb-3 text-slate-200" />
+                                    <p>ยังไม่มีใบเสร็จ</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {settingsModal === 'security' && (
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden">
+                        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white">
+                            <h3 className="text-[16px] font-bold text-slate-800 flex items-center gap-2"><Lock size={18} className="text-[#3D2B56]" /> ความปลอดภัย (PIN)</h3>
+                            <button onClick={() => setSettingsModal(null)} className="p-1.5 hover:bg-slate-100 rounded-full transition text-slate-500">
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <p className="text-[14px] text-slate-600 mb-4">
+                                {localStorage.getItem('user_pin') ? 'คุณได้ตั้งรหัส PIN ไว้เรียบร้อยแล้ว' : 'ตั้งรหัส PIN 6 หลักเพื่อเพิ่มความปลอดภัย'}
+                            </p>
+                            <input 
+                                type={isPinVisible ? "text" : "password"}
+                                maxLength={6}
+                                value={pinCode}
+                                onChange={(e) => setPinCode(e.target.value.replace(/\D/g, ''))}
+                                placeholder="ใส่รหัส PIN 6 หลัก"
+                                className="w-full text-center tracking-[0.5em] text-2xl bg-slate-50 border border-slate-200 rounded-xl px-4 py-4 outline-none focus:border-purple-500 font-mono transition"
+                            />
+                            <div className="flex justify-between items-center mt-3 mb-6 px-1">
+                                <label className="flex items-center gap-2 text-[13px] text-slate-500 cursor-pointer select-none">
+                                    <input type="checkbox" checked={isPinVisible} onChange={() => setIsPinVisible(!isPinVisible)} className="accent-purple-600 w-4 h-4" />
+                                    แสดงรหัสผ่าน
+                                </label>
+                                {localStorage.getItem('user_pin') && (
+                                    <button onClick={() => { localStorage.removeItem('user_pin'); setPinCode(''); showToast('ยกเลิกการตั้งรหัส PIN สำเร็จ', 'success'); }} className="text-red-500 text-[13px] font-bold hover:underline">
+                                        ยกเลิก PIN
+                                    </button>
+                                )}
+                            </div>
+                            <button 
+                                onClick={() => {
+                                    if(pinCode.length === 6) {
+                                        localStorage.setItem('user_pin', pinCode);
+                                        showToast('ตั้งรหัส PIN สำเร็จ', 'success');
+                                        setSettingsModal(null);
+                                    } else {
+                                        alert('กรุณาใส่รหัส PIN ให้ครบ 6 หลัก');
+                                    }
+                                }}
+                                disabled={pinCode.length !== 6}
+                                className={`w-full py-3.5 rounded-2xl font-bold text-[14px] transition flex items-center justify-center gap-2 ${pinCode.length === 6 ? 'bg-[#3D2B56] text-white hover:bg-[#2d1f40] shadow-lg shadow-[#3D2B56]/20' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
+                            >
+                                <CheckCircle size={18} /> บันทึกรหัส PIN
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {settingsModal === 'guide' && (
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
+                        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
+                            <h3 className="text-[16px] font-bold text-slate-800 flex items-center gap-2"><BookOpen size={18} className="text-[#3D2B56]" /> คู่มือการใช้งานเบื้องต้น</h3>
+                            <button onClick={() => setSettingsModal(null)} className="p-1.5 hover:bg-slate-100 rounded-full transition text-slate-500">
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <div className="p-6 overflow-y-auto space-y-4 text-[14px] text-slate-600 leading-relaxed">
+                            <h4 className="font-bold text-slate-800 text-[15px]">1. การยืมอุปกรณ์</h4>
+                            <p>ไปที่เมนู <strong className="text-[#3D2B56]">"ค้นหา"</strong> เลือกอุปกรณ์ที่ต้องการแล้วกด <strong className="text-[#3D2B56]">"ยืมอุปกรณ์นี้"</strong> จากนั้นอุปกรณ์จะไปอยู่ในตะกร้า ให้ไปที่หน้าตะกร้าเพื่อกดยืนยันการทำรายการ</p>
+                            
+                            <h4 className="font-bold text-slate-800 text-[15px] mt-4">2. การคืนอุปกรณ์</h4>
+                            <p>นำอุปกรณ์มาคืนที่เจ้าหน้าที่ห้องสมุด โดยสามารถโชว์ <strong>QR Code ในหน้าใบเสร็จ</strong> หรือบอกรหัสนักศึกษา เพื่อให้เจ้าหน้าที่ทำรายการคืนให้ในระบบ</p>
+                            
+                            <h4 className="font-bold text-slate-800 text-[15px] mt-4">3. ค่าปรับ</h4>
+                            <p>หากคืนอุปกรณ์เกินกำหนดเวลา ระบบจะมีค่าปรับตามจำนวนวันที่ล่าช้า โปรดคืนอุปกรณ์ให้ตรงเวลาเพื่อหลีกเลี่ยงค่าปรับ</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {selectedReceipt && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex flex-col justify-center p-6">
+                    <div className="bg-white w-full max-w-sm mx-auto rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+                        <div className="p-6 pb-2 text-center relative border-b border-dashed border-slate-200">
+                            <button onClick={() => setSelectedReceipt(null)} className="absolute right-4 top-4 w-8 h-8 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center transition text-slate-500">
+                                <X size={18} />
+                            </button>
+                            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <CheckCircle size={32} className="text-green-600" />
+                            </div>
+                            <h2 className="text-xl font-bold text-slate-800 mb-1">ใบเสร็จการยืม</h2>
+                            <p className="text-[13px] text-slate-500 mb-4">{selectedReceipt.borrowDate.toLocaleString('th-TH')}</p>
+                        </div>
+                        <div className="p-6 bg-slate-50 overflow-y-auto">
+                            <div className="space-y-4 mb-6">
+                                <div className="flex justify-between border-b border-slate-200 pb-3">
+                                    <span className="text-[13px] text-slate-500">Transaction ID</span>
+                                    <span className="font-bold text-[14px] text-slate-800">{selectedReceipt.txId}</span>
+                                </div>
+                                <div className="flex justify-between border-b border-slate-200 pb-3">
+                                    <span className="text-[13px] text-slate-500">ผู้ยืม</span>
+                                    <span className="font-bold text-[14px] text-slate-800">{student?.name_th}</span>
+                                </div>
+                            </div>
+                            <div className="bg-white p-4 rounded-2xl shadow-sm space-y-3 mb-6">
+                                {selectedReceipt.items.map((it, i) => (
+                                    <div key={i} className="flex gap-3">
+                                        <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center shrink-0 border border-slate-100 overflow-hidden">
+                                            {it.equipment_img || it.image_url ? (
+                                                <img src={`${IMG_BASE}${(it.equipment_img || it.image_url).replace(/\.jpeg$/i, '.jpg')}`} alt="" className="w-full h-full object-contain" />
+                                            ) : (
+                                                <Package size={16} className="text-slate-300" />
+                                            )}
+                                        </div>
+                                        <div>
+                                            <p className="text-[13px] font-bold text-slate-800 leading-tight">{it.name}</p>
+                                            <p className="text-[11px] text-slate-500 mt-0.5">รหัส: {it.equipment_id}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="flex justify-center pb-2">
+                                <div className="bg-white p-3 rounded-2xl shadow-sm inline-block border border-slate-100">
+                                    <QRCode value={selectedReceipt.txId} size={120} />
+                                </div>
+                            </div>
+                            <p className="text-center text-[12px] text-slate-400 mt-4">แสดง QR Code นี้ให้บรรณารักษ์เมื่อมาคืนอุปกรณ์</p>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* ================= DETAIL MODAL ================= */}
             {isDetailOpen && (
@@ -1257,6 +1784,10 @@ export default function UserApp({ studentId, onLogout }) {
                                             }
                                             const ok = addToCart(detailItem);
                                             if (!ok) alert("ไม่สามารถเพิ่มได้ (ตะกร้าเต็ม หรือ มีอยู่แล้ว)");
+                                            else {
+                                                setIsDetailOpen(false);
+                                                setCurrentPage("cart");
+                                            }
                                         }}
                                         disabled={detailItem.status && detailItem.status !== 'ใช้งานได้'}
                                         className={`w-full py-4 rounded-2xl text-white font-bold text-[15px] transition ${detailItem.status && detailItem.status !== 'ใช้งานได้' ? 'bg-slate-300 cursor-not-allowed' : 'bg-[#3D2B56] shadow-lg shadow-[#3D2B56]/20 hover:bg-[#2d1f40] active:scale-[.99]'}`}
