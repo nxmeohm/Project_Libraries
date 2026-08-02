@@ -5,9 +5,10 @@ import {
 } from "lucide-react";
 import QRCode from "react-qr-code";
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { io } from "socket.io-client";
 
 const API_BASE = typeof window !== 'undefined' ? `http://${window.location.hostname}:5000/api` : "http://localhost:5000/api";
-const IMG_BASE = typeof window !== 'undefined' ? `http://${window.location.hostname}/` : "http://localhost/";
+const IMG_BASE = typeof window !== 'undefined' ? `http://${window.location.hostname}:5000/` : "http://localhost:5000/";
 
 /* ============================================================
    Nav items
@@ -540,6 +541,31 @@ export default function UserApp({ studentId, onLogout }) {
             fetchNotificationsData('announcement');
         }
     }, [currentPage]);
+
+    // Socket.IO for real-time updates
+    useEffect(() => {
+        const socket = io(API_BASE);
+        socket.on('data_updated', () => {
+            console.log("Real-time update received!");
+            if (currentPage === "dashboard" || currentPage === "search") {
+                fetch(`${API_BASE}/get_equipments.php`).then(r => r.json()).then(setEquipments).catch(console.error);
+            }
+            if (currentPage === "dashboard" || currentPage === "status") {
+                fetchBorrowed();
+            }
+            if (currentPage === "notifications") {
+                fetchNotificationsData('alert');
+            }
+            if (currentPage === "announcements") {
+                fetchNotificationsData('announcement');
+            }
+        });
+
+        return () => {
+            socket.off('data_updated');
+            socket.disconnect();
+        };
+    }, [currentPage, studentId]);
 
     const fetchBorrowed = () => {
         if (!studentId) return;
@@ -1092,7 +1118,7 @@ export default function UserApp({ studentId, onLogout }) {
                                             className="bg-white border border-purple-100 rounded-2xl p-4 text-center hover:shadow-md hover:border-purple-200 transition group">
                                             <div className="w-16 h-12 mx-auto bg-purple-50 rounded-xl flex items-center justify-center mb-3 overflow-hidden">
                                                 {item.equipment_img ? (
-                                                    <img src={`${IMG_BASE}${item.equipment_img.replace(/\.jpeg$/i, '.jpg')}`} alt="" className="w-10 h-10 object-contain" />
+                                                    <img src={`${IMG_BASE}${item.equipment_img}`} alt="" className="w-10 h-10 object-contain" />
                                                 ) : (
                                                     <Package size={24} className="text-purple-400" />
                                                 )}
@@ -1120,7 +1146,7 @@ export default function UserApp({ studentId, onLogout }) {
                                                 <div key={item.id} className="bg-white border border-purple-100 rounded-2xl p-4 flex items-center gap-4">
                                                     <div className="w-11 h-11 bg-purple-50 rounded-xl flex items-center justify-center shrink-0">
                                                         {item.equipment_img ? (
-                                                            <img src={`${IMG_BASE}${item.equipment_img.replace(/\.jpeg$/i, '.jpg')}`} alt="" className="w-7 h-7 object-contain" />
+                                                            <img src={`${IMG_BASE}${item.equipment_img}`} alt="" className="w-7 h-7 object-contain" />
                                                         ) : (
                                                             <Package size={20} className="text-purple-400" />
                                                         )}
@@ -1179,7 +1205,7 @@ export default function UserApp({ studentId, onLogout }) {
                                         className="w-full bg-white border border-purple-100 rounded-2xl p-4 flex items-center gap-4 hover:shadow-md hover:border-purple-200 transition text-left group">
                                         <div className="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center shrink-0 overflow-hidden border border-purple-100">
                                             {item.equipment_img ? (
-                                                <img src={`${IMG_BASE}${item.equipment_img.replace(/\.jpeg$/i, '.jpg')}`} alt="" className="w-full h-full object-contain" />
+                                                <img src={`${IMG_BASE}${item.equipment_img}`} alt="" className="w-full h-full object-contain" />
                                             ) : (
                                                 <Package size={22} className="text-purple-400" />
                                             )}
@@ -1246,7 +1272,7 @@ export default function UserApp({ studentId, onLogout }) {
                                                 <div key={idx} className="flex gap-3 bg-white border border-slate-100 p-3 rounded-xl shadow-sm">
                                                     <div className="w-12 h-12 bg-slate-50 rounded-lg overflow-hidden shrink-0 flex items-center justify-center border border-slate-100">
                                                         {item.equipment_img || item.image_url ? (
-                                                            <img src={`${IMG_BASE}${(item.equipment_img || item.image_url).replace(/\\.jpeg$/i, '.jpg')}`} alt={item.name} className="w-full h-full object-contain" />
+                                                            <img src={`${IMG_BASE}${(item.equipment_img || item.image_url)}`} alt={item.name} className="w-full h-full object-contain" />
                                                         ) : (
                                                             <Package size={20} className="text-slate-300" />
                                                         )}
@@ -1291,7 +1317,7 @@ export default function UserApp({ studentId, onLogout }) {
                                                 <div key={item.equipment_id} className="px-6 py-4 flex items-center gap-4">
                                                     <div className="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center shrink-0 overflow-hidden">
                                                         {item.equipment_img ? (
-                                                            <img src={`${IMG_BASE}${item.equipment_img.replace(/\.jpeg$/i, '.jpg')}`} alt="" className="w-8 h-8 object-contain" />
+                                                            <img src={`${IMG_BASE}${item.equipment_img}`} alt="" className="w-8 h-8 object-contain" />
                                                         ) : (
                                                             <Package size={20} className="text-purple-400" />
                                                         )}
@@ -1937,7 +1963,7 @@ export default function UserApp({ studentId, onLogout }) {
                                     <div key={i} className="flex gap-3">
                                         <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center shrink-0 border border-slate-100 overflow-hidden">
                                             {it.equipment_img || it.image_url ? (
-                                                <img src={`${IMG_BASE}${(it.equipment_img || it.image_url).replace(/\.jpeg$/i, '.jpg')}`} alt="" className="w-full h-full object-contain" />
+                                                <img src={`${IMG_BASE}${(it.equipment_img || it.image_url)}`} alt="" className="w-full h-full object-contain" />
                                             ) : (
                                                 <Package size={16} className="text-slate-300" />
                                             )}
@@ -1978,7 +2004,7 @@ export default function UserApp({ studentId, onLogout }) {
                                 {/* Image */}
                                 <div className="w-full h-[200px] bg-slate-50 rounded-2xl flex items-center justify-center overflow-hidden">
                                     {detailItem.equipment_img ? (
-                                        <img src={`${IMG_BASE}${detailItem.equipment_img.replace(/\.jpeg$/i, '.jpg')}`} alt="" className="max-h-full object-contain" />
+                                        <img src={`${IMG_BASE}${detailItem.equipment_img}`} alt="" className="max-h-full object-contain" />
                                     ) : (
                                         <Package size={64} className="text-purple-300" />
                                     )}

@@ -17,6 +17,7 @@
     "express": "^5.2.1",
     "jimp": "^0.22.10",
     "jsonwebtoken": "^9.0.2",
+    "multer": "^2.2.0",
     "mysql2": "^3.23.1",
     "node-cron": "^4.6.0",
     "nodemailer": "^9.0.3",

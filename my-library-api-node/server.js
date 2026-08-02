@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const pool = require('./db');
 const http = require('http');
+const path = require('path');
 const { Server } = require('socket.io');
 const mailer = require('./mailer');
 const cron = require('node-cron');
@@ -50,6 +51,16 @@ app.set('io', io);
 
 app.use(cors(corsOptions));
 app.use(express.json());
+const fs = require('fs');
+app.use('/uploads', (req, res, next) => {
+    const filePath = path.join(__dirname, 'uploads', req.url.split('?')[0]);
+    if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+        express.static(path.join(__dirname, 'uploads'))(req, res, next);
+    } else {
+        // Fallback to old XAMPP server
+        res.redirect(`http://localhost/uploads${req.url}`);
+    }
+});
 
 // Logger Middleware — ดู log กิจกรรม API ที่ถูกยิงมา
 app.use((req, res, next) => {

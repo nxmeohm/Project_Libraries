@@ -5,8 +5,27 @@ const authMiddleware = require('../middleware/authMiddleware');
 const validate = require('../middleware/validate');
 const generateChartData = require('../generate_chart_data');
 const mailer = require('../mailer');
+const multer = require('multer');
+const path = require('path');
 
 const router = express.Router();
+
+// ============================================================
+// Multer Configuration for Image Uploads
+// ============================================================
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, 'uploads/equipments/');
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, 'eq-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+const upload = multer({ 
+    storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
 
 // ============================================================
 // All admin routes require authentication
@@ -429,13 +448,14 @@ router.get('/equipments', async (req, res) => {
 // ============================================================
 // 7. Add Equipment
 // ============================================================
-router.post('/equipments', validate(addEquipmentSchema), async (req, res) => {
+router.post('/equipments', upload.single('equipment_img'), validate(addEquipmentSchema), async (req, res) => {
     const { name, kit_code, category, total_quantity, available_quantity, borrow_days, price, description, status: equipStatus } = req.body;
+    const equipment_img = req.file ? 'uploads/equipments/' + req.file.filename : null;
     try {
-        const sql = `INSERT INTO equipments (kit_code, name, total_quantity, description, usage_type, price, category, borrow_days, status) 
-                     VALUES (?, ?, ?, ?, 'internal', ?, ?, ?, ?)`;
+        const sql = `INSERT INTO equipments (kit_code, name, total_quantity, description, usage_type, price, category, borrow_days, status, equipment_img) 
+                     VALUES (?, ?, ?, ?, 'internal', ?, ?, ?, ?, ?)`;
         const [result] = await pool.query(sql, [
-            kit_code, name, total_quantity, description, price, category, borrow_days, equipStatus
+            kit_code, name, total_quantity, description, price, category, borrow_days, equipStatus, equipment_img
         ]);
         const equipment_id = result.insertId;
 
@@ -456,14 +476,22 @@ router.post('/equipments', validate(addEquipmentSchema), async (req, res) => {
 // ============================================================
 // 8. Update Equipment
 // ============================================================
-router.put('/equipments/:id', async (req, res) => {
+router.put('/equipments/:id', upload.single('equipment_img'), async (req, res) => {
     const { id } = req.params;
     const { name, kit_code, category, total_quantity, available_quantity, borrow_days, price, description, status: equipStatus } = req.body;
+    const equipment_img = req.file ? 'uploads/equipments/' + req.file.filename : null;
     try {
-        const sql = `UPDATE equipments SET kit_code=?, name=?, total_quantity=?, description=?, price=?, category=?, borrow_days=?, status=? WHERE equipment_id=?`;
-        await pool.query(sql, [
-            kit_code, name, parseInt(total_quantity), description, parseFloat(price), category, parseInt(borrow_days), equipStatus || 'ใช้งานได้', parseInt(id)
-        ]);
+        if (equipment_img) {
+            const sql = `UPDATE equipments SET kit_code=?, name=?, total_quantity=?, description=?, price=?, category=?, borrow_days=?, status=?, equipment_img=? WHERE equipment_id=?`;
+            await pool.query(sql, [
+                kit_code, name, parseInt(total_quantity), description, parseFloat(price), category, parseInt(borrow_days), equipStatus || 'ใช้งานได้', equipment_img, parseInt(id)
+            ]);
+        } else {
+            const sql = `UPDATE equipments SET kit_code=?, name=?, total_quantity=?, description=?, price=?, category=?, borrow_days=?, status=? WHERE equipment_id=?`;
+            await pool.query(sql, [
+                kit_code, name, parseInt(total_quantity), description, parseFloat(price), category, parseInt(borrow_days), equipStatus || 'ใช้งานได้', parseInt(id)
+            ]);
+        }
         
         // Count existing items
         const [existing] = await pool.query("SELECT item_id FROM equipment_items WHERE equipment_id = ?", [parseInt(id)]);

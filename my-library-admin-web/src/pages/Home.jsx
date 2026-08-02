@@ -13,6 +13,7 @@ import {
     X, Edit3, Trash2, Plus, Eye, Send
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { io } from "socket.io-client";
 
 /* ============================================================
    Mock data — ตรงกับข้อมูลตัวอย่างในภาพ
@@ -104,7 +105,7 @@ const API_BASE = 'http://localhost:5000';
 async function authFetch(url, options = {}) {
     const token = sessionStorage.getItem('admin_token');
     const headers = {
-        'Content-Type': 'application/json',
+        ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
         ...(options.headers || {}),
     };
     if (token) {
@@ -266,12 +267,20 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
             });
     };
 
+    const [imageFile, setImageFile] = useState(null);
+
     const handleSaveEquipment = async () => {
         if (!newEquip.name || !newEquip.kit_code) return showToast('กรุณากรอกข้อมูลให้ครบถ้วน', 'warning');
         try {
+            const formData = new FormData();
+            Object.keys(newEquip).forEach(key => formData.append(key, newEquip[key]));
+            if (imageFile) {
+                formData.append('equipment_img', imageFile);
+            }
+
             const data = await authFetch('/api/admin/equipments', {
                 method: "POST",
-                body: JSON.stringify(newEquip)
+                body: formData
             });
             if (data.success) {
                 showToast('เพิ่มอุปกรณ์สำเร็จ', 'success');
@@ -281,6 +290,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                     total_quantity: 1, available_quantity: 1, borrow_days: 7,
                     price: 0, description: "", status: "ใช้งานได้"
                 });
+                setImageFile(null);
                 fetchEquipments();
             } else {
                 showToast('เกิดข้อผิดพลาด: ' + data.message, 'error');
@@ -291,17 +301,26 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
         }
     };
 
+    const [editImageFile, setEditImageFile] = useState(null);
+
     const handleUpdateEquipment = async () => {
         if (!editEquip.name || !editEquip.kit_code) return showToast('กรุณากรอกข้อมูลให้ครบถ้วน', 'warning');
         try {
+            const formData = new FormData();
+            Object.keys(editEquip).forEach(key => formData.append(key, editEquip[key]));
+            if (editImageFile) {
+                formData.append('equipment_img', editImageFile);
+            }
+
             const data = await authFetch(`/api/admin/equipments/${editEquip.equipment_id}`, {
                 method: "PUT",
-                body: JSON.stringify(editEquip)
+                body: formData
             });
             if (data.success) {
                 showToast('แก้ไขอุปกรณ์สำเร็จ', 'success');
                 setIsEditModalOpen(false);
                 setEditEquip(null);
+                setEditImageFile(null);
                 fetchEquipments();
             } else {
                 showToast('เกิดข้อผิดพลาด: ' + data.message, 'error');
@@ -388,6 +407,31 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
         } else if (currentPage === "notify") {
             fetchNotifications();
         }
+    }, [currentPage]);
+
+    // Socket.IO for real-time updates
+    useEffect(() => {
+        const socket = io(API_BASE);
+        socket.on('data_updated', () => {
+            console.log("Real-time update received!");
+            // Re-fetch data for the current active view
+            if (currentPage === "dashboard") {
+                authFetch('/api/admin/dashboard').then(data => { if (data.success) setDashboardData(data.data); }).catch(console.error);
+            } else if (currentPage === "requests") {
+                fetchRequests();
+            } else if (currentPage === "equipment") {
+                fetchEquipments();
+            } else if (currentPage === "users") {
+                fetchUsers();
+            } else if (currentPage === "notify") {
+                fetchNotifications();
+            }
+        });
+
+        return () => {
+            socket.off('data_updated');
+            socket.disconnect();
+        };
     }, [currentPage]);
 
     const activeChartSource = dashboardData?.chartData || CHART_DATA;
@@ -736,7 +780,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                                         <div className="flex items-center gap-3">
                                                             <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-600 overflow-hidden">
                                                                 {eq.equipment_img ? (
-                                                                    <img src={`http://localhost/${eq.equipment_img.replace(/\.jpeg$/i, '.jpg')}`} alt={eq.name} className="w-full h-full object-cover" />
+                                                                    <img src={`${API_BASE}/${eq.equipment_img}`} alt={eq.name} className="w-full h-full object-cover" />
                                                                 ) : (
                                                                     <Package size={20} />
                                                                 )}
@@ -782,7 +826,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                         {/* Modal */}
                         {isAddModalOpen && (
                             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-                                <div className="bg-white rounded-3xl w-full max-w-[500px] max-h-[90vh] overflow-y-auto shadow-2xl relative">
+                                <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl relative">
                                     <div className="flex items-center justify-between p-6 border-b border-purple-50 sticky top-0 bg-white/90 backdrop-blur z-10">
                                         <h2 className="text-xl font-bold text-slate-700">เพิ่มอุปกรณ์ใหม่</h2>
                                         <button onClick={() => setIsAddModalOpen(false)} className="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center hover:bg-purple-100 transition">
@@ -791,6 +835,18 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                     </div>
                                     <div className="p-6 space-y-5">
                                         <div>
+                                            <label className="block text-[13.5px] font-bold text-purple-900 mb-2">รูปภาพอุปกรณ์ (ถ้ามี)</label>
+                                            <input type="file" accept="image/*" className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
+                                                onChange={e => setImageFile(e.target.files[0])} />
+                                            {imageFile && (
+                                                <div className="mt-4 flex justify-center">
+                                                    <div className="w-32 h-32 rounded-2xl overflow-hidden border border-purple-100 shadow-sm bg-purple-50 flex items-center justify-center">
+                                                        <img src={URL.createObjectURL(imageFile)} alt="Preview" className="w-full h-full object-cover" />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div>
                                             <label className="block text-[13.5px] font-bold text-purple-900 mb-2">ชื่ออุปกรณ์</label>
                                             <input type="text" placeholder="เช่น iPad Air (Gen 5)" className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
                                                 value={newEquip.name} onChange={e => setNewEquip({ ...newEquip, name: e.target.value })} />
@@ -798,8 +854,11 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                         <div className="grid grid-cols-3 gap-4">
                                             <div>
                                                 <label className="block text-[13.5px] font-bold text-purple-900 mb-2">รหัสครุภัณฑ์</label>
-                                                <input type="text" placeholder="DEV-XXXX" className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
-                                                    value={newEquip.kit_code} onChange={e => setNewEquip({ ...newEquip, kit_code: e.target.value })} />
+                                                <div className="flex w-full bg-slate-50 border border-purple-100 rounded-xl overflow-hidden focus-within:border-purple-400">
+                                                    <span className="bg-slate-200/50 text-slate-500 font-bold px-4 py-3 border-r border-purple-100 flex items-center justify-center">Kit</span>
+                                                    <input type="text" placeholder="XXXX" className="w-full bg-transparent px-4 py-3 text-[14px] outline-none"
+                                                        value={newEquip.kit_code.replace(/^Kit /i, '')} onChange={e => setNewEquip({ ...newEquip, kit_code: `Kit ${e.target.value}` })} />
+                                                </div>
                                             </div>
                                             <div>
                                                 <label className="block text-[13.5px] font-bold text-purple-900 mb-2">หมวดหมู่</label>
@@ -876,13 +935,18 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                     </div>
                                     <div className="p-8 space-y-5 overflow-y-auto">
                                         {/* แสดงรูปภาพอุปกรณ์ */}
-                                        {editEquip.equipment_img && (
+                                        {(editEquip.equipment_img || editImageFile) && (
                                             <div className="flex justify-center mb-6 mt-[-10px]">
                                                 <div className="w-32 h-32 rounded-2xl overflow-hidden border border-purple-100 shadow-sm bg-purple-50 flex items-center justify-center">
-                                                    <img src={`http://localhost/${editEquip.equipment_img.replace(/\.jpeg$/i, '.jpg')}`} alt={editEquip.name} className="w-full h-full object-contain" />
+                                                    <img src={editImageFile ? URL.createObjectURL(editImageFile) : `${API_BASE}/${editEquip.equipment_img}`} alt={editEquip.name} className="w-full h-full object-cover" />
                                                 </div>
                                             </div>
                                         )}
+                                        <div>
+                                            <label className="block text-[13.5px] font-bold text-purple-900 mb-2">เปลี่ยนรูปภาพใหม่ (ถ้าต้องการ)</label>
+                                            <input type="file" accept="image/*" className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
+                                                onChange={e => setEditImageFile(e.target.files[0])} />
+                                        </div>
                                         <div>
                                             <label className="block text-[13.5px] font-bold text-purple-900 mb-2">ชื่ออุปกรณ์</label>
                                             <input type="text" className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
@@ -891,8 +955,11 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                         <div className="grid grid-cols-3 gap-4">
                                             <div>
                                                 <label className="block text-[13.5px] font-bold text-purple-900 mb-2">รหัสอุปกรณ์ (Kit Code)</label>
-                                                <input type="text" className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
-                                                    value={editEquip.kit_code} onChange={e => setEditEquip({ ...editEquip, kit_code: e.target.value })} />
+                                                <div className="flex w-full bg-slate-50 border border-purple-100 rounded-xl overflow-hidden focus-within:border-purple-400">
+                                                    <span className="bg-slate-200/50 text-slate-500 font-bold px-4 py-3 border-r border-purple-100 flex items-center justify-center">Kit</span>
+                                                    <input type="text" className="w-full bg-transparent px-4 py-3 text-[14px] outline-none"
+                                                        value={(editEquip.kit_code || '').replace(/^Kit /i, '')} onChange={e => setEditEquip({ ...editEquip, kit_code: `Kit ${e.target.value}` })} />
+                                                </div>
                                             </div>
                                             <div>
                                                 <label className="block text-[13.5px] font-bold text-purple-900 mb-2">หมวดหมู่</label>

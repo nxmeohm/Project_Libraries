@@ -220,8 +220,11 @@ router.post('/checkout.php', validate(checkoutSchema), async (req, res) => {
         // Expiration time = pickup_time + 30 minutes
         const expTime = new Date(pTime.getTime() + 30 * 60 * 1000);
 
-        const formattedPTime = pTime.toISOString().slice(0, 19).replace('T', ' ');
-        const formattedExpTime = expTime.toISOString().slice(0, 19).replace('T', ' ');
+        const pad = (n) => n.toString().padStart(2, '0');
+        const formatLocal = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+
+        const formattedPTime = formatLocal(pTime);
+        const formattedExpTime = formatLocal(expTime);
 
         await connection.query(
             "INSERT INTO borrowed (student_id, equipment_id, borrow_date, pickup_time, reservation_expires_at, status) VALUES (?, ?, NOW(), ?, ?, 'pending')",
