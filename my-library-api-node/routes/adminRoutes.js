@@ -33,6 +33,58 @@ const upload = multer({
 router.use(authMiddleware);
 
 // ============================================================
+// Helper: Call next person in queue for an equipment
+// ============================================================
+async function callNextInQueue(equipmentId, io) {
+    try {
+        // Find the next waiting person in queue
+        const [nextInQueue] = await pool.query(
+            `SELECT q.*, s.email as student_email, s.name_th as student_name, e.name as equipment_name
+             FROM equipment_queue q
+             LEFT JOIN student_profiles s ON q.student_id = s.student_id
+             LEFT JOIN equipments e ON q.equipment_id = e.equipment_id
+             WHERE q.equipment_id = ? AND q.status = 'waiting'
+             ORDER BY q.position ASC LIMIT 1`,
+            [equipmentId]
+        );
+
+        if (nextInQueue.length === 0) {
+            console.log(`[Queue] No one waiting in queue for equipment #${equipmentId}`);
+            return null;
+        }
+
+        const queueItem = nextInQueue[0];
+        const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
+        const pad = (n) => n.toString().padStart(2, '0');
+        const formatLocal = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+
+        await pool.query(
+            "UPDATE equipment_queue SET status = 'called', called_at = NOW(), expires_at = ? WHERE id = ?",
+            [formatLocal(expiresAt), queueItem.id]
+        );
+
+        // Send notification
+        const notifTitle = "ถึงคิวของคุณแล้ว!";
+        const notifMsg = `อุปกรณ์ \"${queueItem.equipment_name}\" พร้อมให้ยืมแล้ว กรุณามารับอุปกรณ์ภายใน 5 นาที มิฉะนั้นคิวจะถูกข้ามไปยังคนถัดไปอัตโนมัติ`;
+        if (queueItem.student_email) {
+            await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", 
+                [queueItem.student_email, notifTitle, notifMsg]);
+            mailer.sendManualNotification(queueItem.student_email, notifTitle, notifMsg);
+        }
+
+        if (io) io.emit('data_updated');
+        console.log(`[Queue] Called queue #${queueItem.id} (student: ${queueItem.student_id}) for equipment #${equipmentId}`);
+        return queueItem;
+    } catch (error) {
+        console.error('[Queue] Error calling next in queue:', error);
+        return null;
+    }
+}
+
+// Export for use in server.js cron
+router.callNextInQueue = callNextInQueue;
+
+// ============================================================
 // Validation Schemas
 // ============================================================
 const updateRequestSchema = {
@@ -323,6 +375,17 @@ router.post('/update-request', validate(updateRequestSchema), async (req, res) =
         await connection.commit();
         connection.release();
 
+        // Auto-call next in queue when equipment becomes available
+        if (action === 'return' || action === 'fine_paid') {
+            setImmediate(async () => {
+                try {
+                    await callNextInQueue(borrowInfo.equipment_id, req.app.get('io'));
+                } catch (e) {
+                    console.error('[Queue] Error auto-calling next:', e);
+                }
+            });
+        }
+
         // Send emails AFTER successful transaction (non-blocking)
         setImmediate(async () => {
             try {
@@ -353,6 +416,13 @@ router.post('/update-request', validate(updateRequestSchema), async (req, res) =
                 } else if (action === 'approve') {
                     if (borrowInfo.student_email) {
                         mailer.sendApprovalEmail(borrowInfo.student_email, borrowInfo.student_name, borrowInfo.equipment_name);
+                    }
+                } else if (action === 'reject') {
+                    if (borrowInfo.student_email) {
+                        const notifTitle = "คำขอยืมถูกยกเลิก";
+                        const notifMsg = `คำขอยืมอุปกรณ์ "${borrowInfo.equipment_name}" ของคุณถูกยกเลิกโดยผู้ดูแลระบบ`;
+                        await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [borrowInfo.student_email, notifTitle, notifMsg]);
+                        mailer.sendManualNotification(borrowInfo.student_email, notifTitle, notifMsg);
                     }
                 }
             } catch (emailError) {
@@ -432,9 +502,8 @@ router.get('/notifications', async (req, res) => {
 router.get('/equipments', async (req, res) => {
     try {
         const sql = `SELECT e.*, 
-            (SELECT COUNT(*) FROM equipment_items WHERE equipment_id = e.equipment_id AND status = 'available') 
-            - (SELECT COUNT(*) FROM borrowed WHERE equipment_id = e.equipment_id AND status = 'pending' AND DATE(pickup_time) <= CURDATE()) 
-            AS available_quantity 
+            (SELECT COUNT(*) FROM equipment_items WHERE equipment_id = e.equipment_id AND status = 'available') AS available_quantity,
+            (SELECT COUNT(*) FROM equipment_queue WHERE equipment_id = e.equipment_id AND status IN ('waiting', 'called')) AS queue_count
             FROM equipments e ORDER BY e.equipment_id DESC`;
         const [rows] = await pool.query(sql);
         rows.forEach(r => { if (r.available_quantity < 0) r.available_quantity = 0; });
@@ -590,6 +659,112 @@ router.get('/user-history/:studentId', async (req, res) => {
         `, [studentId]);
 
         res.json({ success: true, data: { user, history: historyRows } });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: "Database Error" });
+    }
+});
+
+// ============================================================
+// 12. Queue Management — Get queue for equipment
+// ============================================================
+router.get('/queue/:equipmentId', async (req, res) => {
+    const { equipmentId } = req.params;
+    try {
+        const [rows] = await pool.query(
+            `SELECT q.*, s.name_th as student_name, s.student_img, s.email as student_email,
+                    e.name as equipment_name
+             FROM equipment_queue q
+             LEFT JOIN student_profiles s ON q.student_id = s.student_id
+             LEFT JOIN equipments e ON q.equipment_id = e.equipment_id
+             WHERE q.equipment_id = ? AND q.status IN ('waiting', 'called')
+             ORDER BY q.position ASC`,
+            [parseInt(equipmentId)]
+        );
+        res.json({ success: true, data: rows });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: "Database Error" });
+    }
+});
+
+// ============================================================
+// 13. Queue Management — Skip queue (call next person)
+// ============================================================
+router.post('/queue/:id/skip', async (req, res) => {
+    const { id } = req.params;
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        const [queueItem] = await connection.query(
+            "SELECT * FROM equipment_queue WHERE id = ? AND status IN ('waiting', 'called')",
+            [parseInt(id)]
+        );
+        if (queueItem.length === 0) {
+            await connection.rollback();
+            connection.release();
+            return res.status(404).json({ success: false, message: "ไม่พบรายการคิวนี้" });
+        }
+
+        // Mark current as expired
+        await connection.query("UPDATE equipment_queue SET status = 'expired' WHERE id = ?", [parseInt(id)]);
+
+        // Re-order remaining positions
+        const [remaining] = await connection.query(
+            "SELECT id FROM equipment_queue WHERE equipment_id = ? AND status IN ('waiting', 'called') ORDER BY position ASC",
+            [queueItem[0].equipment_id]
+        );
+        for (let i = 0; i < remaining.length; i++) {
+            await connection.query("UPDATE equipment_queue SET position = ? WHERE id = ?", [i + 1, remaining[i].id]);
+        }
+
+        await connection.commit();
+        connection.release();
+
+        // Notify skipped student
+        const [studentInfo] = await pool.query(
+            "SELECT s.email, e.name as equipment_name FROM student_profiles s, equipments e WHERE s.student_id = ? AND e.equipment_id = ?",
+            [queueItem[0].student_id, queueItem[0].equipment_id]
+        );
+        if (studentInfo.length > 0 && studentInfo[0].email) {
+            const notifTitle = "คิวของคุณถูกข้าม";
+            const notifMsg = `คิวสำหรับอุปกรณ์ \"${studentInfo[0].equipment_name}\" ของคุณถูกข้ามเนื่องจากไม่มารับภายในเวลาที่กำหนด`;
+            await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [studentInfo[0].email, notifTitle, notifMsg]);
+            mailer.sendManualNotification(studentInfo[0].email, notifTitle, notifMsg);
+        }
+
+        // Auto-call next in queue
+        await callNextInQueue(queueItem[0].equipment_id, req.app.get('io'));
+
+        req.app.get('io').emit('data_updated');
+        res.json({ success: true, message: "ข้ามคิวเรียบร้อย เรียกคิวถัดไปแล้ว" });
+    } catch (error) {
+        await connection.rollback();
+        connection.release();
+        console.error(error);
+        res.status(500).json({ success: false, message: "Database Error" });
+    }
+});
+
+// ============================================================
+// 14. Queue Management — Mark queue as completed (student picked up)
+// ============================================================
+router.post('/queue/:id/complete', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const [queueItem] = await pool.query(
+            "SELECT * FROM equipment_queue WHERE id = ? AND status = 'called'",
+            [parseInt(id)]
+        );
+        if (queueItem.length === 0) {
+            return res.status(404).json({ success: false, message: "ไม่พบรายการคิวที่ถูกเรียกนี้" });
+        }
+
+        await pool.query("UPDATE equipment_queue SET status = 'completed' WHERE id = ?", [parseInt(id)]);
+
+        req.app.get('io').emit('data_updated');
+        res.json({ success: true, message: "บันทึกการรับอุปกรณ์สำเร็จ" });
     } catch (error) {
         console.error(error);
         res.status(500).json({ success: false, message: "Database Error" });

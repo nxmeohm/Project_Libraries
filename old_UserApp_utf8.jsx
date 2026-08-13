@@ -1,41 +1,39 @@
-import {
-    Home, Search, ClipboardList, Bell, LogOut, User, Package, ShoppingCart,
+﻿import {
+    Home, Search, ShoppingCart, ClipboardList, Bell, LogOut, User, Package,
     ChevronRight, Clock, AlertCircle, Info, X, Trash2, CheckCircle, BookOpen,
-    Calendar, ChevronLeft, Megaphone, Settings, AlertTriangle, Save, Key, ShieldCheck, FileText, Lock, Timer, Users
+    Calendar, ChevronLeft, Megaphone, Settings, AlertTriangle, Save, Key, ShieldCheck, FileText, Lock
 } from "lucide-react";
 import QRCode from "react-qr-code";
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { io } from "socket.io-client";
 
 const API_BASE = typeof window !== 'undefined' ? `http://${window.location.hostname}:5000/api` : "http://localhost:5000/api";
-const IMG_BASE = typeof window !== 'undefined' ? `http://${window.location.hostname}:5000/` : "http://localhost:5000/";
+const IMG_BASE = typeof window !== 'undefined' ? `http://${window.location.hostname}/` : "http://localhost/";
 
 /* ============================================================
    Nav items
    ============================================================ */
 const NAV_ITEMS = [
-    { key: "dashboard", label: "หน้าหลัก", icon: Home },
-    { key: "search", label: "ค้นหาอุปกรณ์", icon: Search },
-    { key: "cart", label: "ตะกร้ายืม", icon: ShoppingCart },
-    { key: "queue", label: "คิวของฉัน", icon: Timer },
-    { key: "status", label: "รายการของฉัน", icon: ClipboardList },
-    { key: "settings", label: "ตั้งค่า", icon: Settings },
+    { key: "dashboard", label: "เธซเธเนเธฒเธซเธฅเธฑเธ", icon: Home },
+    { key: "search", label: "เธเนเธเธซเธฒเธญเธธเธเธเธฃเธ“เน", icon: Search },
+    { key: "cart", label: "เธ•เธฐเธเธฃเนเธฒเธขเธทเธก", icon: ShoppingCart },
+    { key: "status", label: "เธฃเธฒเธขเธเธฒเธฃเธเธญเธเธเธฑเธ", icon: ClipboardList },
+    { key: "settings", label: "เธ•เธฑเนเธเธเนเธฒ", icon: Settings },
 ];
 
 const CATEGORIES = [
-    "ทั้งหมด", "หูฟัง", "iPad", "ปลั๊กไฟพ่วง", "ปากกาแท็บเล็ต", "เม้าส์",
-    "สายเชื่อมต่อ", "CyberDict", "เครื่องคิดเลข", "สายชาร์จโทรศัพท์",
-    "โคมไฟ", "ปากกาแปลคำศัพท์", "iPod", "เสื่อพับ", "กระเป๋าใส่หนังสือ"
+    "เธ—เธฑเนเธเธซเธกเธ”", "เธซเธนเธเธฑเธ", "iPad", "เธเธฅเธฑเนเธเนเธเธเนเธงเธ", "เธเธฒเธเธเธฒเนเธ—เนเธเน€เธฅเนเธ•", "เน€เธกเนเธฒเธชเน",
+    "เธชเธฒเธขเน€เธเธทเนเธญเธกเธ•เนเธญ", "CyberDict", "เน€เธเธฃเธทเนเธญเธเธเธดเธ”เน€เธฅเธ", "เธชเธฒเธขเธเธฒเธฃเนเธเนเธ—เธฃเธจเธฑเธเธ—เน",
+    "เนเธเธกเนเธ", "เธเธฒเธเธเธฒเนเธเธฅเธเธณเธจเธฑเธเธ—เน", "iPod", "เน€เธชเธทเนเธญเธเธฑเธ", "เธเธฃเธฐเน€เธเนเธฒเนเธชเนเธซเธเธฑเธเธชเธทเธญ"
 ];
 
 const STATUS_MAP = {
-    pending: { label: "รออนุมัติ", cls: "bg-amber-100 text-amber-700" },
-    borrowed: { label: "กำลังยืม", cls: "bg-purple-100 text-purple-700" },
-    returned: { label: "คืนแล้ว", cls: "bg-green-100 text-green-700" },
-    overdue: { label: "เลยกำหนด", cls: "bg-red-100 text-red-700" },
-    rejected: { label: "ยกเลิก", cls: "bg-slate-100 text-slate-600" },
-    damaged_lost: { label: "สูญหาย/ชำรุด", cls: "bg-orange-100 text-orange-700" },
-    fine_paid: { label: "ชำระค่าปรับแล้ว", cls: "bg-teal-100 text-teal-700" },
+    pending: { label: "เธฃเธญเธญเธเธธเธกเธฑเธ•เธด", cls: "bg-amber-100 text-amber-700" },
+    borrowed: { label: "เธเธณเธฅเธฑเธเธขเธทเธก", cls: "bg-purple-100 text-purple-700" },
+    returned: { label: "เธเธทเธเนเธฅเนเธง", cls: "bg-green-100 text-green-700" },
+    overdue: { label: "เน€เธฅเธขเธเธณเธซเธเธ”", cls: "bg-red-100 text-red-700" },
+    rejected: { label: "เธขเธเน€เธฅเธดเธ", cls: "bg-slate-100 text-slate-600" },
+    damaged_lost: { label: "เธชเธนเธเธซเธฒเธข/เธเธณเธฃเธธเธ”", cls: "bg-orange-100 text-orange-700" },
+    fine_paid: { label: "เธเธณเธฃเธฐเธเนเธฒเธเธฃเธฑเธเนเธฅเนเธง", cls: "bg-teal-100 text-teal-700" },
 };
 
 /* ============================================================
@@ -44,7 +42,7 @@ const STATUS_MAP = {
 const formatThaiDate = (dateString) => {
     if (!dateString) return "-";
     const d = new Date(dateString);
-    const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+    const months = ['เธก.เธ.', 'เธ.เธ.', 'เธกเธต.เธ.', 'เน€เธก.เธข.', 'เธ.เธ.', 'เธกเธด.เธข.', 'เธ.เธ.', 'เธช.เธ.', 'เธ.เธข.', 'เธ•.เธ.', 'เธ.เธข.', 'เธ.เธ.'];
     return `${d.getDate()} ${months[d.getMonth()]} ${(d.getFullYear() + 543) % 100}`;
 };
 
@@ -55,80 +53,60 @@ const daysBetween = (d1, d2) => {
 
 const matchCategory = (name, cat) => {
     const n = (name || '').toLowerCase();
-    if (cat === 'ทั้งหมด') return true;
+    if (cat === 'เธ—เธฑเนเธเธซเธกเธ”') return true;
     if (cat === 'iPad') return n.includes('ipad');
-    if (cat === 'หูฟัง') return n.includes('หูฟัง') || n.includes('headphone');
-    if (cat === 'ปลั๊กไฟพ่วง') return n.includes('ปลั๊ก') || n.includes('usb + type c') || n.includes('toshimo');
-    if (cat === 'ปากกาแท็บเล็ต') return n.includes('ปากกาแท็บเล็ต') || n.includes('stylus') || n.includes('pencil');
-    if (cat === 'เม้าส์') return n.includes('เม้าส์') || n.includes('mouse');
-    if (cat === 'สายเชื่อมต่อ') return n.includes('สายเชื่อมต่อ') || n.includes('cable') || n.includes('hdmi') || n.includes('usb-c') || n.includes('type c');
+    if (cat === 'เธซเธนเธเธฑเธ') return n.includes('เธซเธนเธเธฑเธ') || n.includes('headphone');
+    if (cat === 'เธเธฅเธฑเนเธเนเธเธเนเธงเธ') return n.includes('เธเธฅเธฑเนเธ') || n.includes('usb + type c') || n.includes('toshimo');
+    if (cat === 'เธเธฒเธเธเธฒเนเธ—เนเธเน€เธฅเนเธ•') return n.includes('เธเธฒเธเธเธฒเนเธ—เนเธเน€เธฅเนเธ•') || n.includes('stylus') || n.includes('pencil');
+    if (cat === 'เน€เธกเนเธฒเธชเน') return n.includes('เน€เธกเนเธฒเธชเน') || n.includes('mouse');
+    if (cat === 'เธชเธฒเธขเน€เธเธทเนเธญเธกเธ•เนเธญ') return n.includes('เธชเธฒเธขเน€เธเธทเนเธญเธกเธ•เนเธญ') || n.includes('cable') || n.includes('hdmi') || n.includes('usb-c') || n.includes('type c');
     if (cat === 'CyberDict') return n.includes('cyberdict') || n.includes('talking dict') || n.includes('read');
-    if (cat === 'เครื่องคิดเลข') return n.includes('เครื่องคิดเลข') || n.includes('calculator');
-    if (cat === 'สายชาร์จโทรศัพท์') return n.includes('สายชาร์จ') || n.includes('lightning') || n.includes('adapter');
-    if (cat === 'โคมไฟ') return n.includes('โคมไฟ');
-    if (cat === 'ปากกาแปลคำศัพท์') return n.includes('ปากกาแปลคำศัพท์') || n.includes('quicktionary') || n.includes('scan and translate');
+    if (cat === 'เน€เธเธฃเธทเนเธญเธเธเธดเธ”เน€เธฅเธ') return n.includes('เน€เธเธฃเธทเนเธญเธเธเธดเธ”เน€เธฅเธ') || n.includes('calculator');
+    if (cat === 'เธชเธฒเธขเธเธฒเธฃเนเธเนเธ—เธฃเธจเธฑเธเธ—เน') return n.includes('เธชเธฒเธขเธเธฒเธฃเนเธ') || n.includes('lightning') || n.includes('adapter');
+    if (cat === 'เนเธเธกเนเธ') return n.includes('เนเธเธกเนเธ');
+    if (cat === 'เธเธฒเธเธเธฒเนเธเธฅเธเธณเธจเธฑเธเธ—เน') return n.includes('เธเธฒเธเธเธฒเนเธเธฅเธเธณเธจเธฑเธเธ—เน') || n.includes('quicktionary') || n.includes('scan and translate');
     if (cat === 'iPod') return n.includes('ipod');
-    if (cat === 'เสื่อพับ') return n.includes('เสื่อพับ') || n.includes('เสื่อ');
-    if (cat === 'กระเป๋าใส่หนังสือ') return n.includes('กระเป๋า');
+    if (cat === 'เน€เธชเธทเนเธญเธเธฑเธ') return n.includes('เน€เธชเธทเนเธญเธเธฑเธ') || n.includes('เน€เธชเธทเนเธญ');
+    if (cat === 'เธเธฃเธฐเน€เธเนเธฒเนเธชเนเธซเธเธฑเธเธชเธทเธญ') return n.includes('เธเธฃเธฐเน€เธเนเธฒ');
     return n.includes(cat.toLowerCase());
 };
 
 const getItemStatus = (item) => {
     const today = new Date();
     today.setHours(0,0,0,0);
-    
-    let fine = 0;
-    let overdueDays = 0;
-    let progress = 0;
-    let dueDate = new Date();
-    
-    let label = STATUS_MAP[item.status] ? STATUS_MAP[item.status].label : item.status;
-    let type = item.status;
-
-    if (item.status === 'fine_paid') {
-        progress = 100;
-    } else if (item.status === 'damaged_lost') {
-        fine = parseFloat(item.fine_amount) || 0;
-        progress = 100;
-    } else if (item.status === 'rejected') {
-        progress = 0;
-    } else if (item.status === 'pending') {
-        progress = 0;
-    } else if (item.status === 'returned') {
-        progress = 100;
+    if (item.status === 'fine_paid') return { label: 'เธเธณเธฃเธฐเธเนเธฒเธเธฃเธฑเธเนเธฅเนเธง', type: 'fine_paid', fine: 0, overdueDays: 0, progress: 100, dueDate: new Date() };
+    if (item.status === 'damaged_lost') {
+        const fine = parseFloat(item.fine_amount) || 0;
+        return { label: 'เธฃเธญเธเธณเธฃเธฐเธเนเธฒเธเธฃเธฑเธ', type: 'damaged_lost', fine, overdueDays: 0, progress: 100, dueDate: new Date() };
+    }
+    if (item.status === 'rejected') return { label: 'เธขเธเน€เธฅเธดเธเธเธณเธเธญ', type: 'rejected', fine: 0, overdueDays: 0, progress: 0, dueDate: new Date() };
+    if (item.status === 'pending') return { label: 'เธฃเธญเธฃเธฑเธเธญเธธเธเธเธฃเธ“เน', type: 'pending', fine: 0, overdueDays: 0, progress: 0, dueDate: new Date() };
+    if (item.status === 'returned') {
         const borrowDate = new Date(item.borrow_date);
         const returnDate = item.return_date ? new Date(item.return_date) : null;
-        dueDate = new Date(borrowDate);
+        const dueDate = new Date(borrowDate);
         dueDate.setDate(dueDate.getDate() + (item.borrow_days || 7));
         if (returnDate && returnDate > dueDate) {
-            overdueDays = daysBetween(dueDate, returnDate);
-            fine = parseFloat(item.fine_amount) || (overdueDays * 20);
-            type = 'returned-late';
+            const overdueDays = daysBetween(dueDate, returnDate);
+            const recordedFine = parseFloat(item.fine_amount) || (overdueDays * 20);
+            return { label: `เธเธทเธเนเธฅเนเธง (เธเธทเธเธเนเธฒ ${overdueDays} เธงเธฑเธ ยท เธเนเธฒเธเธฃเธฑเธ ${recordedFine} เธฟ)`, type: 'returned-late', fine: 0, overdueDays, progress: 100, dueDate };
         }
-    } else {
-        const borrowDate = new Date(item.borrow_date);
-        dueDate = new Date(borrowDate);
-        const borrowDays = item.borrow_days || 7;
-        dueDate.setDate(dueDate.getDate() + borrowDays);
-        const daysLeft = daysBetween(today, dueDate);
-        const elapsed = daysBetween(borrowDate, today);
-        progress = Math.min(100, Math.max(0, (elapsed / borrowDays) * 100));
-        
-        if (daysLeft < 0 || item.status === 'overdue') {
-            overdueDays = Math.max(1, Math.abs(daysLeft));
-            fine = overdueDays * 20;
-            type = 'overdue';
-            label = STATUS_MAP['overdue'] ? STATUS_MAP['overdue'].label : 'เลยกำหนด';
-        } else if (daysLeft === 0) {
-            type = 'due-today';
-        } else if (daysLeft <= 2) {
-            type = 'near-due';
-        } else {
-            type = 'borrowed';
-        }
+        return { label: 'เธเธทเธเนเธฅเนเธง', type: 'returned', fine: 0, overdueDays: 0, progress: 100, dueDate };
     }
-
-    return { label, type, fine, overdueDays, progress, dueDate };
+    const borrowDate = new Date(item.borrow_date);
+    const dueDate = new Date(borrowDate);
+    const borrowDays = item.borrow_days || 7;
+    dueDate.setDate(dueDate.getDate() + borrowDays);
+    const daysLeft = daysBetween(today, dueDate);
+    const elapsed = daysBetween(borrowDate, today);
+    const progress = Math.min(100, Math.max(0, (elapsed / borrowDays) * 100));
+    if (daysLeft < 0 || item.status === 'overdue') {
+        const overdueDays = Math.max(1, Math.abs(daysLeft));
+        return { label: `เน€เธเธดเธ ${overdueDays} เธงเธฑเธ`, type: 'overdue', fine: overdueDays * 20, overdueDays, progress: 100, dueDate };
+    }
+    if (daysLeft === 0) return { label: 'เธเธฃเธเธเธณเธซเธเธ”เธงเธฑเธเธเธตเน', type: 'due-today', fine: 0, overdueDays: 0, progress, dueDate };
+    if (daysLeft <= 2) return { label: `เธญเธตเธ ${daysLeft} เธงเธฑเธ`, type: 'near-due', fine: 0, overdueDays: 0, progress, dueDate };
+    return { label: `เธญเธตเธ ${daysLeft} เธงเธฑเธ`, type: 'active', fine: 0, overdueDays: 0, progress, dueDate };
 };
 
 const getProgressColor = (type) => {
@@ -148,13 +126,10 @@ const getBadgeStyle = (type) => {
         case 'overdue': case 'returned-late': return 'bg-red-50 text-red-600 border-red-100';
         case 'due-today': return 'bg-orange-50 text-orange-600 border-orange-100';
         case 'near-due': return 'bg-amber-50 text-amber-600 border-amber-100';
-        case 'pending': return 'bg-amber-50 text-amber-600 border-amber-100';
         case 'returned': return 'bg-green-50 text-green-600 border-green-100';
         case 'fine_paid': return 'bg-teal-50 text-teal-600 border-teal-100';
         case 'damaged_lost': return 'bg-orange-50 text-orange-600 border-orange-100';
-        case 'rejected': return 'bg-slate-50 text-slate-600 border-slate-100';
-        case 'borrowed': return 'bg-purple-50 text-purple-600 border-purple-100';
-        default: return 'bg-purple-50 text-purple-600 border-purple-100';
+        default: return 'bg-blue-50 text-blue-600 border-blue-100';
     }
 };
 
@@ -183,7 +158,7 @@ function Toast({ message, type, onClose }) {
 }
 
 /* ============================================================
-   authFetch Helper — ส่ง JWT Token ไปกับทุก API Request ที่ต้อง auth
+   authFetch Helper โ€” เธชเนเธ JWT Token เนเธเธเธฑเธเธ—เธธเธ API Request เธ—เธตเนเธ•เนเธญเธ auth
    ============================================================ */
 async function authFetch(url, options = {}) {
     const token = sessionStorage.getItem('user_token');
@@ -239,10 +214,10 @@ function CalendarView() {
 
     const getTimeDetail = (dateObj) => {
         const type = getDayInfo(dateObj).type;
-        if (type === 'weekend') return { hours: '09:00 - 17:00 น.', desc: 'เวลาทำการวันเสาร์-อาทิตย์' };
-        if (type === 'holiday') return { hours: '09:00 - 17:00 น.', desc: 'เวลาทำการวันหยุดนักขัตฤกษ์' };
-        if (type === 'exam') return { hours: '08:30 - 00:00 น.', desc: 'เวลาทำการวันจันทร์-ศุกร์ (ช่วง 2 สัปดาห์ก่อนสอบ)' };
-        return { hours: '08:30 - 20:00 น.', desc: 'เวลาทำการวันจันทร์-ศุกร์ (ปกติ)' };
+        if (type === 'weekend') return { hours: '09:00 - 17:00 เธ.', desc: 'เน€เธงเธฅเธฒเธ—เธณเธเธฒเธฃเธงเธฑเธเน€เธชเธฒเธฃเน-เธญเธฒเธ—เธดเธ•เธขเน' };
+        if (type === 'holiday') return { hours: '09:00 - 17:00 เธ.', desc: 'เน€เธงเธฅเธฒเธ—เธณเธเธฒเธฃเธงเธฑเธเธซเธขเธธเธ”เธเธฑเธเธเธฑเธ•เธคเธเธฉเน' };
+        if (type === 'exam') return { hours: '08:30 - 00:00 เธ.', desc: 'เน€เธงเธฅเธฒเธ—เธณเธเธฒเธฃเธงเธฑเธเธเธฑเธเธ—เธฃเน-เธจเธธเธเธฃเน (เธเนเธงเธ 2 เธชเธฑเธเธ”เธฒเธซเนเธเนเธญเธเธชเธญเธ)' };
+        return { hours: '08:30 - 20:00 เธ.', desc: 'เน€เธงเธฅเธฒเธ—เธณเธเธฒเธฃเธงเธฑเธเธเธฑเธเธ—เธฃเน-เธจเธธเธเธฃเน (เธเธเธ•เธด)' };
     };
 
     const generateCalendar = (date) => {
@@ -267,13 +242,13 @@ function CalendarView() {
     };
 
     const formatThaiDate = (d) => {
-        const days = ['วันอาทิตย์', 'วันจันทร์', 'วันอังคาร', 'วันพุธ', 'วันพฤหัสบดี', 'วันศุกร์', 'วันเสาร์'];
-        const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
-        return `${days[d.getDay()]}ที่ ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543}`;
+        const days = ['เธงเธฑเธเธญเธฒเธ—เธดเธ•เธขเน', 'เธงเธฑเธเธเธฑเธเธ—เธฃเน', 'เธงเธฑเธเธญเธฑเธเธเธฒเธฃ', 'เธงเธฑเธเธเธธเธ', 'เธงเธฑเธเธเธคเธซเธฑเธชเธเธ”เธต', 'เธงเธฑเธเธจเธธเธเธฃเน', 'เธงเธฑเธเน€เธชเธฒเธฃเน'];
+        const months = ['เธกเธเธฃเธฒเธเธก', 'เธเธธเธกเธ เธฒเธเธฑเธเธเน', 'เธกเธตเธเธฒเธเธก', 'เน€เธกเธฉเธฒเธขเธ', 'เธเธคเธฉเธ เธฒเธเธก', 'เธกเธดเธ–เธธเธเธฒเธขเธ', 'เธเธฃเธเธเธฒเธเธก', 'เธชเธดเธเธซเธฒเธเธก', 'เธเธฑเธเธขเธฒเธขเธ', 'เธ•เธธเธฅเธฒเธเธก', 'เธเธคเธจเธเธดเธเธฒเธขเธ', 'เธเธฑเธเธงเธฒเธเธก'];
+        return `${days[d.getDay()]}เธ—เธตเน ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543}`;
     };
 
     const formatMonthYear = (d) => {
-        const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+        const months = ['เธกเธเธฃเธฒเธเธก', 'เธเธธเธกเธ เธฒเธเธฑเธเธเน', 'เธกเธตเธเธฒเธเธก', 'เน€เธกเธฉเธฒเธขเธ', 'เธเธคเธฉเธ เธฒเธเธก', 'เธกเธดเธ–เธธเธเธฒเธขเธ', 'เธเธฃเธเธเธฒเธเธก', 'เธชเธดเธเธซเธฒเธเธก', 'เธเธฑเธเธขเธฒเธขเธ', 'เธ•เธธเธฅเธฒเธเธก', 'เธเธคเธจเธเธดเธเธฒเธขเธ', 'เธเธฑเธเธงเธฒเธเธก'];
         return `${months[d.getMonth()]} ${d.getFullYear() + 543}`;
     };
 
@@ -301,7 +276,7 @@ function CalendarView() {
             
             <div className="mb-5">
                 <div className="grid grid-cols-7 gap-1 mb-2">
-                    {['อา','จ','อ','พ','พฤ','ศ','ส'].map((d, i) => (
+                    {['เธญเธฒ','เธ','เธญ','เธ','เธเธค','เธจ','เธช'].map((d, i) => (
                         <div key={i} className="text-center text-[12px] font-semibold text-slate-400">{d}</div>
                     ))}
                 </div>
@@ -345,19 +320,19 @@ function CalendarView() {
             <div className="grid grid-cols-2 gap-y-3 px-2">
                 <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full border border-slate-200"></div>
-                    <span className="text-[12px] text-slate-600">วันธรรมดา</span>
+                    <span className="text-[12px] text-slate-600">เธงเธฑเธเธเธฃเธฃเธกเธ”เธฒ</span>
                 </div>
                 <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full bg-[#F5F3FA]"></div>
-                    <span className="text-[12px] text-slate-600">เสาร์-อาทิตย์</span>
+                    <span className="text-[12px] text-slate-600">เน€เธชเธฒเธฃเน-เธญเธฒเธ—เธดเธ•เธขเน</span>
                 </div>
                 <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full bg-[#FDEAEA]"></div>
-                    <span className="text-[12px] text-slate-600">วันหยุดขัตฤกษ์</span>
+                    <span className="text-[12px] text-slate-600">เธงเธฑเธเธซเธขเธธเธ”เธเธฑเธ•เธคเธเธฉเน</span>
                 </div>
                 <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full bg-[#FEF3C7]"></div>
-                    <span className="text-[12px] text-slate-600">ช่วงใกล้สอบ</span>
+                    <span className="text-[12px] text-slate-600">เธเนเธงเธเนเธเธฅเนเธชเธญเธ</span>
                 </div>
             </div>
         </div>
@@ -370,17 +345,17 @@ function CalendarView() {
 const formatTimeAgo = (date) => {
     const seconds = Math.floor((new Date() - date) / 1000);
     let interval = seconds / 31536000;
-    if (interval > 1) return Math.floor(interval) + ' ปีที่แล้ว';
+    if (interval > 1) return Math.floor(interval) + ' เธเธตเธ—เธตเนเนเธฅเนเธง';
     interval = seconds / 2592000;
-    if (interval > 1) return Math.floor(interval) + ' เดือนที่แล้ว';
+    if (interval > 1) return Math.floor(interval) + ' เน€เธ”เธทเธญเธเธ—เธตเนเนเธฅเนเธง';
     interval = seconds / 86400;
-    if (interval >= 1 && interval < 2) return 'เมื่อวานนี้';
-    if (interval >= 2) return Math.floor(interval) + ' วันที่แล้ว';
+    if (interval >= 1 && interval < 2) return 'เน€เธกเธทเนเธญเธงเธฒเธเธเธตเน';
+    if (interval >= 2) return Math.floor(interval) + ' เธงเธฑเธเธ—เธตเนเนเธฅเนเธง';
     interval = seconds / 3600;
-    if (interval >= 1) return Math.floor(interval) + ' ชั่วโมงที่แล้ว';
+    if (interval >= 1) return Math.floor(interval) + ' เธเธฑเนเธงเนเธกเธเธ—เธตเนเนเธฅเนเธง';
     interval = seconds / 60;
-    if (interval >= 1) return Math.floor(interval) + ' นาทีที่แล้ว';
-    return 'เพิ่งสำเร็จ';
+    if (interval >= 1) return Math.floor(interval) + ' เธเธฒเธ—เธตเธ—เธตเนเนเธฅเนเธง';
+    return 'เน€เธเธดเนเธเธชเธณเน€เธฃเนเธ';
 };
 
 const getNotifIcon = (type) => {
@@ -402,7 +377,7 @@ function NotificationsView({ title, notifications, isLoading, onNotificationClic
         return (
             <div className="flex flex-col items-center justify-center py-20 text-slate-400">
                 <div className="w-10 h-10 border-4 border-slate-200 border-t-[#3D2B56] rounded-full animate-spin mb-4"></div>
-                <p className="text-[14px]">กำลังโหลด...</p>
+                <p className="text-[14px]">เธเธณเธฅเธฑเธเนเธซเธฅเธ”...</p>
             </div>
         );
     }
@@ -411,7 +386,7 @@ function NotificationsView({ title, notifications, isLoading, onNotificationClic
         return (
             <div className="flex flex-col items-center justify-center py-20 text-slate-400">
                 <Bell size={48} className="text-slate-200 mb-4" />
-                <p className="text-[15px] font-medium">ไม่มี{title}</p>
+                <p className="text-[15px] font-medium">เนเธกเนเธกเธต{title}</p>
             </div>
         );
     }
@@ -467,19 +442,16 @@ export default function UserApp({ studentId, onLogout }) {
 
     // Search states
     const [searchText, setSearchText] = useState("");
-    const [activeCategory, setActiveCategory] = useState("ทั้งหมด");
+    const [activeCategory, setActiveCategory] = useState("เธ—เธฑเนเธเธซเธกเธ”");
 
     // Cart states
     const [cartItems, setCartItems] = useState([]);
+    const [checkoutSuccess, setCheckoutSuccess] = useState(false);
+    const [settingsModal, setSettingsModal] = useState(null);
     const [transactionId, setTransactionId] = useState("");
+    const [transactionDetails, setTransactionDetails] = useState(null);
     const [pickupDate, setPickupDate] = useState(new Date().toISOString().split('T')[0]);
     const [pickupTime, setPickupTime] = useState(`${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`);
-
-    // Queue states (replaces old cart states)
-    const [myQueueItems, setMyQueueItems] = useState([]);
-    const [isQueueLoading, setIsQueueLoading] = useState(false);
-    const [checkoutSuccess, setCheckoutSuccess] = useState(false);
-    const [transactionDetails, setTransactionDetails] = useState(null);
     
     // Receipt Modal State
     const [selectedReceipt, setSelectedReceipt] = useState(null);
@@ -511,7 +483,7 @@ export default function UserApp({ studentId, onLogout }) {
     const [isDetailLoading, setIsDetailLoading] = useState(false);
 
     // Status filter
-    const [statusTab, setStatusTab] = useState("ทั้งหมด");
+    const [statusTab, setStatusTab] = useState("เธ—เธฑเนเธเธซเธกเธ”");
 
     // Report Lost modal state
     const [isLostModalOpen, setIsLostModalOpen] = useState(false);
@@ -530,7 +502,6 @@ export default function UserApp({ studentId, onLogout }) {
     });
     const [isSavingSettings, setIsSavingSettings] = useState(false);
     const [settingsMsg, setSettingsMsg] = useState({ type: "", text: "" });
-    const [settingsModal, setSettingsModal] = useState(null);
 
     const [isNotificationsLoading, setIsNotificationsLoading] = useState(false);
 
@@ -562,9 +533,6 @@ export default function UserApp({ studentId, onLogout }) {
         if (currentPage === "dashboard" || currentPage === "status") {
             fetchBorrowed();
         }
-        if (currentPage === "dashboard" || currentPage === "queue") {
-            fetchMyQueue();
-        }
         if (currentPage === "notifications") {
             fetchNotificationsData('alert');
         }
@@ -573,49 +541,11 @@ export default function UserApp({ studentId, onLogout }) {
         }
     }, [currentPage]);
 
-    // Socket.IO for real-time updates
-    useEffect(() => {
-        const socket = io(IMG_BASE);
-        socket.on('data_updated', () => {
-            console.log("Real-time update received!");
-            if (currentPage === "dashboard" || currentPage === "search") {
-                fetch(`${API_BASE}/get_equipments.php`).then(r => r.json()).then(setEquipments).catch(console.error);
-            }
-            if (currentPage === "dashboard" || currentPage === "status") {
-                fetchBorrowed();
-            }
-            if (currentPage === "dashboard" || currentPage === "queue") {
-                fetchMyQueue();
-            }
-            if (currentPage === "notifications") {
-                fetchNotificationsData('alert');
-            }
-            if (currentPage === "announcements") {
-                fetchNotificationsData('announcement');
-            }
-        });
-
-        return () => {
-            socket.off('data_updated');
-            socket.disconnect();
-        };
-    }, [currentPage, studentId]);
-
     const fetchBorrowed = () => {
         if (!studentId) return;
         authFetch(`/get_borrowed.php?student_id=${studentId}`)
             .then(result => { if (result.success) setBorrowedItems(result.data); })
             .catch(console.error);
-    };
-
-    const fetchMyQueue = async () => {
-        if (!studentId) return;
-        setIsQueueLoading(true);
-        try {
-            const result = await authFetch(`/my_queue.php?student_id=${studentId}`);
-            if (result.success) setMyQueueItems(result.data);
-        } catch (e) { console.error(e); }
-        setIsQueueLoading(false);
     };
 
     const fetchNotificationsData = async (type) => {
@@ -642,14 +572,14 @@ export default function UserApp({ studentId, onLogout }) {
                     const txId = firstItem.transaction_id || 'LB' + String(firstItem.id).padStart(6, '0');
                     const allReturned = items.every(i => i.status === 'returned');
                     
-                    const title = allReturned ? 'คืนอุปกรณ์สำเร็จ' : 'ยืนยันยืมอุปกรณ์สำเร็จ';
+                    const title = allReturned ? 'เธเธทเธเธญเธธเธเธเธฃเธ“เนเธชเธณเน€เธฃเนเธ' : 'เธขเธทเธเธขเธฑเธเธขเธทเธกเธญเธธเธเธเธฃเธ“เนเธชเธณเน€เธฃเนเธ';
                     const notifType = allReturned ? 'success' : 'info';
                     
                     notifs.push({
                         id: `tx-${txId}`,
                         type: notifType,
                         title: title,
-                        desc: `หมายเลขทำรายการ ${txId} (${items.length} รายการ)`,
+                        desc: `เธซเธกเธฒเธขเน€เธฅเธเธ—เธณเธฃเธฒเธขเธเธฒเธฃ ${txId} (${items.length} เธฃเธฒเธขเธเธฒเธฃ)`,
                         date: borrowDate,
                         receiptTxId: txId,
                         action: 'receipt'
@@ -670,8 +600,8 @@ export default function UserApp({ studentId, onLogout }) {
                             notifs.push({
                                 id: `overdue-${item.id}`,
                                 type: 'danger',
-                                title: 'เลยกำหนดคืนอุปกรณ์!',
-                                desc: `"${item.name || item.equipment_id}" เลยกำหนดคืนมา ${Math.abs(daysLeft)} วัน`,
+                                title: 'เน€เธฅเธขเธเธณเธซเธเธ”เธเธทเธเธญเธธเธเธเธฃเธ“เน!',
+                                desc: `"${item.name || item.equipment_id}" เน€เธฅเธขเธเธณเธซเธเธ”เธเธทเธเธกเธฒ ${Math.abs(daysLeft)} เธงเธฑเธ`,
                                 date: today,
                                 action: 'status'
                             });
@@ -679,8 +609,8 @@ export default function UserApp({ studentId, onLogout }) {
                             notifs.push({
                                 id: `due-${item.id}`,
                                 type: 'warning',
-                                title: 'ใกล้ครบกำหนดคืนอุปกรณ์',
-                                desc: `"${item.name || item.equipment_id}" จะครบกำหนดในอีก ${daysLeft === 0 ? 'วันนี้' : daysLeft + ' วัน'}`,
+                                title: 'เนเธเธฅเนเธเธฃเธเธเธณเธซเธเธ”เธเธทเธเธญเธธเธเธเธฃเธ“เน',
+                                desc: `"${item.name || item.equipment_id}" เธเธฐเธเธฃเธเธเธณเธซเธเธ”เนเธเธญเธตเธ ${daysLeft === 0 ? 'เธงเธฑเธเธเธตเน' : daysLeft + ' เธงเธฑเธ'}`,
                                 date: today,
                                 action: 'status'
                             });
@@ -711,8 +641,8 @@ export default function UserApp({ studentId, onLogout }) {
                 notifs.push({
                     id: 'system-welcome',
                     type: 'system',
-                    title: 'ยินดีต้อนรับสู่ระบบยืมคืนอุปกรณ์',
-                    desc: 'สามารถติดตามข่าวสารและการอัปเดตใหม่ๆ ได้ที่นี่',
+                    title: 'เธขเธดเธเธ”เธตเธ•เนเธญเธเธฃเธฑเธเธชเธนเนเธฃเธฐเธเธเธขเธทเธกเธเธทเธเธญเธธเธเธเธฃเธ“เน',
+                    desc: 'เธชเธฒเธกเธฒเธฃเธ–เธ•เธดเธ”เธ•เธฒเธกเธเนเธฒเธงเธชเธฒเธฃเนเธฅเธฐเธเธฒเธฃเธญเธฑเธเน€เธ”เธ•เนเธซเธกเนเน เนเธ”เนเธ—เธตเนเธเธตเน',
                     date: today,
                     action: 'none'
                 });
@@ -740,7 +670,7 @@ export default function UserApp({ studentId, onLogout }) {
     const handleReportLostSubmit = async (e) => {
         e.preventDefault();
         if (!lostItemTarget || !lostDate) {
-            showToast('กรุณาระบุวันที่สูญหาย', 'warning');
+            showToast('เธเธฃเธธเธ“เธฒเธฃเธฐเธเธธเธงเธฑเธเธ—เธตเนเธชเธนเธเธซเธฒเธข', 'warning');
             return;
         }
         setIsSubmittingLost(true);
@@ -755,16 +685,16 @@ export default function UserApp({ studentId, onLogout }) {
                 })
             });
             if (data.success) {
-                showToast(data.message || 'บันทึกการแจ้งอุปกรณ์สูญหายเรียบร้อยแล้ว', 'success');
+                showToast(data.message || 'เธเธฑเธเธ—เธถเธเธเธฒเธฃเนเธเนเธเธญเธธเธเธเธฃเธ“เนเธชเธนเธเธซเธฒเธขเน€เธฃเธตเธขเธเธฃเนเธญเธขเนเธฅเนเธง', 'success');
                 setIsLostModalOpen(false);
                 setLostItemTarget(null);
                 fetchBorrowed();
             } else {
-                showToast(data.message || 'เกิดข้อผิดพลาดในการทำรายการ', 'error');
+                showToast(data.message || 'เน€เธเธดเธ”เธเนเธญเธเธดเธ”เธเธฅเธฒเธ”เนเธเธเธฒเธฃเธ—เธณเธฃเธฒเธขเธเธฒเธฃ', 'error');
             }
         } catch (err) {
             console.error(err);
-            showToast('ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้', 'error');
+            showToast('เนเธกเนเธชเธฒเธกเธฒเธฃเธ–เน€เธเธทเนเธญเธกเธ•เนเธญเธเธฑเธเน€เธเธดเธฃเนเธเน€เธงเธญเธฃเนเนเธ”เน', 'error');
         }
         setIsSubmittingLost(false);
     };
@@ -788,17 +718,17 @@ export default function UserApp({ studentId, onLogout }) {
                 })
             });
             if (data.success) {
-                showToast(data.message || 'บันทึกการตั้งค่าเรียบร้อยแล้ว', 'success');
-                setSettingsMsg({ type: "success", text: data.message || "บันทึกการตั้งค่าเรียบร้อยแล้ว" });
+                showToast(data.message || 'เธเธฑเธเธ—เธถเธเธเธฒเธฃเธ•เธฑเนเธเธเนเธฒเน€เธฃเธตเธขเธเธฃเนเธญเธขเนเธฅเนเธง', 'success');
+                setSettingsMsg({ type: "success", text: data.message || "เธเธฑเธเธ—เธถเธเธเธฒเธฃเธ•เธฑเนเธเธเนเธฒเน€เธฃเธตเธขเธเธฃเนเธญเธขเนเธฅเนเธง" });
                 setStudent(data.data);
             } else {
-                showToast(data.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล', 'error');
-                setSettingsMsg({ type: "error", text: data.message || "เกิดข้อผิดพลาดในการบันทึกข้อมูล" });
+                showToast(data.message || 'เน€เธเธดเธ”เธเนเธญเธเธดเธ”เธเธฅเธฒเธ”เนเธเธเธฒเธฃเธเธฑเธเธ—เธถเธเธเนเธญเธกเธนเธฅ', 'error');
+                setSettingsMsg({ type: "error", text: data.message || "เน€เธเธดเธ”เธเนเธญเธเธดเธ”เธเธฅเธฒเธ”เนเธเธเธฒเธฃเธเธฑเธเธ—เธถเธเธเนเธญเธกเธนเธฅ" });
             }
         } catch (err) {
             console.error(err);
-            showToast('เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์', 'error');
-            setSettingsMsg({ type: "error", text: "เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์" });
+            showToast('เน€เธเธดเธ”เธเนเธญเธเธดเธ”เธเธฅเธฒเธ”เนเธเธเธฒเธฃเน€เธเธทเนเธญเธกเธ•เนเธญเธเธฑเธเน€เธเธดเธฃเนเธเน€เธงเธญเธฃเน', 'error');
+            setSettingsMsg({ type: "error", text: "เน€เธเธดเธ”เธเนเธญเธเธดเธ”เธเธฅเธฒเธ”เนเธเธเธฒเธฃเน€เธเธทเนเธญเธกเธ•เนเธญเธเธฑเธเน€เธเธดเธฃเนเธเน€เธงเธญเธฃเน" });
         }
         setIsSavingSettings(false);
     };
@@ -813,7 +743,7 @@ export default function UserApp({ studentId, onLogout }) {
     // Cart functions
     const addToCart = (item) => {
         if (cartItems.find(c => c.equipment_id === item.equipment_id)) {
-            showToast('อุปกรณ์นี้อยู่ในตะกร้าแล้ว', 'warning');
+            showToast('เธญเธธเธเธเธฃเธ“เนเธเธตเนเธญเธขเธนเนเนเธเธ•เธฐเธเธฃเนเธฒเนเธฅเนเธง', 'warning');
             return false;
         }
         
@@ -827,7 +757,7 @@ export default function UserApp({ studentId, onLogout }) {
         }).length;
 
         if (borrowedTodayCount + cartItems.length >= 5) {
-            showToast(`คุณสามารถยืมอุปกรณ์ได้สูงสุด 5 ชิ้นต่อวัน`, 'error');
+            showToast(`เธเธธเธ“เธชเธฒเธกเธฒเธฃเธ–เธขเธทเธกเธญเธธเธเธเธฃเธ“เนเนเธ”เนเธชเธนเธเธชเธธเธ” 5 เธเธดเนเธเธ•เนเธญเธงเธฑเธ`, 'error');
             return false;
         }
 
@@ -837,6 +767,18 @@ export default function UserApp({ studentId, onLogout }) {
 
     const removeFromCart = (equipmentId) => {
         setCartItems(prev => prev.filter(c => c.equipment_id !== equipmentId));
+    };
+
+    // Open detail
+    const openDetail = async (equipmentId) => {
+        setIsDetailOpen(true);
+        setIsDetailLoading(true);
+        try {
+            const res = await fetch(`${API_BASE}/get_detail.php?id=${equipmentId}`);
+            const data = await res.json();
+            setDetailItem(data);
+        } catch (e) { console.error(e); }
+        setIsDetailLoading(false);
     };
 
     // Checkout
@@ -859,7 +801,7 @@ export default function UserApp({ studentId, onLogout }) {
                 if (result.success) {
                     successItems.push(item);
                 } else {
-                    showToast(result.message || 'ไม่สามารถทำรายการได้', 'error');
+                    showToast(result.message || 'เนเธกเนเธชเธฒเธกเธฒเธฃเธ–เธ—เธณเธฃเธฒเธขเธเธฒเธฃเนเธ”เน', 'error');
                 }
             } catch (e) { console.error(e); }
         }
@@ -885,104 +827,14 @@ export default function UserApp({ studentId, onLogout }) {
             setTransactionId(txId);
             setCheckoutSuccess(true);
             setCartItems([]);
-            showToast(`ส่งคำขอยืมสำเร็จ ${successItems.length} รายการ`, 'success');
+            showToast(`เธชเนเธเธเธณเธเธญเธขเธทเธกเธชเธณเน€เธฃเนเธ ${successItems.length} เธฃเธฒเธขเธเธฒเธฃ`, 'success');
         }
         setIsLoading(false);
-    };
-
-    // Borrow — ยืมอุปกรณ์ (เฉพาะที่ยังมี)
-    const handleBorrow = async (equipment) => {
-        setIsLoading(true);
-        try {
-            const result = await authFetch('/checkout.php', {
-                method: 'POST',
-                body: JSON.stringify({
-                    student_id: studentId,
-                    equipment_id: equipment.equipment_id
-                })
-            });
-            if (result.success) {
-                showToast(result.message || 'ส่งคำขอยืมสำเร็จ', 'success');
-                setCheckoutSuccess(true);
-                setTransactionDetails({
-                    equipmentName: equipment.name,
-                    borrowTime: new Date().toLocaleString('th-TH', {
-                        timeZone: 'Asia/Bangkok', day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit'
-                    })
-                });
-                setIsDetailOpen(false);
-                fetchBorrowed();
-                fetch(`${API_BASE}/get_equipments.php`).then(r => r.json()).then(setEquipments).catch(console.error);
-            } else {
-                showToast(result.message || 'ไม่สามารถทำรายการได้', 'error');
-            }
-        } catch (e) {
-            console.error(e);
-            showToast('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'error');
-        }
-        setIsLoading(false);
-    };
-
-    // Join Queue — จองคิวอุปกรณ์
-    const handleJoinQueue = async (equipment) => {
-        setIsLoading(true);
-        try {
-            const result = await authFetch('/join_queue.php', {
-                method: 'POST',
-                body: JSON.stringify({
-                    student_id: studentId,
-                    equipment_id: equipment.equipment_id
-                })
-            });
-            if (result.success) {
-                showToast(result.message || 'จองคิวสำเร็จ', 'success');
-                setIsDetailOpen(false);
-                fetchMyQueue();
-                setCurrentPage("queue");
-            } else {
-                showToast(result.message || 'ไม่สามารถจองคิวได้', 'error');
-            }
-        } catch (e) {
-            console.error(e);
-            showToast('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'error');
-        }
-        setIsLoading(false);
-    };
-
-    // Cancel Queue — ยกเลิกคิว
-    const handleCancelQueue = async (queueId) => {
-        if (!confirm("คุณต้องการยกเลิกคิวนี้ใช่หรือไม่?")) return;
-        try {
-            const result = await authFetch('/cancel_queue.php', {
-                method: 'POST',
-                body: JSON.stringify({
-                    id: queueId,
-                    student_id: studentId
-                })
-            });
-            if (result.success) {
-                showToast('ยกเลิกคิวเรียบร้อยแล้ว', 'success');
-                fetchMyQueue();
-            } else {
-                showToast(result.message || 'ไม่สามารถยกเลิกคิวได้', 'error');
-            }
-        } catch (e) { console.error(e); }
-    };
-    // Open detail
-    const openDetail = async (equipmentId) => {
-        setIsDetailOpen(true);
-        setIsDetailLoading(true);
-        try {
-            const res = await fetch(`${API_BASE}/get_detail.php?id=${equipmentId}`);
-            const data = await res.json();
-            setDetailItem(data);
-        } catch (e) { console.error(e); }
-        setIsDetailLoading(false);
     };
 
     // Cancel borrow request
     const handleCancelRequest = async (id) => {
-        if (!confirm("คุณต้องการยกเลิกคำขอยืมอุปกรณ์นี้ใช่หรือไม่?")) return;
+        if (!confirm("เธเธธเธ“เธ•เนเธญเธเธเธฒเธฃเธขเธเน€เธฅเธดเธเธเธณเธเธญเธขเธทเธกเธญเธธเธเธเธฃเธ“เนเธเธตเนเนเธเนเธซเธฃเธทเธญเนเธกเน?")) return;
         try {
             const data = await authFetch('/cancel_request.php', {
                 method: 'POST',
@@ -990,7 +842,7 @@ export default function UserApp({ studentId, onLogout }) {
             });
             if (data.success) {
                 fetchBorrowed();
-                showToast('ยกเลิกรายการเรียบร้อยแล้ว', 'success');
+                showToast('เธขเธเน€เธฅเธดเธเธฃเธฒเธขเธเธฒเธฃเน€เธฃเธตเธขเธเธฃเนเธญเธขเนเธฅเนเธง', 'success');
             }
         } catch (e) { console.error(e); }
     };
@@ -1002,14 +854,14 @@ export default function UserApp({ studentId, onLogout }) {
     // Status filtered items
     const filteredStatusItems = borrowedItems.filter(item => {
         if (item.status === 'rejected') return false;
-        if (statusTab === 'ทั้งหมด') return true;
-        if (statusTab === 'กำลังยืม') return item.status === 'borrowed';
-        if (statusTab === 'เกินกำหนด') {
+        if (statusTab === 'เธ—เธฑเนเธเธซเธกเธ”') return true;
+        if (statusTab === 'เธเธณเธฅเธฑเธเธขเธทเธก') return item.status === 'borrowed';
+        if (statusTab === 'เน€เธเธดเธเธเธณเธซเธเธ”') {
             const s = getItemStatus(item);
             return item.status === 'overdue' || (item.status === 'borrowed' && s.type === 'overdue') || item.status === 'damaged_lost';
         }
-        if (statusTab === 'สูญหาย/ชำรุด') return item.status === 'damaged_lost';
-        if (statusTab === 'คืนแล้ว') return item.status === 'returned' || item.status === 'fine_paid';
+        if (statusTab === 'เธชเธนเธเธซเธฒเธข/เธเธณเธฃเธธเธ”') return item.status === 'damaged_lost';
+        if (statusTab === 'เธเธทเธเนเธฅเนเธง') return item.status === 'returned' || item.status === 'fine_paid';
         return true;
     });
 
@@ -1025,7 +877,6 @@ export default function UserApp({ studentId, onLogout }) {
 
     const badgeCount = (key) => {
         if (key === "cart") return cartItems.length || null;
-        if (key === "queue") return myQueueItems.length || null;
         return null;
     };
 
@@ -1072,7 +923,7 @@ export default function UserApp({ studentId, onLogout }) {
                                 key={item.key}
                                 onClick={() => {
                                     setCurrentPage(item.key);
-                                    setCheckoutSuccess(false);
+                                    if (item.key !== "cart") setCheckoutSuccess(false);
                                 }}
                                 className={`flex items-center gap-3 w-full px-3.5 py-3 rounded-xl text-[13.5px] font-medium transition-all ${active ? 'bg-white/15 text-white shadow-lg shadow-black/10' : 'text-purple-200 hover:bg-white/8 hover:text-white'}`}
                             >
@@ -1099,13 +950,13 @@ export default function UserApp({ studentId, onLogout }) {
                             )}
                         </div>
                         <div className="flex-1 min-w-0">
-                            <div className="text-[12.5px] font-semibold truncate">{student?.name_th || 'กำลังโหลด...'}</div>
+                            <div className="text-[12.5px] font-semibold truncate">{student?.name_th || 'เธเธณเธฅเธฑเธเนเธซเธฅเธ”...'}</div>
                             <div className="text-[10.5px] text-purple-200 truncate">{studentId}</div>
                         </div>
                     </div>
                     <button onClick={onLogout} className="flex items-center gap-2 w-full px-3.5 py-2.5 rounded-xl text-[12.5px] text-purple-200 hover:bg-white/10 hover:text-white transition">
                         <LogOut size={15} />
-                        ออกจากระบบ
+                        เธญเธญเธเธเธฒเธเธฃเธฐเธเธ
                     </button>
                 </div>
             </div>
@@ -1121,7 +972,7 @@ export default function UserApp({ studentId, onLogout }) {
                             key={item.key}
                             onClick={() => {
                                 setCurrentPage(item.key);
-                                setCheckoutSuccess(false);
+                                if (item.key !== "cart") setCheckoutSuccess(false);
                             }}
                             className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition relative ${active ? 'text-white bg-white/20 font-bold' : 'text-purple-200 hover:text-white'}`}
                         >
@@ -1155,7 +1006,7 @@ export default function UserApp({ studentId, onLogout }) {
                 {/* ===== NOTIFICATIONS ===== */}
                 {currentPage === "notifications" ? (
                     <NotificationsView 
-                        title="การแจ้งเตือน"
+                        title="เธเธฒเธฃเนเธเนเธเน€เธ•เธทเธญเธ"
                         notifications={notifications}
                         isLoading={isNotificationsLoading}
                         onNotificationClick={(notif) => {
@@ -1172,7 +1023,7 @@ export default function UserApp({ studentId, onLogout }) {
                     />
                 ) : currentPage === "announcements" ? (
                     <NotificationsView 
-                        title="ประกาศจากแอดมิน"
+                        title="เธเธฃเธฐเธเธฒเธจเธเธฒเธเนเธญเธ”เธกเธดเธ"
                         notifications={notifications}
                         isLoading={isNotificationsLoading}
                         onNotificationClick={(notif) => {}}
@@ -1192,19 +1043,19 @@ export default function UserApp({ studentId, onLogout }) {
                                         )}
                                     </div>
                                     <div>
-                                        <h2 className="text-xl font-bold">{student?.name_th || 'กำลังโหลด...'}</h2>
-                                        <p className="text-purple-200 text-[13px] mt-0.5">รหัสนศ. <span className="font-bold">{student?.student_id || ''}</span></p>
-                                        <p className="text-purple-200 text-[13px]">สาขาวิชา <span className="font-bold">{student?.department || ''}</span></p>
+                                        <h2 className="text-xl font-bold">{student?.name_th || 'เธเธณเธฅเธฑเธเนเธซเธฅเธ”...'}</h2>
+                                        <p className="text-purple-200 text-[13px] mt-0.5">เธฃเธซเธฑเธชเธเธจ. <span className="font-bold">{student?.student_id || ''}</span></p>
+                                        <p className="text-purple-200 text-[13px]">เธชเธฒเธเธฒเธงเธดเธเธฒ <span className="font-bold">{student?.department || ''}</span></p>
                                         <span className="inline-block mt-2 px-3 py-1 bg-white/20 rounded-full text-[11px] font-bold">
-                                            {student?.education_status === 'active' ? 'กำลังศึกษา' : (student?.education_status || '')}
+                                            {student?.education_status === 'active' ? 'เธเธณเธฅเธฑเธเธจเธถเธเธฉเธฒ' : (student?.education_status || '')}
                                         </span>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-3 gap-3">
                                     {[
-                                        { n: activeItems.length, l: "กำลังยืม" },
-                                        { n: returnedCount, l: "คืนแล้ว" },
-                                        { n: borrowedItems.length, l: "เคยยืมทั้งหมด" },
+                                        { n: activeItems.length, l: "เธเธณเธฅเธฑเธเธขเธทเธก" },
+                                        { n: returnedCount, l: "เธเธทเธเนเธฅเนเธง" },
+                                        { n: borrowedItems.length, l: "เน€เธเธขเธขเธทเธกเธ—เธฑเนเธเธซเธกเธ”" },
                                     ].map((s, i) => (
                                         <div key={i} className="bg-white/10 border border-white/15 rounded-2xl py-4 text-center">
                                             <div className="text-2xl font-bold">{s.n}</div>
@@ -1214,7 +1065,7 @@ export default function UserApp({ studentId, onLogout }) {
                                 </div>
                             </div>
 
-                            {/* Alert — near due */}
+                            {/* Alert โ€” near due */}
                             {activeItems.some(item => {
                                 const s = getItemStatus(item);
                                 return s.type === 'overdue' || s.type === 'near-due' || s.type === 'due-today';
@@ -1222,18 +1073,18 @@ export default function UserApp({ studentId, onLogout }) {
                                 <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
                                     <AlertCircle size={22} className="text-amber-600 shrink-0" />
                                     <div className="flex-1">
-                                        <p className="font-bold text-[14px] text-slate-800">มีอุปกรณ์ใกล้ครบกำหนดคืน</p>
-                                        <p className="text-[12.5px] text-slate-500">กรุณาตรวจสอบรายการของคุณ</p>
+                                        <p className="font-bold text-[14px] text-slate-800">เธกเธตเธญเธธเธเธเธฃเธ“เนเนเธเธฅเนเธเธฃเธเธเธณเธซเธเธ”เธเธทเธ</p>
+                                        <p className="text-[12.5px] text-slate-500">เธเธฃเธธเธ“เธฒเธ•เธฃเธงเธเธชเธญเธเธฃเธฒเธขเธเธฒเธฃเธเธญเธเธเธธเธ“</p>
                                     </div>
-                                    <button onClick={() => setCurrentPage("status")} className="text-[13px] font-bold text-[#3D2B56] hover:underline">ดูเลย</button>
+                                    <button onClick={() => setCurrentPage("status")} className="text-[13px] font-bold text-[#3D2B56] hover:underline">เธ”เธนเน€เธฅเธข</button>
                                 </div>
                             )}
 
                             {/* Recommended Equipment */}
                             <div>
                                 <div className="flex items-center justify-between mb-4">
-                                    <h3 className="text-[16px] font-bold text-slate-800">อุปกรณ์แนะนำสำหรับคุณ</h3>
-                                    <button onClick={() => setCurrentPage("search")} className="text-[13px] font-bold text-purple-600 hover:underline">ดูทั้งหมด</button>
+                                    <h3 className="text-[16px] font-bold text-slate-800">เธญเธธเธเธเธฃเธ“เนเนเธเธฐเธเธณเธชเธณเธซเธฃเธฑเธเธเธธเธ“</h3>
+                                    <button onClick={() => setCurrentPage("search")} className="text-[13px] font-bold text-purple-600 hover:underline">เธ”เธนเธ—เธฑเนเธเธซเธกเธ”</button>
                                 </div>
                                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                                     {equipments.slice(0, 5).map(item => (
@@ -1241,13 +1092,13 @@ export default function UserApp({ studentId, onLogout }) {
                                             className="bg-white border border-purple-100 rounded-2xl p-4 text-center hover:shadow-md hover:border-purple-200 transition group">
                                             <div className="w-16 h-12 mx-auto bg-purple-50 rounded-xl flex items-center justify-center mb-3 overflow-hidden">
                                                 {item.equipment_img ? (
-                                                    <img src={`${IMG_BASE}${item.equipment_img}`} alt="" className="w-10 h-10 object-contain" />
+                                                    <img src={`${IMG_BASE}${item.equipment_img.replace(/\.jpeg$/i, '.jpg')}`} alt="" className="w-10 h-10 object-contain" />
                                                 ) : (
                                                     <Package size={24} className="text-purple-400" />
                                                 )}
                                             </div>
                                             <p className="text-[13px] font-bold text-slate-700 line-clamp-2 h-[40px]">{item.name}</p>
-                                            <p className="text-[12px] font-bold text-green-600 mt-2">เหลือ {item.available_quantity ?? item.total_quantity} ชิ้น</p>
+                                            <p className="text-[12px] font-bold text-green-600 mt-2">เน€เธซเธฅเธทเธญ {item.available_quantity ?? item.total_quantity} เธเธดเนเธ</p>
                                         </button>
                                     ))}
                                 </div>
@@ -1256,9 +1107,9 @@ export default function UserApp({ studentId, onLogout }) {
                             {/* Currently Borrowing */}
                             <div>
                                 <div className="flex items-center justify-between mb-4">
-                                    <h3 className="text-[16px] font-bold text-slate-800">รายการที่กำลังยืมอยู่</h3>
+                                    <h3 className="text-[16px] font-bold text-slate-800">เธฃเธฒเธขเธเธฒเธฃเธ—เธตเนเธเธณเธฅเธฑเธเธขเธทเธกเธญเธขเธนเน</h3>
                                     {activeItems.length > 0 && (
-                                        <button onClick={() => setCurrentPage("status")} className="text-[13px] font-bold text-purple-600 hover:underline">ดูทั้งหมด</button>
+                                        <button onClick={() => setCurrentPage("status")} className="text-[13px] font-bold text-purple-600 hover:underline">เธ”เธนเธ—เธฑเนเธเธซเธกเธ”</button>
                                     )}
                                 </div>
                                 {activeItems.length > 0 ? (
@@ -1269,17 +1120,17 @@ export default function UserApp({ studentId, onLogout }) {
                                                 <div key={item.id} className="bg-white border border-purple-100 rounded-2xl p-4 flex items-center gap-4">
                                                     <div className="w-11 h-11 bg-purple-50 rounded-xl flex items-center justify-center shrink-0">
                                                         {item.equipment_img ? (
-                                                            <img src={`${IMG_BASE}${item.equipment_img}`} alt="" className="w-7 h-7 object-contain" />
+                                                            <img src={`${IMG_BASE}${item.equipment_img.replace(/\.jpeg$/i, '.jpg')}`} alt="" className="w-7 h-7 object-contain" />
                                                         ) : (
                                                             <Package size={20} className="text-purple-400" />
                                                         )}
                                                     </div>
                                                     <div className="flex-1 min-w-0">
-                                                        <p className="text-[14px] font-bold text-slate-800 truncate">{item.name || `อุปกรณ์ #${item.equipment_id}`}</p>
+                                                        <p className="text-[14px] font-bold text-slate-800 truncate">{item.name || `เธญเธธเธเธเธฃเธ“เน #${item.equipment_id}`}</p>
                                                         {item.status === 'pending' ? (
-                                                            <p className="text-[12px] text-amber-600">นัดรับ {new Date(item.pickup_time || item.borrow_date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</p>
+                                                            <p className="text-[12px] text-amber-600">เธเธฑเธ”เธฃเธฑเธ {new Date(item.pickup_time || item.borrow_date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} เธ.</p>
                                                         ) : (
-                                                            <p className="text-[12px] text-slate-400">กำหนดคืน {formatThaiDate(s.dueDate)}</p>
+                                                            <p className="text-[12px] text-slate-400">เธเธณเธซเธเธ”เธเธทเธ {formatThaiDate(s.dueDate)}</p>
                                                         )}
                                                     </div>
                                                     <span className={`text-[11px] font-bold px-3 py-1.5 rounded-full border ${getBadgeStyle(s.type)}`}>{s.label}</span>
@@ -1289,7 +1140,7 @@ export default function UserApp({ studentId, onLogout }) {
                                     </div>
                                 ) : (
                                     <div className="bg-white border border-purple-100 border-dashed rounded-2xl p-6 text-center">
-                                        <p className="text-[14px] text-slate-500">ไม่มีรายการที่กำลังยืมอยู่</p>
+                                        <p className="text-[14px] text-slate-500">เนเธกเนเธกเธตเธฃเธฒเธขเธเธฒเธฃเธ—เธตเนเธเธณเธฅเธฑเธเธขเธทเธกเธญเธขเธนเน</p>
                                     </div>
                                 )}
                             </div>
@@ -1305,7 +1156,7 @@ export default function UserApp({ studentId, onLogout }) {
                             <div className="relative mb-5">
                                 <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                                 <input
-                                    type="text" placeholder="🔍 ค้นหาชื่ออุปกรณ์ เช่น iPad, หูฟัง..."
+                                    type="text" placeholder="๐” เธเนเธเธซเธฒเธเธทเนเธญเธญเธธเธเธเธฃเธ“เน เน€เธเนเธ iPad, เธซเธนเธเธฑเธ..."
                                     className="w-full bg-white border border-purple-100 rounded-2xl py-3.5 pl-12 pr-4 text-[14px] outline-none focus:border-purple-400 transition shadow-sm"
                                     value={searchText} onChange={e => setSearchText(e.target.value)}
                                 />
@@ -1328,23 +1179,23 @@ export default function UserApp({ studentId, onLogout }) {
                                         className="w-full bg-white border border-purple-100 rounded-2xl p-4 flex items-center gap-4 hover:shadow-md hover:border-purple-200 transition text-left group">
                                         <div className="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center shrink-0 overflow-hidden border border-purple-100">
                                             {item.equipment_img ? (
-                                                <img src={`${IMG_BASE}${item.equipment_img}`} alt="" className="w-full h-full object-contain" />
+                                                <img src={`${IMG_BASE}${item.equipment_img.replace(/\.jpeg$/i, '.jpg')}`} alt="" className="w-full h-full object-contain" />
                                             ) : (
                                                 <Package size={22} className="text-purple-400" />
                                             )}
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="text-[15px] font-bold text-slate-800">{item.name}</p>
-                                            <p className="text-[12px] text-slate-400 mt-0.5">{item.usage_type || 'ทั่วไป'} · รหัส {item.kit_code || '-'} · เหลือ {item.available_quantity ?? item.total_quantity}/{item.total_quantity} ชิ้น</p>
+                                            <p className="text-[12px] text-slate-400 mt-0.5">{item.usage_type || 'เธ—เธฑเนเธงเนเธ'} ยท เธฃเธซเธฑเธช {item.kit_code || '-'} ยท เน€เธซเธฅเธทเธญ {item.available_quantity ?? item.total_quantity}/{item.total_quantity} เธเธดเนเธ</p>
                                             <div className="flex items-center gap-2 mt-1.5">
-                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${item.status === 'ใช้งานได้' ? 'bg-green-100 text-green-700' : item.status === 'กำลังซ่อมแซม' ? 'bg-orange-100 text-orange-700' : item.status === 'งดใช้ชั่วคราว' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'}`}>{item.status || 'ใช้งานได้'}</span>
-                                                <span className="text-[11px] font-bold text-purple-600">ราคา {item.price} ฿</span>
+                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${item.status === 'เนเธเนเธเธฒเธเนเธ”เน' ? 'bg-green-100 text-green-700' : item.status === 'เธเธณเธฅเธฑเธเธเนเธญเธกเนเธเธก' ? 'bg-orange-100 text-orange-700' : item.status === 'เธเธ”เนเธเนเธเธฑเนเธงเธเธฃเธฒเธง' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'}`}>{item.status || 'เนเธเนเธเธฒเธเนเธ”เน'}</span>
+                                                <span className="text-[11px] font-bold text-purple-600">เธฃเธฒเธเธฒ {item.price} เธฟ</span>
                                             </div>
                                         </div>
                                         <ChevronRight size={18} className="text-slate-300 group-hover:text-purple-400 transition" />
                                     </button>
                                 )) : (
-                                    <div className="text-center py-12 text-slate-400">ไม่พบอุปกรณ์ที่ค้นหา</div>
+                                    <div className="text-center py-12 text-slate-400">เนเธกเนเธเธเธญเธธเธเธเธฃเธ“เนเธ—เธตเนเธเนเธเธซเธฒ</div>
                                 )}
                             </div>
                         </div>
@@ -1355,20 +1206,85 @@ export default function UserApp({ studentId, onLogout }) {
                     <>
 
                         <div className="p-8 pt-6 space-y-6">
-                            {cartItems.length === 0 ? (
+                            {checkoutSuccess && transactionDetails ? (
+                                /* Success Receipt matching Mobile App */
+                                <div className="bg-white border border-green-200 rounded-3xl p-8 max-w-lg mx-auto shadow-sm">
+                                    <div className="text-center mb-6">
+                                        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                            <CheckCircle size={32} className="text-green-600" />
+                                        </div>
+                                        <h2 className="text-xl font-bold text-slate-800 mb-1">เธขเธทเธกเธชเธณเน€เธฃเนเธ!</h2>
+                                        <p className="text-slate-500 text-[13px]">เธเธฑเธเธ—เธถเธเธฃเธฒเธขเธเธฒเธฃเธขเธทเธกเธเธญเธเธเธธเธ“เน€เธฃเธตเธขเธเธฃเนเธญเธขเนเธฅเนเธง</p>
+                                    </div>
+                                    
+                                    <div className="flex flex-col items-center justify-center mb-6">
+                                        <div className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100">
+                                            <QRCode value={transactionDetails.transactionId} size={150} />
+                                        </div>
+                                        <p className="text-[12px] text-slate-400 mt-3 font-mono">{transactionDetails.transactionId}</p>
+                                    </div>
+                                    
+                                    <div className="bg-[#F9F8FD] rounded-2xl p-5 mb-6 border border-purple-50 space-y-3">
+                                        <div className="flex justify-between items-center pb-3 border-b border-purple-100/50">
+                                            <span className="text-sm text-slate-500">เธงเธฑเธเน€เธงเธฅเธฒเธ—เธตเนเธขเธทเธก</span>
+                                            <span className="text-sm font-bold text-slate-800">{transactionDetails.borrowTime}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center pb-3 border-b border-purple-100/50">
+                                            <span className="text-sm text-slate-500">เธเธณเธซเธเธ”เธฃเธฑเธเธญเธธเธเธเธฃเธ“เน</span>
+                                            <span className="text-sm font-bold text-slate-800">{transactionDetails.pickupTime}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-sm text-slate-500">เธเธณเธเธงเธเธฃเธฒเธขเธเธฒเธฃ</span>
+                                            <span className="text-sm font-bold text-slate-800">{transactionDetails.items.length} เธเธดเนเธ</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="mb-6">
+                                        <h3 className="font-bold text-slate-800 mb-3 text-sm">เธฃเธฒเธขเธเธฒเธฃเธญเธธเธเธเธฃเธ“เนเธ—เธตเนเธขเธทเธก</h3>
+                                        <div className="space-y-3">
+                                            {transactionDetails.items.map((item, idx) => (
+                                                <div key={idx} className="flex gap-3 bg-white border border-slate-100 p-3 rounded-xl shadow-sm">
+                                                    <div className="w-12 h-12 bg-slate-50 rounded-lg overflow-hidden shrink-0 flex items-center justify-center border border-slate-100">
+                                                        {item.equipment_img || item.image_url ? (
+                                                            <img src={`${IMG_BASE}${(item.equipment_img || item.image_url).replace(/\\.jpeg$/i, '.jpg')}`} alt={item.name} className="w-full h-full object-contain" />
+                                                        ) : (
+                                                            <Package size={20} className="text-slate-300" />
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1 overflow-hidden flex flex-col justify-center">
+                                                        <div className="text-[13px] font-bold text-slate-800 truncate">{item.name}</div>
+                                                        <div className="text-[11px] text-slate-500 truncate mt-0.5">{item.category} โ€ข {item.kit_code || item.equipment_id}</div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-3 justify-center">
+                                        <button onClick={() => { setCheckoutSuccess(false); setCurrentPage("status"); }}
+                                            className="flex-1 py-3 bg-[#3D2B56] text-white rounded-xl text-[13px] font-bold hover:bg-[#2d1f40] transition">
+                                            เธ”เธนเธฃเธฒเธขเธเธฒเธฃเธเธญเธเธเธฑเธ
+                                        </button>
+                                        <button onClick={() => { setCheckoutSuccess(false); setCurrentPage("dashboard"); }}
+                                            className="flex-1 py-3 bg-white border border-purple-100 text-slate-600 rounded-xl text-[13px] font-bold hover:bg-slate-50 transition">
+                                            เธเธฅเธฑเธเธซเธเนเธฒเธซเธฅเธฑเธ
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : cartItems.length === 0 ? (
                                 <div className="text-center py-16">
                                     <ShoppingCart size={48} className="mx-auto text-purple-200 mb-4" />
-                                    <p className="text-slate-500 font-semibold mb-2">ตะกร้าว่างเปล่า</p>
-                                    <p className="text-[13px] text-slate-400 mb-4">เลือกอุปกรณ์ที่ต้องการยืมจากหน้าค้นหา</p>
+                                    <p className="text-slate-500 font-semibold mb-2">เธ•เธฐเธเธฃเนเธฒเธงเนเธฒเธเน€เธเธฅเนเธฒ</p>
+                                    <p className="text-[13px] text-slate-400 mb-4">เน€เธฅเธทเธญเธเธญเธธเธเธเธฃเธ“เนเธ—เธตเนเธ•เนเธญเธเธเธฒเธฃเธขเธทเธกเธเธฒเธเธซเธเนเธฒเธเนเธเธซเธฒ</p>
                                     <button onClick={() => setCurrentPage("search")} className="px-5 py-2.5 bg-[#3D2B56] text-white rounded-xl text-[13px] font-bold hover:bg-[#2d1f40] transition">
-                                        ค้นหาอุปกรณ์
+                                        เธเนเธเธซเธฒเธญเธธเธเธเธฃเธ“เน
                                     </button>
                                 </div>
                             ) : (
                                 <>
                                     <div className="bg-white border border-purple-100 rounded-3xl shadow-sm overflow-hidden">
                                         <div className="px-6 py-4 border-b border-purple-50 bg-purple-50/50">
-                                            <h3 className="font-bold text-[15px] text-slate-700">รายการที่เลือก ({cartItems.length}/5)</h3>
+                                            <h3 className="font-bold text-[15px] text-slate-700">เธฃเธฒเธขเธเธฒเธฃเธ—เธตเนเน€เธฅเธทเธญเธ ({cartItems.length}/5)</h3>
                                         </div>
                                         <div className="divide-y divide-purple-50">
                                             {cartItems.map(item => (
@@ -1382,7 +1298,7 @@ export default function UserApp({ studentId, onLogout }) {
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <p className="text-[14px] font-bold text-slate-700 truncate">{item.name}</p>
-                                                        <p className="text-[12px] text-slate-400">รหัส {item.kit_code || '-'} · ราคา {item.price} ฿</p>
+                                                        <p className="text-[12px] text-slate-400">เธฃเธซเธฑเธช {item.kit_code || '-'} ยท เธฃเธฒเธเธฒ {item.price} เธฟ</p>
                                                     </div>
                                                     <button onClick={() => removeFromCart(item.equipment_id)} className="w-8 h-8 rounded-lg border border-red-200 text-red-500 flex items-center justify-center hover:bg-red-50 transition">
                                                         <Trash2 size={15} />
@@ -1396,11 +1312,11 @@ export default function UserApp({ studentId, onLogout }) {
                                     <div className="bg-white border border-purple-100 rounded-3xl p-5 shadow-sm space-y-3">
                                         <div className="flex items-center gap-2 text-[#3D2B56] font-bold text-[14.5px] pb-2 border-b border-slate-100">
                                             <Clock size={18} className="text-purple-600" />
-                                            <span>เลือกวัน-เวลานัดรับอุปกรณ์ (จองล่วงหน้าได้ไม่เกิน 1 วัน)</span>
+                                            <span>เน€เธฅเธทเธญเธเธงเธฑเธ-เน€เธงเธฅเธฒเธเธฑเธ”เธฃเธฑเธเธญเธธเธเธเธฃเธ“เน (เธเธญเธเธฅเนเธงเธเธซเธเนเธฒเนเธ”เนเนเธกเนเน€เธเธดเธ 1 เธงเธฑเธ)</span>
                                         </div>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                                             <div>
-                                                <label className="block text-[12px] font-semibold text-slate-600 mb-1">วันที่นัดรับ</label>
+                                                <label className="block text-[12px] font-semibold text-slate-600 mb-1">เธงเธฑเธเธ—เธตเนเธเธฑเธ”เธฃเธฑเธ</label>
                                                 <input
                                                     type="date"
                                                     min={new Date().toISOString().split('T')[0]}
@@ -1411,7 +1327,7 @@ export default function UserApp({ studentId, onLogout }) {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-[12px] font-semibold text-slate-600 mb-1">เวลานัดรับ</label>
+                                                <label className="block text-[12px] font-semibold text-slate-600 mb-1">เน€เธงเธฅเธฒเธเธฑเธ”เธฃเธฑเธ</label>
                                                 <input
                                                     type="time"
                                                     value={pickupTime}
@@ -1421,11 +1337,11 @@ export default function UserApp({ studentId, onLogout }) {
                                             </div>
                                         </div>
                                         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-[12px] text-amber-800 leading-relaxed">
-                                            ⚠️ <strong>เงื่อนไขการจองและการรับอุปกรณ์:</strong>
+                                            โก <strong>เน€เธเธทเนเธญเธเนเธเธเธฒเธฃเธเธญเธเนเธฅเธฐเธเธฒเธฃเธฃเธฑเธเธญเธธเธเธเธฃเธ“เน:</strong>
                                             <br />
-                                            • สามารถจองล่วงหน้าได้ <strong>สูงสุด 1 วัน</strong> (วันนี้ หรือ วันพรุ่งนี้)
+                                            โ€ข เธชเธฒเธกเธฒเธฃเธ–เธเธญเธเธฅเนเธงเธเธซเธเนเธฒเนเธ”เน <strong>เธชเธนเธเธชเธธเธ” 1 เธงเธฑเธ</strong> (เธงเธฑเธเธเธตเน เธซเธฃเธทเธญ เธงเธฑเธเธเธฃเธธเนเธเธเธตเน)
                                             <br />
-                                            • เมื่อถึงเวลานัดรับ ต้องมารับอุปกรณ์ <strong>ภายใน 30 นาที</strong> หากเกินกำหนดระบบจะทำการตัดสิทธิ์และนำอุปกรณ์กลับเข้าคลังโดยอัตโนมัติ
+                                            โ€ข เน€เธกเธทเนเธญเธ–เธถเธเน€เธงเธฅเธฒเธเธฑเธ”เธฃเธฑเธ เธ•เนเธญเธเธกเธฒเธฃเธฑเธเธญเธธเธเธเธฃเธ“เน <strong>เธ เธฒเธขเนเธ 30 เธเธฒเธ—เธต</strong> เธซเธฒเธเน€เธเธดเธเธเธณเธซเธเธ”เธฃเธฐเธเธเธเธฐเธ—เธณเธเธฒเธฃเธ•เธฑเธ”เธชเธดเธ—เธเธดเนเนเธฅเธฐเธเธณเธญเธธเธเธเธฃเธ“เนเธเธฅเธฑเธเน€เธเนเธฒเธเธฅเธฑเธเนเธ”เธขเธญเธฑเธ•เนเธเธกเธฑเธ•เธด
                                         </div>
                                     </div>
 
@@ -1433,105 +1349,17 @@ export default function UserApp({ studentId, onLogout }) {
                                     <div className="flex gap-3 items-start p-4 bg-purple-50 rounded-2xl border border-purple-100">
                                         <Info size={18} className="text-purple-600 shrink-0 mt-0.5" />
                                         <div className="text-[12.5px] text-slate-600 leading-relaxed">
-                                            <p className="font-bold text-[#3D2B56] mb-1">ข้อกำหนดการยืม</p>
-                                            <p>• ยืมได้สูงสุด 5 ชิ้น/ครั้ง • กำหนดคืนตามจำนวนวันของอุปกรณ์แต่ละชิ้น</p>
-                                            <p className="text-red-500 font-bold mt-1">⚠️ หากเกินกำหนดคืนจะมีค่าปรับ วันละ 20 บาท</p>
+                                            <p className="font-bold text-[#3D2B56] mb-1">เธเนเธญเธเธณเธซเธเธ”เธเธฒเธฃเธขเธทเธก</p>
+                                            <p>โ€ข เธขเธทเธกเนเธ”เนเธชเธนเธเธชเธธเธ” 5 เธเธดเนเธ/เธเธฃเธฑเนเธ โ€ข เธเธณเธซเธเธ”เธเธทเธเธ•เธฒเธกเธเธณเธเธงเธเธงเธฑเธเธเธญเธเธญเธธเธเธเธฃเธ“เนเนเธ•เนเธฅเธฐเธเธดเนเธ</p>
+                                            <p className="text-red-500 font-bold mt-1">โ ๏ธ เธซเธฒเธเน€เธเธดเธเธเธณเธซเธเธ”เธเธทเธเธเธฐเธกเธตเธเนเธฒเธเธฃเธฑเธ เธงเธฑเธเธฅเธฐ 20 เธเธฒเธ—</p>
                                         </div>
                                     </div>
 
                                     {/* Checkout button */}
                                     <button onClick={handleCheckout} disabled={isLoading}
                                         className={`w-full py-4 rounded-2xl bg-[#3D2B56] text-white font-bold text-[16px] shadow-lg shadow-[#3D2B56]/20 transition ${isLoading ? 'opacity-70' : 'hover:bg-[#2d1f40] active:scale-[.99]'}`}>
-                                        {isLoading ? "กำลังดำเนินการ..." : `ยืนยันยืมอุปกรณ์ (${cartItems.length} ชิ้น)`}
+                                        {isLoading ? "เธเธณเธฅเธฑเธเธ”เธณเน€เธเธดเธเธเธฒเธฃ..." : `เธขเธทเธเธขเธฑเธเธขเธทเธกเธญเธธเธเธเธฃเธ“เน (${cartItems.length} เธเธดเนเธ)`}
                                     </button>
-                                </>
-                            )}
-                        </div>
-                    </>
-
-                /* ===== QUEUE (คิวของฉัน) ===== */
-                ) : currentPage === "queue" ? (
-                    <>
-
-                        <div className="p-8 pt-6 space-y-6">
-                            {myQueueItems.length === 0 ? (
-                                <div className="text-center py-16">
-                                    <Timer size={48} className="mx-auto text-purple-200 mb-4" />
-                                    <p className="text-slate-500 font-semibold mb-2">ยังไม่มีคิวที่จอง</p>
-                                    <p className="text-[13px] text-slate-400 mb-4">จองคิวได้เมื่ออุปกรณ์ที่ต้องการหมด</p>
-                                    <button onClick={() => setCurrentPage("search")} className="px-5 py-2.5 bg-[#3D2B56] text-white rounded-xl text-[13px] font-bold hover:bg-[#2d1f40] transition">
-                                        ค้นหาอุปกรณ์
-                                    </button>
-                                </div>
-                            ) : (
-                                <>
-                                    {/* Called queue alert */}
-                                    {myQueueItems.filter(q => q.status === 'called').map(q => (
-                                        <div key={q.id} className="bg-green-50 border-2 border-green-400 rounded-2xl p-5 animate-pulse">
-                                            <div className="flex items-center gap-3 mb-3">
-                                                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                                                    <Bell size={20} className="text-green-600" />
-                                                </div>
-                                                <div className="flex-1">
-                                                    <p className="font-bold text-green-800 text-[15px]">ถึงคิวของคุณแล้ว!</p>
-                                                    <p className="text-[13px] text-green-700">กรุณามารับ "{q.equipment_name}" ภายใน 5 นาที</p>
-                                                </div>
-                                            </div>
-                                            {q.expires_at && (
-                                                <div className="bg-white rounded-xl p-3 flex items-center justify-between">
-                                                    <span className="text-[13px] text-slate-600 font-semibold">⏰ หมดเวลา</span>
-                                                    <span className="text-[14px] font-bold text-red-600">
-                                                        {new Date(q.expires_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} น.
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-
-                                    {/* Queue list */}
-                                    <div className="bg-white border border-purple-100 rounded-3xl shadow-sm overflow-hidden">
-                                        <div className="px-6 py-4 border-b border-purple-50 bg-purple-50/50">
-                                            <h3 className="font-bold text-[15px] text-slate-700">คิวที่จองอยู่ ({myQueueItems.length} รายการ)</h3>
-                                        </div>
-                                        <div className="divide-y divide-purple-50">
-                                            {myQueueItems.map(q => (
-                                                <div key={q.id} className={`px-6 py-4 flex items-center gap-4 ${q.status === 'called' ? 'bg-green-50' : ''}`}>
-                                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${q.status === 'called' ? 'bg-green-100' : 'bg-purple-50'}`}>
-                                                        {q.equipment_img ? (
-                                                            <img src={`${IMG_BASE}${q.equipment_img}`} alt="" className="w-8 h-8 object-contain" />
-                                                        ) : (
-                                                            <span className="text-xl font-bold text-purple-500">#{q.position}</span>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="text-[14px] font-bold text-slate-700 truncate">{q.equipment_name || `อุปกรณ์ #${q.equipment_id}`}</p>
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${q.status === 'called' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                                                                {q.status === 'called' ? '🔔 ถึงคิวแล้ว!' : `ลำดับที่ ${q.position}`}
-                                                            </span>
-                                                            <span className="text-[11px] text-slate-400">
-                                                                จองเมื่อ {new Date(q.queued_at).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                    <button onClick={() => handleCancelQueue(q.id)} 
-                                                        className="w-8 h-8 rounded-lg border border-red-200 text-red-500 flex items-center justify-center hover:bg-red-50 transition" title="ยกเลิกคิว">
-                                                        <X size={15} />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Queue info */}
-                                    <div className="flex gap-3 items-start p-4 bg-purple-50 rounded-2xl border border-purple-100">
-                                        <Info size={18} className="text-purple-600 shrink-0 mt-0.5" />
-                                        <div className="text-[12.5px] text-slate-600 leading-relaxed">
-                                            <p className="font-bold text-[#3D2B56] mb-1">กฎของระบบคิว</p>
-                                            <p>• คิวสูงสุด 10 คนต่ออุปกรณ์ • เมื่อถึงคิว มีเวลา 5 นาทีในการมารับ</p>
-                                            <p className="text-red-500 font-bold mt-1">⚠️ หากไม่มารับภายใน 5 นาที คิวจะถูกข้ามไปยังคนถัดไปอัตโนมัติ</p>
-                                        </div>
-                                    </div>
                                 </>
                             )}
                         </div>
@@ -1544,7 +1372,7 @@ export default function UserApp({ studentId, onLogout }) {
                         <div className="p-8 pt-6 space-y-5">
                             {/* Filter tabs */}
                             <div className="flex gap-2 overflow-x-auto pb-1 whitespace-nowrap">
-                                {['ทั้งหมด', 'กำลังยืม', 'เกินกำหนด', 'สูญหาย/ชำรุด', 'คืนแล้ว'].map(tab => (
+                                {['เธ—เธฑเนเธเธซเธกเธ”', 'เธเธณเธฅเธฑเธเธขเธทเธก', 'เน€เธเธดเธเธเธณเธซเธเธ”', 'เธชเธนเธเธซเธฒเธข/เธเธณเธฃเธธเธ”', 'เธเธทเธเนเธฅเนเธง'].map(tab => (
                                     <button key={tab} onClick={() => setStatusTab(tab)}
                                         className={`px-4 py-2 rounded-full text-[13px] font-semibold transition shrink-0 ${statusTab === tab ? 'bg-[#3D2B56] text-white' : 'bg-white border border-purple-100 text-[#3D2B56] hover:border-purple-300'}`}>
                                         {tab}
@@ -1557,8 +1385,8 @@ export default function UserApp({ studentId, onLogout }) {
                                 <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-center gap-3">
                                     <AlertCircle size={20} className="text-red-500 shrink-0" />
                                     <div>
-                                        <p className="text-[13px] text-red-600 font-semibold">คุณมีค่าปรับค้างชำระ</p>
-                                        <p className="text-[16px] text-red-700 font-bold">รวม {totalFine.toLocaleString()} บาท</p>
+                                        <p className="text-[13px] text-red-600 font-semibold">เธเธธเธ“เธกเธตเธเนเธฒเธเธฃเธฑเธเธเนเธฒเธเธเธณเธฃเธฐ</p>
+                                        <p className="text-[16px] text-red-700 font-bold">เธฃเธงเธก {totalFine.toLocaleString()} เธเธฒเธ—</p>
                                     </div>
                                 </div>
                             )}
@@ -1569,10 +1397,10 @@ export default function UserApp({ studentId, onLogout }) {
                                 return (
                                     <div key={item.id} className={`bg-white rounded-2xl p-5 border shadow-sm ${s.type === 'overdue' ? 'border-red-200' : 'border-purple-100'}`}>
                                         <div className="flex items-center justify-between mb-2">
-                                            <p className="text-[15px] font-bold text-slate-800 flex-1 mr-3">{item.name || `อุปกรณ์ #${item.equipment_id}`}</p>
+                                            <p className="text-[15px] font-bold text-slate-800 flex-1 mr-3">{item.name || `เธญเธธเธเธเธฃเธ“เน #${item.equipment_id}`}</p>
                                             <span className={`text-[11px] font-bold px-3 py-1 rounded-full border whitespace-nowrap ${getBadgeStyle(s.type)}`}>{s.label}</span>
                                         </div>
-                                        <p className="text-[13px] text-slate-400 mb-3">รหัส {item.equipment_id}</p>
+                                        <p className="text-[13px] text-slate-400 mb-3">เธฃเธซเธฑเธช {item.equipment_id}</p>
 
                                         {/* Progress */}
                                         <div className="w-full h-1.5 bg-slate-100 rounded-full mb-3 overflow-hidden">
@@ -1580,8 +1408,8 @@ export default function UserApp({ studentId, onLogout }) {
                                         </div>
 
                                         <div className="flex justify-between text-[12px] text-slate-500">
-                                            <span>ยืมเมื่อ <span className="font-bold text-slate-700">{formatThaiDate(item.borrow_date)}</span></span>
-                                            <span>กำหนดคืน <span className="font-bold text-slate-700">{formatThaiDate(s.dueDate)}</span></span>
+                                            <span>เธขเธทเธกเน€เธกเธทเนเธญ <span className="font-bold text-slate-700">{formatThaiDate(item.borrow_date)}</span></span>
+                                            <span>เธเธณเธซเธเธ”เธเธทเธ <span className="font-bold text-slate-700">{formatThaiDate(s.dueDate)}</span></span>
                                         </div>
 
                                         {/* Pickup time & 30-min expiration alert */}
@@ -1589,21 +1417,29 @@ export default function UserApp({ studentId, onLogout }) {
                                             <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2 text-[12px] text-amber-800">
                                                 <div className="flex items-center gap-1.5 font-bold">
                                                     <Clock size={15} className="text-amber-600" />
-                                                    <span>เวลานัดรับ: {new Date(item.pickup_time || item.borrow_date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</span>
+                                                    <span>เน€เธงเธฅเธฒเธเธฑเธ”เธฃเธฑเธ: {new Date(item.pickup_time || item.borrow_date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} เธ.</span>
                                                 </div>
                                                 <span className="text-red-600 font-bold bg-white px-2 py-1 rounded-lg border border-red-200 shadow-sm">
-                                                    ⏰ ต้องมารับก่อน {new Date(item.reservation_expires_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น. (ไม่เกิน 30 นาที)
+                                                    โฐ เธ•เนเธญเธเธกเธฒเธฃเธฑเธเธเนเธญเธ {new Date(item.reservation_expires_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} เธ. (เนเธกเนเน€เธเธดเธ 30 เธเธฒเธ—เธต)
                                                 </span>
                                             </div>
                                         )}
 
                                         {/* Action buttons */}
-                                        {item.status === 'pending' && (
-                                            <div className="mt-3 grid grid-cols-1 gap-2">
-                                                <button onClick={() => handleCancelRequest(item.id)}
-                                                    className="w-full py-2.5 border border-red-200 text-red-500 rounded-xl text-[13px] font-bold hover:bg-red-50 transition flex items-center justify-center gap-2">
-                                                    <X size={15} /> ยกเลิกรายการนี้
-                                                </button>
+                                        {(item.status === 'borrowed' || item.status === 'overdue' || item.status === 'pending') && (
+                                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                {item.status === 'pending' && (
+                                                    <button onClick={() => handleCancelRequest(item.id)}
+                                                        className="w-full py-2.5 border border-red-200 text-red-500 rounded-xl text-[13px] font-bold hover:bg-red-50 transition flex items-center justify-center gap-2">
+                                                        <X size={15} /> เธขเธเน€เธฅเธดเธเธฃเธฒเธขเธเธฒเธฃเธเธตเน
+                                                    </button>
+                                                )}
+                                                {(item.status === 'borrowed' || item.status === 'overdue') && (
+                                                    <button onClick={() => openReportLostModal(item)}
+                                                        className="w-full py-2.5 border border-orange-300 text-orange-600 bg-orange-50/50 rounded-xl text-[13px] font-bold hover:bg-orange-100 transition flex items-center justify-center gap-2 col-span-2">
+                                                        <AlertTriangle size={15} /> เนเธเนเธเธญเธธเธเธเธฃเธ“เนเธชเธนเธเธซเธฒเธข / เธเธณเธฃเธธเธ”
+                                                    </button>
+                                                )}
                                             </div>
                                         )}
 
@@ -1612,13 +1448,13 @@ export default function UserApp({ studentId, onLogout }) {
                                             <div className="mt-3 bg-orange-50 border border-orange-200 rounded-xl p-3.5 space-y-1">
                                                 <div className="flex items-center gap-2 text-orange-800 font-bold text-[13px]">
                                                     <AlertTriangle size={16} className="text-orange-600 shrink-0" />
-                                                    <span>วันที่แจ้งสูญหาย / วันที่หาย: <span className="text-red-600">{formatThaiDate(item.lost_date)}</span></span>
+                                                    <span>เธงเธฑเธเธ—เธตเนเนเธเนเธเธชเธนเธเธซเธฒเธข / เธงเธฑเธเธ—เธตเนเธซเธฒเธข: <span className="text-red-600">{formatThaiDate(item.lost_date)}</span></span>
                                                 </div>
                                                 {item.lost_note && (
-                                                    <p className="text-[12px] text-slate-600 pl-6"><strong>หมายเหตุ:</strong> {item.lost_note}</p>
+                                                    <p className="text-[12px] text-slate-600 pl-6"><strong>เธซเธกเธฒเธขเน€เธซเธ•เธธ:</strong> {item.lost_note}</p>
                                                 )}
                                                 <p className="text-[11.5px] text-orange-700 pl-6 pt-1">
-                                                    * สถานะสูญหาย/ชำรุดแล้ว กรุณาติดต่อบรรณารักษ์เพื่อชำระค่าปรับ
+                                                    * เธชเธ–เธฒเธเธฐเธชเธนเธเธซเธฒเธข/เธเธณเธฃเธธเธ”เนเธฅเนเธง เธเธฃเธธเธ“เธฒเธ•เธดเธ”เธ•เนเธญเธเธฃเธฃเธ“เธฒเธฃเธฑเธเธฉเนเน€เธเธทเนเธญเธเธณเธฃเธฐเธเนเธฒเธเธฃเธฑเธ
                                                 </p>
                                             </div>
                                         )}
@@ -1627,7 +1463,7 @@ export default function UserApp({ studentId, onLogout }) {
                                         {item.return_date && item.status !== 'damaged_lost' && (
                                             <div className="flex items-center gap-1.5 mt-3">
                                                 <CheckCircle size={14} className={s.type === 'returned-late' ? 'text-red-500' : 'text-green-500'} />
-                                                <span className={`text-[12px] font-semibold ${s.type === 'returned-late' ? 'text-red-500' : 'text-green-600'}`}>คืนเมื่อ {formatThaiDate(item.return_date)}</span>
+                                                <span className={`text-[12px] font-semibold ${s.type === 'returned-late' ? 'text-red-500' : 'text-green-600'}`}>เธเธทเธเน€เธกเธทเนเธญ {formatThaiDate(item.return_date)}</span>
                                             </div>
                                         )}
 
@@ -1635,7 +1471,7 @@ export default function UserApp({ studentId, onLogout }) {
                                         {s.fine > 0 && (
                                             <div className="mt-3 bg-red-50 rounded-xl p-3 flex items-center gap-2">
                                                 <AlertCircle size={15} className="text-red-500" />
-                                                <span className="text-[12px] text-red-600">ค่าปรับ {s.overdueDays} วัน × 20 บาท = <strong>{s.fine} บาท</strong></span>
+                                                <span className="text-[12px] text-red-600">เธเนเธฒเธเธฃเธฑเธ {s.overdueDays} เธงเธฑเธ ร— 20 เธเธฒเธ— = <strong>{s.fine} เธเธฒเธ—</strong></span>
                                             </div>
                                         )}
                                     </div>
@@ -1643,7 +1479,7 @@ export default function UserApp({ studentId, onLogout }) {
                             }) : (
                                 <div className="text-center py-12">
                                     <ClipboardList size={48} className="mx-auto text-purple-200 mb-3" />
-                                    <p className="text-slate-400">ไม่มีรายการ{statusTab !== 'ทั้งหมด' ? statusTab : ''}</p>
+                                    <p className="text-slate-400">เนเธกเนเธกเธตเธฃเธฒเธขเธเธฒเธฃ{statusTab !== 'เธ—เธฑเนเธเธซเธกเธ”' ? statusTab : ''}</p>
                                 </div>
                             )}
 
@@ -1651,10 +1487,10 @@ export default function UserApp({ studentId, onLogout }) {
                             <div className="flex gap-3 items-start p-4 bg-purple-50 rounded-2xl border border-purple-100">
                                 <Info size={18} className="text-purple-600 shrink-0 mt-0.5" />
                                 <div className="text-[12px] text-slate-500 leading-relaxed">
-                                    <p className="font-bold text-[#3D2B56] text-[13px] mb-1">ข้อกำหนดการยืม-คืน</p>
-                                    <p>• วันทำการปกติ (จ-ศ): 08:30-20:00 น.</p>
-                                    <p>• วันเสาร์-อาทิตย์ / วันหยุด: 09:00-17:00 น.</p>
-                                    <p className="text-red-500 font-bold mt-1">⚠️ หากยืมเกินกำหนดจะมีค่าปรับ วันละ 20 บาท</p>
+                                    <p className="font-bold text-[#3D2B56] text-[13px] mb-1">เธเนเธญเธเธณเธซเธเธ”เธเธฒเธฃเธขเธทเธก-เธเธทเธ</p>
+                                    <p>โ€ข เธงเธฑเธเธ—เธณเธเธฒเธฃเธเธเธ•เธด (เธ-เธจ): 08:30-20:00 เธ.</p>
+                                    <p>โ€ข เธงเธฑเธเน€เธชเธฒเธฃเน-เธญเธฒเธ—เธดเธ•เธขเน / เธงเธฑเธเธซเธขเธธเธ”: 09:00-17:00 เธ.</p>
+                                    <p className="text-red-500 font-bold mt-1">โ ๏ธ เธซเธฒเธเธขเธทเธกเน€เธเธดเธเธเธณเธซเธเธ”เธเธฐเธกเธตเธเนเธฒเธเธฃเธฑเธ เธงเธฑเธเธฅเธฐ 20 เธเธฒเธ—</p>
                                 </div>
                             </div>
                         </div>
@@ -1683,7 +1519,7 @@ export default function UserApp({ studentId, onLogout }) {
                             )) : (
                                 <div className="text-center py-16">
                                     <Bell size={48} className="mx-auto text-purple-200 mb-3" />
-                                    <p className="text-slate-400">ไม่มีการแจ้งเตือนในขณะนี้</p>
+                                    <p className="text-slate-400">เนเธกเนเธกเธตเธเธฒเธฃเนเธเนเธเน€เธ•เธทเธญเธเนเธเธเธ“เธฐเธเธตเน</p>
                                 </div>
                             )}
                         </div>
@@ -1705,22 +1541,22 @@ export default function UserApp({ studentId, onLogout }) {
                                     )}
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-bold">{student?.name_th || 'ผู้ใช้งานทั่วไป'}</h2>
-                                    <p className="text-white/70 text-[14px] mt-1">รหัสนักศึกษา {studentId || '-'}</p>
+                                    <h2 className="text-xl font-bold">{student?.name_th || 'เธเธนเนเนเธเนเธเธฒเธเธ—เธฑเนเธงเนเธ'}</h2>
+                                    <p className="text-white/70 text-[14px] mt-1">เธฃเธซเธฑเธชเธเธฑเธเธจเธถเธเธฉเธฒ {studentId || '-'}</p>
                                 </div>
                             </div>
 
-                            {/* Section 1: บัญชีผู้ใช้ */}
+                            {/* Section 1: เธเธฑเธเธเธตเธเธนเนเนเธเน */}
                             <div>
-                                <h3 className="text-[15px] font-bold text-slate-800 mb-3 ml-2">บัญชีผู้ใช้</h3>
+                                <h3 className="text-[15px] font-bold text-slate-800 mb-3 ml-2">เธเธฑเธเธเธตเธเธนเนเนเธเน</h3>
                                 <div className="bg-white border border-purple-100 rounded-3xl overflow-hidden shadow-sm divide-y divide-slate-100">
                                     <button onClick={() => setSettingsModal('personal')} className="w-full flex items-center gap-4 p-4 hover:bg-slate-50 transition text-left">
                                         <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center shrink-0">
                                             <User size={18} className="text-[#3D2B56]" />
                                         </div>
                                         <div className="flex-1">
-                                            <div className="text-[14px] font-bold text-slate-800">ข้อมูลส่วนตัว</div>
-                                            <div className="text-[12px] text-slate-500 mt-0.5">ดูอีเมลและเบอร์โทรศัพท์</div>
+                                            <div className="text-[14px] font-bold text-slate-800">เธเนเธญเธกเธนเธฅเธชเนเธงเธเธ•เธฑเธง</div>
+                                            <div className="text-[12px] text-slate-500 mt-0.5">เธ”เธนเธญเธตเน€เธกเธฅเนเธฅเธฐเน€เธเธญเธฃเนเนเธ—เธฃเธจเธฑเธเธ—เน</div>
                                         </div>
                                         <ChevronRight size={18} className="text-slate-300" />
                                     </button>
@@ -1729,8 +1565,8 @@ export default function UserApp({ studentId, onLogout }) {
                                             <ClipboardList size={18} className="text-[#3D2B56]" />
                                         </div>
                                         <div className="flex-1">
-                                            <div className="text-[14px] font-bold text-slate-800">ประวัติการยืม-คืน</div>
-                                            <div className="text-[12px] text-slate-500 mt-0.5">ดูรายการทั้งหมดย้อนหลัง</div>
+                                            <div className="text-[14px] font-bold text-slate-800">เธเธฃเธฐเธงเธฑเธ•เธดเธเธฒเธฃเธขเธทเธก-เธเธทเธ</div>
+                                            <div className="text-[12px] text-slate-500 mt-0.5">เธ”เธนเธฃเธฒเธขเธเธฒเธฃเธ—เธฑเนเธเธซเธกเธ”เธขเนเธญเธเธซเธฅเธฑเธ</div>
                                         </div>
                                         <ChevronRight size={18} className="text-slate-300" />
                                     </button>
@@ -1739,8 +1575,8 @@ export default function UserApp({ studentId, onLogout }) {
                                             <FileText size={18} className="text-[#3D2B56]" />
                                         </div>
                                         <div className="flex-1">
-                                            <div className="text-[14px] font-bold text-slate-800">ใบเสร็จการยืม</div>
-                                            <div className="text-[12px] text-slate-500 mt-0.5">ดูสลิปรายละเอียดการทำรายการยืม</div>
+                                            <div className="text-[14px] font-bold text-slate-800">เนเธเน€เธชเธฃเนเธเธเธฒเธฃเธขเธทเธก</div>
+                                            <div className="text-[12px] text-slate-500 mt-0.5">เธ”เธนเธชเธฅเธดเธเธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”เธเธฒเธฃเธ—เธณเธฃเธฒเธขเธเธฒเธฃเธขเธทเธก</div>
                                         </div>
                                         <ChevronRight size={18} className="text-slate-300" />
                                     </button>
@@ -1749,42 +1585,42 @@ export default function UserApp({ studentId, onLogout }) {
                                             <Lock size={18} className="text-[#3D2B56]" />
                                         </div>
                                         <div className="flex-1">
-                                            <div className="text-[14px] font-bold text-slate-800">ความปลอดภัย</div>
-                                            <div className="text-[12px] text-slate-500 mt-0.5">{localStorage.getItem('user_pin') ? 'ตั้งค่าแล้ว' : 'ยังไม่ได้ตั้งค่า'}</div>
+                                            <div className="text-[14px] font-bold text-slate-800">เธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธข</div>
+                                            <div className="text-[12px] text-slate-500 mt-0.5">{localStorage.getItem('user_pin') ? 'เธ•เธฑเนเธเธเนเธฒเนเธฅเนเธง' : 'เธขเธฑเธเนเธกเนเนเธ”เนเธ•เธฑเนเธเธเนเธฒ'}</div>
                                         </div>
                                         <ChevronRight size={18} className="text-slate-300" />
                                     </button>
                                 </div>
                             </div>
 
-                            {/* Section 2: ข้อมูลห้องสมุด */}
+                            {/* Section 2: เธเนเธญเธกเธนเธฅเธซเนเธญเธเธชเธกเธธเธ” */}
                             <div>
-                                <h3 className="text-[15px] font-bold text-slate-800 mb-3 ml-2">ข้อมูลห้องสมุด</h3>
+                                <h3 className="text-[15px] font-bold text-slate-800 mb-3 ml-2">เธเนเธญเธกเธนเธฅเธซเนเธญเธเธชเธกเธธเธ”</h3>
                                 <div className="bg-white border border-purple-100 rounded-3xl overflow-hidden shadow-sm">
                                     <button onClick={() => setSettingsModal('calendar')} className="w-full flex items-center gap-4 p-4 hover:bg-slate-50 transition text-left">
                                         <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center shrink-0">
                                             <Calendar size={18} className="text-[#3D2B56]" />
                                         </div>
                                         <div className="flex-1">
-                                            <div className="text-[14px] font-bold text-slate-800">ปฏิทินและเวลาทำการ</div>
-                                            <div className="text-[12px] text-slate-500 mt-0.5">ดูวันเปิด-ปิดของห้องสมุด</div>
+                                            <div className="text-[14px] font-bold text-slate-800">เธเธเธดเธ—เธดเธเนเธฅเธฐเน€เธงเธฅเธฒเธ—เธณเธเธฒเธฃ</div>
+                                            <div className="text-[12px] text-slate-500 mt-0.5">เธ”เธนเธงเธฑเธเน€เธเธดเธ”-เธเธดเธ”เธเธญเธเธซเนเธญเธเธชเธกเธธเธ”</div>
                                         </div>
                                         <ChevronRight size={18} className="text-slate-300" />
                                     </button>
                                 </div>
                             </div>
                             
-                            {/* Section 3: การแจ้งเตือน */}
+                            {/* Section 3: เธเธฒเธฃเนเธเนเธเน€เธ•เธทเธญเธ */}
                             <div>
-                                <h3 className="text-[15px] font-bold text-slate-800 mb-3 ml-2">การแจ้งเตือน</h3>
+                                <h3 className="text-[15px] font-bold text-slate-800 mb-3 ml-2">เธเธฒเธฃเนเธเนเธเน€เธ•เธทเธญเธ</h3>
                                 <div className="bg-white border border-purple-100 rounded-3xl overflow-hidden shadow-sm divide-y divide-slate-100">
                                     <div className="flex items-center gap-4 p-4">
                                         <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center shrink-0">
                                             <Bell size={18} className="text-[#3D2B56]" />
                                         </div>
                                         <div className="flex-1">
-                                            <div className="text-[14px] font-bold text-slate-800">แจ้งเตือนก่อนครบกำหนดคืน</div>
-                                            <div className="text-[12px] text-slate-500 mt-0.5">แจ้งเตือนเป็นระยะช่วงๆ</div>
+                                            <div className="text-[14px] font-bold text-slate-800">เนเธเนเธเน€เธ•เธทเธญเธเธเนเธญเธเธเธฃเธเธเธณเธซเธเธ”เธเธทเธ</div>
+                                            <div className="text-[12px] text-slate-500 mt-0.5">เนเธเนเธเน€เธ•เธทเธญเธเน€เธเนเธเธฃเธฐเธขเธฐเธเนเธงเธเน</div>
                                         </div>
                                         <div onClick={() => setNotifyDue(!notifyDue)} className={`w-12 h-6 ${notifyDue ? 'bg-[#2196F3]' : 'bg-slate-200'} rounded-full flex items-center px-1 shrink-0 cursor-pointer transition-colors duration-200`}>
                                             <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ${notifyDue ? 'translate-x-6' : ''}`}></div>
@@ -1794,17 +1630,17 @@ export default function UserApp({ studentId, onLogout }) {
                                 </div>
                             </div>
 
-                            {/* Section 4: ทั่วไป */}
+                            {/* Section 4: เธ—เธฑเนเธงเนเธ */}
                             <div>
-                                <h3 className="text-[15px] font-bold text-slate-800 mb-3 ml-2">ทั่วไป</h3>
+                                <h3 className="text-[15px] font-bold text-slate-800 mb-3 ml-2">เธ—เธฑเนเธงเนเธ</h3>
                                 <div className="bg-white border border-purple-100 rounded-3xl overflow-hidden shadow-sm divide-y divide-slate-100">
                                     <button onClick={() => setSettingsModal('guide')} className="w-full flex items-center gap-4 p-4 hover:bg-slate-50 transition text-left">
                                         <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center shrink-0">
                                             <BookOpen size={18} className="text-[#3D2B56]" />
                                         </div>
                                         <div className="flex-1">
-                                            <div className="text-[14px] font-bold text-slate-800">คู่มือการใช้งานเบื้องต้น</div>
-                                            <div className="text-[12px] text-slate-500 mt-0.5">วิธีการใช้งานแอปพลิเคชัน</div>
+                                            <div className="text-[14px] font-bold text-slate-800">เธเธนเนเธกเธทเธญเธเธฒเธฃเนเธเนเธเธฒเธเน€เธเธทเนเธญเธเธ•เนเธ</div>
+                                            <div className="text-[12px] text-slate-500 mt-0.5">เธงเธดเธเธตเธเธฒเธฃเนเธเนเธเธฒเธเนเธญเธเธเธฅเธดเน€เธเธเธฑเธ</div>
                                         </div>
                                         <ChevronRight size={18} className="text-slate-300" />
                                     </button>
@@ -1813,7 +1649,7 @@ export default function UserApp({ studentId, onLogout }) {
                                             <LogOut size={18} className="text-red-500" />
                                         </div>
                                         <div className="flex-1">
-                                            <div className="text-[14px] font-bold text-red-500">ออกจากระบบ</div>
+                                            <div className="text-[14px] font-bold text-red-500">เธญเธญเธเธเธฒเธเธฃเธฐเธเธ</div>
                                         </div>
                                     </button>
                                 </div>
@@ -1823,93 +1659,12 @@ export default function UserApp({ studentId, onLogout }) {
                 ) : null}
             </div>
 
-            {/* ================= MODALS ================= */}
-            {checkoutSuccess && transactionDetails && (
-                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[90] flex items-center justify-center p-4">
-                    <div className="bg-white border border-green-200 rounded-3xl p-8 w-full max-w-sm mx-auto shadow-2xl animate-fade-in max-h-[90vh] overflow-y-auto">
-                        <div className="text-center mb-6">
-                            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <CheckCircle size={32} className="text-green-600" />
-                            </div>
-                            <h2 className="text-xl font-bold text-slate-800 mb-1">ส่งคำขอยืมสำเร็จ!</h2>
-                            {transactionDetails.equipmentName ? (
-                                <p className="text-slate-500 text-[13px] leading-relaxed">คำขอยืมอุปกรณ์<br/>"{transactionDetails.equipmentName}"<br/>ถูกส่งเรียบร้อย</p>
-                            ) : (
-                                <p className="text-slate-500 text-[13px] leading-relaxed">บันทึกรายการยืมของคุณเรียบร้อยแล้ว</p>
-                            )}
-                        </div>
-
-                        {transactionDetails.transactionId && (
-                            <div className="flex flex-col items-center justify-center mb-6">
-                                <div className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100">
-                                    <QRCode value={transactionDetails.transactionId} size={150} />
-                                </div>
-                                <p className="text-[12px] text-slate-400 mt-3 font-mono">{transactionDetails.transactionId}</p>
-                            </div>
-                        )}
-                        
-                        <div className="bg-[#F9F8FD] rounded-2xl p-4 mb-6 border border-purple-50 space-y-3">
-                            <div className="flex justify-between items-center pb-3 border-b border-purple-100/50">
-                                <span className="text-sm text-slate-500">วันเวลาที่ยืม</span>
-                                <span className="text-sm font-bold text-slate-800">{transactionDetails.borrowTime}</span>
-                            </div>
-                            {transactionDetails.pickupTime && (
-                                <div className="flex justify-between items-center pb-3 border-b border-purple-100/50">
-                                    <span className="text-sm text-slate-500">กำหนดรับอุปกรณ์</span>
-                                    <span className="text-sm font-bold text-slate-800">{transactionDetails.pickupTime}</span>
-                                </div>
-                            )}
-                            {transactionDetails.items && (
-                                <div className="flex justify-between items-center">
-                                    <span className="text-sm text-slate-500">จำนวนรายการ</span>
-                                    <span className="text-sm font-bold text-slate-800">{transactionDetails.items.length} ชิ้น</span>
-                                </div>
-                            )}
-                        </div>
-
-                        {transactionDetails.items && (
-                            <div className="mb-6">
-                                <h3 className="font-bold text-slate-800 mb-3 text-sm">รายการอุปกรณ์ที่ยืม</h3>
-                                <div className="space-y-3">
-                                    {transactionDetails.items.map((item, idx) => (
-                                        <div key={idx} className="flex gap-3 bg-white border border-slate-100 p-3 rounded-xl shadow-sm">
-                                            <div className="w-12 h-12 bg-slate-50 rounded-lg overflow-hidden shrink-0 flex items-center justify-center border border-slate-100">
-                                                {item.equipment_img || item.image_url ? (
-                                                    <img src={`${IMG_BASE}${(item.equipment_img || item.image_url).replace(/\.jpeg$/i, '.jpg')}`} alt={item.name} className="w-full h-full object-contain" />
-                                                ) : (
-                                                    <Package size={20} className="text-slate-300" />
-                                                )}
-                                            </div>
-                                            <div className="flex-1 overflow-hidden flex flex-col justify-center">
-                                                <div className="text-[13px] font-bold text-slate-800 truncate">{item.name}</div>
-                                                <div className="text-[11px] text-slate-500 truncate mt-0.5">{item.category} • {item.kit_code || item.equipment_id}</div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="flex flex-col gap-3">
-                            <button onClick={() => { setCheckoutSuccess(false); setCurrentPage("status"); }}
-                                className="w-full py-3.5 bg-[#3D2B56] text-white rounded-xl text-[13.5px] font-bold hover:bg-[#2d1f40] shadow-lg shadow-[#3D2B56]/20 transition">
-                                ดูรายการของฉัน
-                            </button>
-                            <button onClick={() => { setCheckoutSuccess(false); setCurrentPage("dashboard"); }}
-                                className="w-full py-3.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-xl text-[13.5px] font-bold hover:bg-slate-100 transition">
-                                กลับหน้าหลัก
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {/* ================= SETTINGS MODALS ================= */}
             {settingsModal === 'personal' && (
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
                         <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
-                            <h3 className="text-[16px] font-bold text-slate-800 flex items-center gap-2"><User size={18} className="text-[#3D2B56]" /> ข้อมูลส่วนตัว</h3>
+                            <h3 className="text-[16px] font-bold text-slate-800 flex items-center gap-2"><User size={18} className="text-[#3D2B56]" /> เธเนเธญเธกเธนเธฅเธชเนเธงเธเธ•เธฑเธง</h3>
                             <button onClick={() => setSettingsModal(null)} className="p-1.5 hover:bg-slate-100 rounded-full transition text-slate-500">
                                 <X size={18} />
                             </button>
@@ -1924,12 +1679,12 @@ export default function UserApp({ studentId, onLogout }) {
                             <form onSubmit={(e) => { handleSaveSettings(e); setSettingsModal(null); }} className="space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-[12.5px] font-semibold text-slate-600 mb-1.5">ชื่อ-นามสกุล (ภาษาไทย)</label>
+                                        <label className="block text-[12.5px] font-semibold text-slate-600 mb-1.5">เธเธทเนเธญ-เธเธฒเธกเธชเธเธธเธฅ (เธ เธฒเธฉเธฒเนเธ—เธข)</label>
                                         <input
                                             type="text"
                                             value={settingsForm.name_th}
                                             onChange={e => setSettingsForm({ ...settingsForm, name_th: e.target.value })}
-                                            placeholder="ชื่อ-นามสกุล"
+                                            placeholder="เธเธทเนเธญ-เธเธฒเธกเธชเธเธธเธฅ"
                                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13.5px] outline-none focus:border-purple-500 focus:bg-white transition"
                                         />
                                     </div>
@@ -1944,7 +1699,7 @@ export default function UserApp({ studentId, onLogout }) {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-[12.5px] font-semibold text-slate-600 mb-1.5">อีเมล (Email)</label>
+                                        <label className="block text-[12.5px] font-semibold text-slate-600 mb-1.5">เธญเธตเน€เธกเธฅ (Email)</label>
                                         <input
                                             type="email"
                                             value={settingsForm.email}
@@ -1954,7 +1709,7 @@ export default function UserApp({ studentId, onLogout }) {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-[12.5px] font-semibold text-slate-600 mb-1.5">เบอร์โทรศัพท์ (Phone)</label>
+                                        <label className="block text-[12.5px] font-semibold text-slate-600 mb-1.5">เน€เธเธญเธฃเนเนเธ—เธฃเธจเธฑเธเธ—เน (Phone)</label>
                                         <input
                                             type="tel"
                                             value={settingsForm.phone_number}
@@ -1964,12 +1719,12 @@ export default function UserApp({ studentId, onLogout }) {
                                         />
                                     </div>
                                     <div className="md:col-span-2">
-                                        <label className="block text-[12.5px] font-semibold text-slate-600 mb-1.5">สาขาวิชา / คณะ (Department)</label>
+                                        <label className="block text-[12.5px] font-semibold text-slate-600 mb-1.5">เธชเธฒเธเธฒเธงเธดเธเธฒ / เธเธ“เธฐ (Department)</label>
                                         <input
                                             type="text"
                                             value={settingsForm.department}
                                             onChange={e => setSettingsForm({ ...settingsForm, department: e.target.value })}
-                                            placeholder="วิศวกรรมซอฟต์แวร์"
+                                            placeholder="เธงเธดเธจเธงเธเธฃเธฃเธกเธเธญเธเธ•เนเนเธงเธฃเน"
                                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13.5px] outline-none focus:border-purple-500 focus:bg-white transition"
                                         />
                                     </div>
@@ -1981,7 +1736,7 @@ export default function UserApp({ studentId, onLogout }) {
                                         className="px-6 py-3 bg-[#3D2B56] hover:bg-[#2d1f40] text-white rounded-2xl font-bold text-[14px] shadow-lg shadow-[#3D2B56]/20 transition flex items-center gap-2"
                                     >
                                         <Save size={18} />
-                                        {isSavingSettings ? "กำลังบันทึก..." : "บันทึกการตั้งค่า"}
+                                        {isSavingSettings ? "เธเธณเธฅเธฑเธเธเธฑเธเธ—เธถเธ..." : "เธเธฑเธเธ—เธถเธเธเธฒเธฃเธ•เธฑเนเธเธเนเธฒ"}
                                     </button>
                                 </div>
                             </form>
@@ -1994,7 +1749,7 @@ export default function UserApp({ studentId, onLogout }) {
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden">
                         <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white">
-                            <h3 className="text-[16px] font-bold text-slate-800 flex items-center gap-2"><Calendar size={18} className="text-[#3D2B56]" /> ปฏิทินและเวลาเปิด-ปิด</h3>
+                            <h3 className="text-[16px] font-bold text-slate-800 flex items-center gap-2"><Calendar size={18} className="text-[#3D2B56]" /> เธเธเธดเธ—เธดเธเนเธฅเธฐเน€เธงเธฅเธฒเน€เธเธดเธ”-เธเธดเธ”</h3>
                             <button onClick={() => setSettingsModal(null)} className="p-1.5 hover:bg-slate-100 rounded-full transition text-slate-500">
                                 <X size={18} />
                             </button>
@@ -2010,7 +1765,7 @@ export default function UserApp({ studentId, onLogout }) {
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
                         <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
-                            <h3 className="text-[16px] font-bold text-slate-800 flex items-center gap-2"><ClipboardList size={18} className="text-[#3D2B56]" /> ประวัติการยืม-คืน</h3>
+                            <h3 className="text-[16px] font-bold text-slate-800 flex items-center gap-2"><ClipboardList size={18} className="text-[#3D2B56]" /> เธเธฃเธฐเธงเธฑเธ•เธดเธเธฒเธฃเธขเธทเธก-เธเธทเธ</h3>
                             <button onClick={() => setSettingsModal(null)} className="p-1.5 hover:bg-slate-100 rounded-full transition text-slate-500">
                                 <X size={18} />
                             </button>
@@ -2019,19 +1774,19 @@ export default function UserApp({ studentId, onLogout }) {
                             {borrowedItems.length > 0 ? borrowedItems.map((item, idx) => (
                                 <div key={idx} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
                                     <div className="flex justify-between items-start mb-2">
-                                        <h4 className="font-bold text-slate-800">{item.name || `อุปกรณ์ #${item.equipment_id}`}</h4>
+                                        <h4 className="font-bold text-slate-800">{item.name || `เธญเธธเธเธเธฃเธ“เน #${item.equipment_id}`}</h4>
                                         <span className={`text-[12px] font-bold px-2.5 py-1 rounded-lg ${getBadgeStyle(item.status)}`}>
-                                            {item.status === 'returned' ? 'คืนแล้ว' : 'กำลังยืม'}
+                                            {item.status === 'returned' ? 'เธเธทเธเนเธฅเนเธง' : 'เธเธณเธฅเธฑเธเธขเธทเธก'}
                                         </span>
                                     </div>
-                                    <p className="text-[13px] text-slate-500">ยืมเมื่อ {new Date(item.borrow_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })} • กำหนดคืน {(() => {
+                                    <p className="text-[13px] text-slate-500">เธขเธทเธกเน€เธกเธทเนเธญ {new Date(item.borrow_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })} โ€ข เธเธณเธซเธเธ”เธเธทเธ {(() => {
                                         const d = new Date(item.borrow_date); d.setDate(d.getDate() + 3); return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
                                     })()}</p>
                                 </div>
                             )) : (
                                 <div className="text-center py-12 text-slate-400">
                                     <ClipboardList size={48} className="mx-auto mb-3 text-slate-200" />
-                                    <p>ยังไม่มีประวัติการยืม-คืน</p>
+                                    <p>เธขเธฑเธเนเธกเนเธกเธตเธเธฃเธฐเธงเธฑเธ•เธดเธเธฒเธฃเธขเธทเธก-เธเธทเธ</p>
                                 </div>
                             )}
                         </div>
@@ -2043,7 +1798,7 @@ export default function UserApp({ studentId, onLogout }) {
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
                         <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
-                            <h3 className="text-[16px] font-bold text-slate-800 flex items-center gap-2"><FileText size={18} className="text-[#3D2B56]" /> ประวัติใบเสร็จ</h3>
+                            <h3 className="text-[16px] font-bold text-slate-800 flex items-center gap-2"><FileText size={18} className="text-[#3D2B56]" /> เธเธฃเธฐเธงเธฑเธ•เธดเนเธเน€เธชเธฃเนเธ</h3>
                             <button onClick={() => setSettingsModal(null)} className="p-1.5 hover:bg-slate-100 rounded-full transition text-slate-500">
                                 <X size={18} />
                             </button>
@@ -2052,7 +1807,7 @@ export default function UserApp({ studentId, onLogout }) {
                             {groupedReceipts.length > 0 ? groupedReceipts.map((group, idx) => (
                                 <button key={idx} onClick={() => setSelectedReceipt(group)} className="w-full text-left bg-white border border-slate-200 hover:border-purple-300 rounded-2xl p-4 shadow-sm transition">
                                     <div className="flex justify-between items-center mb-3">
-                                        <h4 className="font-bold text-[#3D2B56] text-[15px]">เลขที่: {group.txId}</h4>
+                                        <h4 className="font-bold text-[#3D2B56] text-[15px]">เน€เธฅเธเธ—เธตเน: {group.txId}</h4>
                                         <span className="text-[13px] text-slate-500">{group.borrowDate.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}</span>
                                     </div>
                                     <div className="space-y-1 mb-4">
@@ -2062,15 +1817,15 @@ export default function UserApp({ studentId, onLogout }) {
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${group.status === 'returned' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
-                                            {group.status === 'returned' ? 'คืนแล้ว' : 'กำลังยืม'}
+                                            {group.status === 'returned' ? 'เธเธทเธเนเธฅเนเธง' : 'เธเธณเธฅเธฑเธเธขเธทเธก'}
                                         </span>
-                                        <span className="text-[12px] text-slate-400">{group.items.length} รายการ</span>
+                                        <span className="text-[12px] text-slate-400">{group.items.length} เธฃเธฒเธขเธเธฒเธฃ</span>
                                     </div>
                                 </button>
                             )) : (
                                 <div className="text-center py-12 text-slate-400">
                                     <FileText size={48} className="mx-auto mb-3 text-slate-200" />
-                                    <p>ยังไม่มีใบเสร็จ</p>
+                                    <p>เธขเธฑเธเนเธกเนเธกเธตเนเธเน€เธชเธฃเนเธ</p>
                                 </div>
                             )}
                         </div>
@@ -2082,31 +1837,31 @@ export default function UserApp({ studentId, onLogout }) {
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden">
                         <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white">
-                            <h3 className="text-[16px] font-bold text-slate-800 flex items-center gap-2"><Lock size={18} className="text-[#3D2B56]" /> ความปลอดภัย (PIN)</h3>
+                            <h3 className="text-[16px] font-bold text-slate-800 flex items-center gap-2"><Lock size={18} className="text-[#3D2B56]" /> เธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธข (PIN)</h3>
                             <button onClick={() => setSettingsModal(null)} className="p-1.5 hover:bg-slate-100 rounded-full transition text-slate-500">
                                 <X size={18} />
                             </button>
                         </div>
                         <div className="p-6">
                             <p className="text-[14px] text-slate-600 mb-4">
-                                {localStorage.getItem('user_pin') ? 'คุณได้ตั้งรหัส PIN ไว้เรียบร้อยแล้ว' : 'ตั้งรหัส PIN 6 หลักเพื่อเพิ่มความปลอดภัย'}
+                                {localStorage.getItem('user_pin') ? 'เธเธธเธ“เนเธ”เนเธ•เธฑเนเธเธฃเธซเธฑเธช PIN เนเธงเนเน€เธฃเธตเธขเธเธฃเนเธญเธขเนเธฅเนเธง' : 'เธ•เธฑเนเธเธฃเธซเธฑเธช PIN 6 เธซเธฅเธฑเธเน€เธเธทเนเธญเน€เธเธดเนเธกเธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธข'}
                             </p>
                             <input 
                                 type={isPinVisible ? "text" : "password"}
                                 maxLength={6}
                                 value={pinCode}
                                 onChange={(e) => setPinCode(e.target.value.replace(/\D/g, ''))}
-                                placeholder="ใส่รหัส PIN 6 หลัก"
+                                placeholder="เนเธชเนเธฃเธซเธฑเธช PIN 6 เธซเธฅเธฑเธ"
                                 className="w-full text-center tracking-[0.5em] text-2xl bg-slate-50 border border-slate-200 rounded-xl px-4 py-4 outline-none focus:border-purple-500 font-mono transition"
                             />
                             <div className="flex justify-between items-center mt-3 mb-6 px-1">
                                 <label className="flex items-center gap-2 text-[13px] text-slate-500 cursor-pointer select-none">
                                     <input type="checkbox" checked={isPinVisible} onChange={() => setIsPinVisible(!isPinVisible)} className="accent-purple-600 w-4 h-4" />
-                                    แสดงรหัสผ่าน
+                                    เนเธชเธ”เธเธฃเธซเธฑเธชเธเนเธฒเธ
                                 </label>
                                 {localStorage.getItem('user_pin') && (
-                                    <button onClick={() => { localStorage.removeItem('user_pin'); setPinCode(''); showToast('ยกเลิกการตั้งรหัส PIN สำเร็จ', 'success'); }} className="text-red-500 text-[13px] font-bold hover:underline">
-                                        ยกเลิก PIN
+                                    <button onClick={() => { localStorage.removeItem('user_pin'); setPinCode(''); showToast('เธขเธเน€เธฅเธดเธเธเธฒเธฃเธ•เธฑเนเธเธฃเธซเธฑเธช PIN เธชเธณเน€เธฃเนเธ', 'success'); }} className="text-red-500 text-[13px] font-bold hover:underline">
+                                        เธขเธเน€เธฅเธดเธ PIN
                                     </button>
                                 )}
                             </div>
@@ -2114,16 +1869,16 @@ export default function UserApp({ studentId, onLogout }) {
                                 onClick={() => {
                                     if(pinCode.length === 6) {
                                         localStorage.setItem('user_pin', pinCode);
-                                        showToast('ตั้งรหัส PIN สำเร็จ', 'success');
+                                        showToast('เธ•เธฑเนเธเธฃเธซเธฑเธช PIN เธชเธณเน€เธฃเนเธ', 'success');
                                         setSettingsModal(null);
                                     } else {
-                                        alert('กรุณาใส่รหัส PIN ให้ครบ 6 หลัก');
+                                        alert('เธเธฃเธธเธ“เธฒเนเธชเนเธฃเธซเธฑเธช PIN เนเธซเนเธเธฃเธ 6 เธซเธฅเธฑเธ');
                                     }
                                 }}
                                 disabled={pinCode.length !== 6}
                                 className={`w-full py-3.5 rounded-2xl font-bold text-[14px] transition flex items-center justify-center gap-2 ${pinCode.length === 6 ? 'bg-[#3D2B56] text-white hover:bg-[#2d1f40] shadow-lg shadow-[#3D2B56]/20' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
                             >
-                                <CheckCircle size={18} /> บันทึกรหัส PIN
+                                <CheckCircle size={18} /> เธเธฑเธเธ—เธถเธเธฃเธซเธฑเธช PIN
                             </button>
                         </div>
                     </div>
@@ -2134,20 +1889,20 @@ export default function UserApp({ studentId, onLogout }) {
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
                         <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
-                            <h3 className="text-[16px] font-bold text-slate-800 flex items-center gap-2"><BookOpen size={18} className="text-[#3D2B56]" /> คู่มือการใช้งานเบื้องต้น</h3>
+                            <h3 className="text-[16px] font-bold text-slate-800 flex items-center gap-2"><BookOpen size={18} className="text-[#3D2B56]" /> เธเธนเนเธกเธทเธญเธเธฒเธฃเนเธเนเธเธฒเธเน€เธเธทเนเธญเธเธ•เนเธ</h3>
                             <button onClick={() => setSettingsModal(null)} className="p-1.5 hover:bg-slate-100 rounded-full transition text-slate-500">
                                 <X size={18} />
                             </button>
                         </div>
                         <div className="p-6 overflow-y-auto space-y-4 text-[14px] text-slate-600 leading-relaxed">
-                            <h4 className="font-bold text-slate-800 text-[15px]">1. การยืมอุปกรณ์</h4>
-                            <p>ไปที่เมนู <strong className="text-[#3D2B56]">"ค้นหา"</strong> เลือกอุปกรณ์ที่ต้องการแล้วกด <strong className="text-[#3D2B56]">"ยืมอุปกรณ์นี้"</strong> จากนั้นอุปกรณ์จะไปอยู่ในตะกร้า ให้ไปที่หน้าตะกร้าเพื่อกดยืนยันการทำรายการ</p>
+                            <h4 className="font-bold text-slate-800 text-[15px]">1. เธเธฒเธฃเธขเธทเธกเธญเธธเธเธเธฃเธ“เน</h4>
+                            <p>เนเธเธ—เธตเนเน€เธกเธเธน <strong className="text-[#3D2B56]">"เธเนเธเธซเธฒ"</strong> เน€เธฅเธทเธญเธเธญเธธเธเธเธฃเธ“เนเธ—เธตเนเธ•เนเธญเธเธเธฒเธฃเนเธฅเนเธงเธเธ” <strong className="text-[#3D2B56]">"เธขเธทเธกเธญเธธเธเธเธฃเธ“เนเธเธตเน"</strong> เธเธฒเธเธเธฑเนเธเธญเธธเธเธเธฃเธ“เนเธเธฐเนเธเธญเธขเธนเนเนเธเธ•เธฐเธเธฃเนเธฒ เนเธซเนเนเธเธ—เธตเนเธซเธเนเธฒเธ•เธฐเธเธฃเนเธฒเน€เธเธทเนเธญเธเธ”เธขเธทเธเธขเธฑเธเธเธฒเธฃเธ—เธณเธฃเธฒเธขเธเธฒเธฃ</p>
                             
-                            <h4 className="font-bold text-slate-800 text-[15px] mt-4">2. การคืนอุปกรณ์</h4>
-                            <p>นำอุปกรณ์มาคืนที่เจ้าหน้าที่ห้องสมุด โดยสามารถโชว์ <strong>QR Code ในหน้าใบเสร็จ</strong> หรือบอกรหัสนักศึกษา เพื่อให้เจ้าหน้าที่ทำรายการคืนให้ในระบบ</p>
+                            <h4 className="font-bold text-slate-800 text-[15px] mt-4">2. เธเธฒเธฃเธเธทเธเธญเธธเธเธเธฃเธ“เน</h4>
+                            <p>เธเธณเธญเธธเธเธเธฃเธ“เนเธกเธฒเธเธทเธเธ—เธตเนเน€เธเนเธฒเธซเธเนเธฒเธ—เธตเนเธซเนเธญเธเธชเธกเธธเธ” เนเธ”เธขเธชเธฒเธกเธฒเธฃเธ–เนเธเธงเน <strong>QR Code เนเธเธซเธเนเธฒเนเธเน€เธชเธฃเนเธ</strong> เธซเธฃเธทเธญเธเธญเธเธฃเธซเธฑเธชเธเธฑเธเธจเธถเธเธฉเธฒ เน€เธเธทเนเธญเนเธซเนเน€เธเนเธฒเธซเธเนเธฒเธ—เธตเนเธ—เธณเธฃเธฒเธขเธเธฒเธฃเธเธทเธเนเธซเนเนเธเธฃเธฐเธเธ</p>
                             
-                            <h4 className="font-bold text-slate-800 text-[15px] mt-4">3. ค่าปรับ</h4>
-                            <p>หากคืนอุปกรณ์เกินกำหนดเวลา ระบบจะมีค่าปรับตามจำนวนวันที่ล่าช้า โปรดคืนอุปกรณ์ให้ตรงเวลาเพื่อหลีกเลี่ยงค่าปรับ</p>
+                            <h4 className="font-bold text-slate-800 text-[15px] mt-4">3. เธเนเธฒเธเธฃเธฑเธ</h4>
+                            <p>เธซเธฒเธเธเธทเธเธญเธธเธเธเธฃเธ“เนเน€เธเธดเธเธเธณเธซเธเธ”เน€เธงเธฅเธฒ เธฃเธฐเธเธเธเธฐเธกเธตเธเนเธฒเธเธฃเธฑเธเธ•เธฒเธกเธเธณเธเธงเธเธงเธฑเธเธ—เธตเนเธฅเนเธฒเธเนเธฒ เนเธเธฃเธ”เธเธทเธเธญเธธเธเธเธฃเธ“เนเนเธซเนเธ•เธฃเธเน€เธงเธฅเธฒเน€เธเธทเนเธญเธซเธฅเธตเธเน€เธฅเธตเนเธขเธเธเนเธฒเธเธฃเธฑเธ</p>
                         </div>
                     </div>
                 </div>
@@ -2163,7 +1918,7 @@ export default function UserApp({ studentId, onLogout }) {
                             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                                 <CheckCircle size={32} className="text-green-600" />
                             </div>
-                            <h2 className="text-xl font-bold text-slate-800 mb-1">ใบเสร็จการยืม</h2>
+                            <h2 className="text-xl font-bold text-slate-800 mb-1">เนเธเน€เธชเธฃเนเธเธเธฒเธฃเธขเธทเธก</h2>
                             <p className="text-[13px] text-slate-500 mb-4">{selectedReceipt.borrowDate.toLocaleString('th-TH')}</p>
                         </div>
                         <div className="p-6 bg-slate-50 overflow-y-auto">
@@ -2173,7 +1928,7 @@ export default function UserApp({ studentId, onLogout }) {
                                     <span className="font-bold text-[14px] text-slate-800">{selectedReceipt.txId}</span>
                                 </div>
                                 <div className="flex justify-between border-b border-slate-200 pb-3">
-                                    <span className="text-[13px] text-slate-500">ผู้ยืม</span>
+                                    <span className="text-[13px] text-slate-500">เธเธนเนเธขเธทเธก</span>
                                     <span className="font-bold text-[14px] text-slate-800">{student?.name_th}</span>
                                 </div>
                             </div>
@@ -2182,14 +1937,14 @@ export default function UserApp({ studentId, onLogout }) {
                                     <div key={i} className="flex gap-3">
                                         <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center shrink-0 border border-slate-100 overflow-hidden">
                                             {it.equipment_img || it.image_url ? (
-                                                <img src={`${IMG_BASE}${(it.equipment_img || it.image_url)}`} alt="" className="w-full h-full object-contain" />
+                                                <img src={`${IMG_BASE}${(it.equipment_img || it.image_url).replace(/\.jpeg$/i, '.jpg')}`} alt="" className="w-full h-full object-contain" />
                                             ) : (
                                                 <Package size={16} className="text-slate-300" />
                                             )}
                                         </div>
                                         <div>
                                             <p className="text-[13px] font-bold text-slate-800 leading-tight">{it.name}</p>
-                                            <p className="text-[11px] text-slate-500 mt-0.5">รหัส: {it.equipment_id}</p>
+                                            <p className="text-[11px] text-slate-500 mt-0.5">เธฃเธซเธฑเธช: {it.equipment_id}</p>
                                         </div>
                                     </div>
                                 ))}
@@ -2199,7 +1954,7 @@ export default function UserApp({ studentId, onLogout }) {
                                     <QRCode value={selectedReceipt.txId} size={120} />
                                 </div>
                             </div>
-                            <p className="text-center text-[12px] text-slate-400 mt-4">แสดง QR Code นี้ให้บรรณารักษ์เมื่อมาคืนอุปกรณ์</p>
+                            <p className="text-center text-[12px] text-slate-400 mt-4">เนเธชเธ”เธ QR Code เธเธตเนเนเธซเนเธเธฃเธฃเธ“เธฒเธฃเธฑเธเธฉเนเน€เธกเธทเนเธญเธกเธฒเธเธทเธเธญเธธเธเธเธฃเธ“เน</p>
                         </div>
                     </div>
                 </div>
@@ -2210,100 +1965,78 @@ export default function UserApp({ studentId, onLogout }) {
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white/95 backdrop-blur z-10 rounded-t-3xl">
-                            <h3 className="text-lg font-bold text-slate-800">ข้อมูลเต็มก่อนยืม</h3>
+                            <h3 className="text-lg font-bold text-slate-800">เธเนเธญเธกเธนเธฅเน€เธ•เนเธกเธเนเธญเธเธขเธทเธก</h3>
                             <button onClick={() => { setIsDetailOpen(false); setDetailItem(null); }} className="p-2 hover:bg-slate-100 rounded-full transition">
                                 <X size={20} className="text-slate-500" />
                             </button>
                         </div>
 
                         {isDetailLoading || !detailItem ? (
-                            <div className="p-12 text-center text-slate-400">กำลังโหลดข้อมูล...</div>
+                            <div className="p-12 text-center text-slate-400">เธเธณเธฅเธฑเธเนเธซเธฅเธ”เธเนเธญเธกเธนเธฅ...</div>
                         ) : (
                             <div className="p-6 space-y-5">
                                 {/* Image */}
                                 <div className="w-full h-[200px] bg-slate-50 rounded-2xl flex items-center justify-center overflow-hidden">
                                     {detailItem.equipment_img ? (
-                                        <img src={`${IMG_BASE}${detailItem.equipment_img}`} alt="" className="max-h-full object-contain" />
+                                        <img src={`${IMG_BASE}${detailItem.equipment_img.replace(/\.jpeg$/i, '.jpg')}`} alt="" className="max-h-full object-contain" />
                                     ) : (
                                         <Package size={64} className="text-purple-300" />
                                     )}
                                 </div>
 
                                 <h2 className="text-xl font-bold text-slate-800">{detailItem.name}</h2>
-                                <p className="text-[13px] text-slate-500">รหัสครุภัณฑ์ {detailItem.kit_code}</p>
+                                <p className="text-[13px] text-slate-500">เธฃเธซเธฑเธชเธเธฃเธธเธ เธฑเธ“เธ‘เน {detailItem.kit_code}</p>
 
-                                <span className="inline-block bg-purple-50 border border-purple-100 text-purple-700 text-[13px] font-medium px-3 py-1 rounded-full">{detailItem.usage_type || 'ทั่วไป'}</span>
+                                <span className="inline-block bg-purple-50 border border-purple-100 text-purple-700 text-[13px] font-medium px-3 py-1 rounded-full">{detailItem.usage_type || 'เธ—เธฑเนเธงเนเธ'}</span>
 
                                 {/* Stats */}
                                 <div className="grid grid-cols-2 gap-3 bg-slate-50 rounded-2xl p-5">
                                     <div className="text-center">
                                         <p className="text-2xl font-bold text-[#3D2B56]">{detailItem.available_quantity ?? detailItem.total_quantity}</p>
-                                        <p className="text-[13px] text-slate-500">พร้อมให้ยืม</p>
+                                        <p className="text-[13px] text-slate-500">เธเธฃเนเธญเธกเนเธซเนเธขเธทเธก</p>
                                     </div>
                                     <div className="text-center">
                                         <p className="text-2xl font-bold text-[#3D2B56]">{detailItem.total_quantity || 0}</p>
-                                        <p className="text-[13px] text-slate-500">มีทั้งหมด</p>
+                                        <p className="text-[13px] text-slate-500">เธกเธตเธ—เธฑเนเธเธซเธกเธ”</p>
                                     </div>
                                 </div>
 
                                 {/* Description */}
                                 <div>
-                                    <h4 className="font-bold text-slate-800 mb-2">รายละเอียด</h4>
-                                    <p className="text-[14px] text-slate-600 leading-relaxed">{detailItem.description || 'ไม่มีรายละเอียดเพิ่มเติม'}</p>
+                                    <h4 className="font-bold text-slate-800 mb-2">เธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”</h4>
+                                    <p className="text-[14px] text-slate-600 leading-relaxed">{detailItem.description || 'เนเธกเนเธกเธตเธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”เน€เธเธดเนเธกเน€เธ•เธดเธก'}</p>
                                 </div>
 
                                 <div className="flex gap-3 items-start p-3.5 bg-purple-50 rounded-xl">
                                     <Info size={16} className="text-purple-600 shrink-0 mt-0.5" />
-                                    <p className="text-[12px] text-slate-600 leading-relaxed">นักศึกษา 1 คน ยืมอุปกรณ์ชิ้นนี้ได้สูงสุด 1 ชิ้นต่อครั้ง กรุณาคืนตรงเวลาเพื่อให้ผู้อื่นได้ใช้งานต่อ</p>
+                                    <p className="text-[12px] text-slate-600 leading-relaxed">เธเธฑเธเธจเธถเธเธฉเธฒ 1 เธเธ เธขเธทเธกเธญเธธเธเธเธฃเธ“เนเธเธดเนเธเธเธตเนเนเธ”เนเธชเธนเธเธชเธธเธ” 1 เธเธดเนเธเธ•เนเธญเธเธฃเธฑเนเธ เธเธฃเธธเธ“เธฒเธเธทเธเธ•เธฃเธเน€เธงเธฅเธฒเน€เธเธทเนเธญเนเธซเนเธเธนเนเธญเธทเนเธเนเธ”เนเนเธเนเธเธฒเธเธ•เนเธญ</p>
                                 </div>
 
-                                {/* Actions */}
-                                {(() => {
-                                    if (detailItem.status && detailItem.status !== 'ใช้งานได้') {
-                                        return (
-                                            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center">
-                                                <p className="text-[14px] text-slate-500 font-semibold">อุปกรณ์นี้งดให้บริการชั่วคราว ({detailItem.status})</p>
-                                            </div>
-                                        );
-                                    }
-
-                                    const available = detailItem.available_quantity ?? detailItem.total_quantity;
-                                    const inQueue = myQueueItems.find(q => q.equipment_id === detailItem.equipment_id);
-
-                                    if (inQueue) {
-                                        return (
-                                            <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4 flex items-center gap-3">
-                                                <Timer size={20} className="text-purple-600" />
-                                                <p className="text-[14px] text-purple-700 font-semibold">คุณอยู่ในคิวอุปกรณ์นี้แล้ว (ลำดับที่ {inQueue.position})</p>
-                                            </div>
-                                        );
-                                    }
-
-                                    if (available > 0) {
-                                        return (
-                                            <button onClick={() => {
-                                                if (detailItem.status && detailItem.status !== 'ใช้งานได้') {
-                                                    showToast(`อุปกรณ์นี้ไม่อยู่ในสถานะพร้อมใช้งาน (${detailItem.status})`, 'warning');
-                                                    return;
-                                                }
-                                                const ok = addToCart(detailItem);
-                                                if (ok) {
-                                                    setIsDetailOpen(false);
-                                                }
-                                            }} disabled={isLoading}
-                                                className={`w-full py-4 rounded-2xl text-white font-bold text-[15px] bg-[#3D2B56] shadow-lg shadow-[#3D2B56]/20 hover:bg-[#2d1f40] transition ${isLoading ? 'opacity-70' : 'active:scale-[.99]'}`}>
-                                                {isLoading ? "กำลังดำเนินการ..." : "หยิบลงตะกร้า"}
-                                            </button>
-                                        );
-                                    } else {
-                                        return (
-                                            <button onClick={() => handleJoinQueue(detailItem)} disabled={isLoading}
-                                                className={`w-full py-4 rounded-2xl text-white font-bold text-[15px] bg-amber-500 shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition ${isLoading ? 'opacity-70' : 'active:scale-[.99]'}`}>
-                                                {isLoading ? "กำลังดำเนินการ..." : "จองคิวอุปกรณ์"}
-                                            </button>
-                                        );
-                                    }
-                                })()}
+                                {/* Add to cart button */}
+                                {cartItems.find(c => c.equipment_id === detailItem.equipment_id) ? (
+                                    <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center gap-3">
+                                        <CheckCircle size={20} className="text-green-600" />
+                                        <p className="text-[14px] text-green-700 font-semibold">เธญเธธเธเธเธฃเธ“เนเธเธตเนเธญเธขเธนเนเนเธเธ•เธฐเธเธฃเนเธฒเนเธฅเนเธง</p>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={() => {
+                                            if (detailItem.status && detailItem.status !== 'เนเธเนเธเธฒเธเนเธ”เน') {
+                                                showToast(`เธญเธธเธเธเธฃเธ“เนเธเธตเนเนเธกเนเธญเธขเธนเนเนเธเธชเธ–เธฒเธเธฐเธเธฃเนเธญเธกเนเธเนเธเธฒเธ (${detailItem.status})`, 'warning');
+                                                return;
+                                            }
+                                            const ok = addToCart(detailItem);
+                                            if (ok) {
+                                                setIsDetailOpen(false);
+                                                setCurrentPage("search");
+                                            }
+                                        }}
+                                        disabled={detailItem.status && detailItem.status !== 'เนเธเนเธเธฒเธเนเธ”เน'}
+                                        className={`w-full py-4 rounded-2xl text-white font-bold text-[15px] transition ${detailItem.status && detailItem.status !== 'เนเธเนเธเธฒเธเนเธ”เน' ? 'bg-slate-300 cursor-not-allowed' : 'bg-[#3D2B56] shadow-lg shadow-[#3D2B56]/20 hover:bg-[#2d1f40] active:scale-[.99]'}`}
+                                    >
+                                        {detailItem.status && detailItem.status !== 'เนเธเนเธเธฒเธเนเธ”เน' ? `เธเธ”เธขเธทเธกเธเธฑเนเธงเธเธฃเธฒเธง (${detailItem.status})` : 'เธขเธทเธกเธญเธธเธเธเธฃเธ“เนเธเธตเน'}
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>
@@ -2317,7 +2050,7 @@ export default function UserApp({ studentId, onLogout }) {
                         <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-orange-50">
                             <div className="flex items-center gap-2 text-orange-800 font-bold text-[16px]">
                                 <AlertTriangle size={20} className="text-orange-600" />
-                                <span>แจ้งอุปกรณ์สูญหาย / ชำรุด</span>
+                                <span>เนเธเนเธเธญเธธเธเธเธฃเธ“เนเธชเธนเธเธซเธฒเธข / เธเธณเธฃเธธเธ”</span>
                             </div>
                             <button onClick={() => { setIsLostModalOpen(false); setLostItemTarget(null); }} className="p-1.5 hover:bg-orange-100 rounded-full transition text-slate-500">
                                 <X size={18} />
@@ -2326,14 +2059,14 @@ export default function UserApp({ studentId, onLogout }) {
 
                         <form onSubmit={handleReportLostSubmit} className="p-6 space-y-4">
                             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5">
-                                <p className="text-[14px] font-bold text-slate-800">{lostItemTarget.name || `อุปกรณ์ #${lostItemTarget.equipment_id}`}</p>
-                                <p className="text-[12px] text-slate-500">รหัสอุปกรณ์ {lostItemTarget.equipment_id}</p>
+                                <p className="text-[14px] font-bold text-slate-800">{lostItemTarget.name || `เธญเธธเธเธเธฃเธ“เน #${lostItemTarget.equipment_id}`}</p>
+                                <p className="text-[12px] text-slate-500">เธฃเธซเธฑเธชเธญเธธเธเธเธฃเธ“เน {lostItemTarget.equipment_id}</p>
                             </div>
 
                             <div>
                                 <label className="block text-[13px] font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
                                     <Calendar size={15} className="text-purple-600" />
-                                    วันที่อุปกรณ์หาย (Date of Loss) <span className="text-red-500">*</span>
+                                    เธงเธฑเธเธ—เธตเนเธญเธธเธเธเธฃเธ“เนเธซเธฒเธข (Date of Loss) <span className="text-red-500">*</span>
                                 </label>
                                 <input
                                     type="date"
@@ -2346,19 +2079,19 @@ export default function UserApp({ studentId, onLogout }) {
 
                             <div>
                                 <label className="block text-[13px] font-bold text-slate-700 mb-1.5">
-                                    รายละเอียด / เหตุผลที่สูญหาย
+                                    เธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ” / เน€เธซเธ•เธธเธเธฅเธ—เธตเนเธชเธนเธเธซเธฒเธข
                                 </label>
                                 <textarea
                                     rows={3}
                                     value={lostNote}
                                     onChange={e => setLostNote(e.target.value)}
-                                    placeholder="ระบุสถานที่ หรือ รายละเอียดเพิ่มเติม..."
+                                    placeholder="เธฃเธฐเธเธธเธชเธ–เธฒเธเธ—เธตเน เธซเธฃเธทเธญ เธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”เน€เธเธดเนเธกเน€เธ•เธดเธก..."
                                     className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-[13px] outline-none focus:border-purple-500 transition shadow-sm"
                                 />
                             </div>
 
                             <div className="bg-orange-50/70 border border-orange-100 rounded-xl p-3 text-[12px] text-orange-800 leading-relaxed">
-                                ⚠️ เมื่อกดยืนยันแล้ว สถานะจะถูกเปลี่ยนเป็น "สูญหาย/ชำรุด" และจะมีการบันทึกวันที่หายเข้าสู่ระบบห้องสมุด
+                                โ ๏ธ เน€เธกเธทเนเธญเธเธ”เธขเธทเธเธขเธฑเธเนเธฅเนเธง เธชเธ–เธฒเธเธฐเธเธฐเธ–เธนเธเน€เธเธฅเธตเนเธขเธเน€เธเนเธ "เธชเธนเธเธซเธฒเธข/เธเธณเธฃเธธเธ”" เนเธฅเธฐเธเธฐเธกเธตเธเธฒเธฃเธเธฑเธเธ—เธถเธเธงเธฑเธเธ—เธตเนเธซเธฒเธขเน€เธเนเธฒเธชเธนเนเธฃเธฐเธเธเธซเนเธญเธเธชเธกเธธเธ”
                             </div>
 
                             <div className="flex gap-3 pt-2">
@@ -2367,14 +2100,14 @@ export default function UserApp({ studentId, onLogout }) {
                                     onClick={() => { setIsLostModalOpen(false); setLostItemTarget(null); }}
                                     className="flex-1 py-3 border border-slate-200 text-slate-600 rounded-xl font-bold text-[13.5px] hover:bg-slate-50 transition"
                                 >
-                                    ยกเลิก
+                                    เธขเธเน€เธฅเธดเธ
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={isSubmittingLost}
                                     className="flex-1 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold text-[13.5px] shadow-md shadow-orange-600/20 transition"
                                 >
-                                    {isSubmittingLost ? "กำลังบันทึก..." : "ยืนยันแจ้งสูญหาย"}
+                                    {isSubmittingLost ? "เธเธณเธฅเธฑเธเธเธฑเธเธ—เธถเธ..." : "เธขเธทเธเธขเธฑเธเนเธเนเธเธชเธนเธเธซเธฒเธข"}
                                 </button>
                             </div>
                         </form>

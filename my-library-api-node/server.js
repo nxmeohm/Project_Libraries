@@ -192,39 +192,78 @@ cron.schedule('0 16 * * *', async () => {
         console.error('[Cron] Error checking urgent items:', error);
     }
 });
-// Cron job: Check every 1 minute for expired 30-min pickup reservations
+// Cron job: Check every 1 minute for expired queue calls (5-min window)
 cron.schedule('* * * * *', async () => {
     try {
         const sql = `
-            SELECT b.id, b.student_id, b.equipment_id, e.name as equipment_name,
+            SELECT q.id, q.student_id, q.equipment_id, e.name as equipment_name,
                    s.email as student_email, s.name_th as student_name,
-                   b.pickup_time, b.reservation_expires_at
+                   q.called_at, q.expires_at
+            FROM equipment_queue q
+            LEFT JOIN equipments e ON q.equipment_id = e.equipment_id
+            LEFT JOIN student_profiles s ON q.student_id = s.student_id
+            WHERE q.status = 'called'
+              AND q.expires_at IS NOT NULL
+              AND NOW() > q.expires_at
+        `;
+        const [expiredRows] = await pool.query(sql);
+
+        for (const row of expiredRows) {
+            // Mark as expired
+            await pool.query("UPDATE equipment_queue SET status = 'expired' WHERE id = ?", [row.id]);
+
+            // Notify the expired student
+            const notifTitle = "คิวของคุณหมดอายุ";
+            const notifMsg = `คิวสำหรับอุปกรณ์ "${row.equipment_name}" ถูกข้ามอัตโนมัติเนื่องจากเกินเวลา 5 นาที`;
+            if (row.student_email) {
+                await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [row.student_email, notifTitle, notifMsg]);
+                mailer.sendManualNotification(row.student_email, notifTitle, notifMsg);
+            }
+            console.log(`[Cron] Expired queue #${row.id} for equipment ${row.equipment_name}`);
+
+            // Re-order remaining positions
+            const [remaining] = await pool.query(
+                "SELECT id FROM equipment_queue WHERE equipment_id = ? AND status IN ('waiting', 'called') ORDER BY position ASC",
+                [row.equipment_id]
+            );
+            for (let i = 0; i < remaining.length; i++) {
+                await pool.query("UPDATE equipment_queue SET position = ? WHERE id = ?", [i + 1, remaining[i].id]);
+            }
+
+            // Call next in queue
+            const adminRoutes = require('./routes/adminRoutes');
+            await adminRoutes.callNextInQueue(row.equipment_id, io);
+        }
+
+        if (expiredRows.length > 0) {
+            io.emit('data_updated');
+        }
+
+        // Also check old-style expired pickup reservations (backward compat)
+        const [oldExpired] = await pool.query(`
+            SELECT b.id, b.student_id, b.equipment_id, e.name as equipment_name,
+                   s.email as student_email, s.name_th as student_name
             FROM borrowed b
             LEFT JOIN equipments e ON b.equipment_id = e.equipment_id
             LEFT JOIN student_profiles s ON b.student_id = s.student_id
             WHERE b.status = 'pending'
               AND b.reservation_expires_at IS NOT NULL
               AND NOW() > b.reservation_expires_at
-        `;
-        const [expiredRows] = await pool.query(sql);
-
-        for (const row of expiredRows) {
+        `);
+        for (const row of oldExpired) {
             await pool.query("UPDATE borrowed SET status = 'rejected' WHERE id = ?", [row.id]);
-
-            const notifTitle = "ยกเลิกคำขอยืมอุปกรณ์อัตโนมัติ";
-            const notifMsg = `คำขอยืมอุปกรณ์ "${row.equipment_name}" ถูกยกเลิกอัตโนมัติ เนื่องจากเกินกำหนดเวลามารับ 30 นาที`;
             if (row.student_email) {
+                const notifTitle = "ยกเลิกคำขอยืมอุปกรณ์อัตโนมัติ";
+                const notifMsg = `คำขอยืมอุปกรณ์ "${row.equipment_name}" ถูกยกเลิกอัตโนมัติ เนื่องจากเกินกำหนดเวลามารับ`;
                 await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [row.student_email, notifTitle, notifMsg]);
                 mailer.sendManualNotification(row.student_email, notifTitle, notifMsg);
             }
-            console.log(`[Cron] Cancelled expired reservation #${row.id} for equipment ${row.equipment_name}`);
         }
-
-        if (expiredRows.length > 0) {
+        if (oldExpired.length > 0) {
             io.emit('data_updated');
         }
     } catch (error) {
-        console.error('[Cron] Error checking expired reservations:', error);
+        console.error('[Cron] Error checking expired queue/reservations:', error);
     }
 });
 

@@ -13,8 +13,14 @@ const router = express.Router();
 const checkoutSchema = {
     body: z.object({
         student_id: z.string().min(1, 'กรุณาระบุรหัสนักศึกษา'),
-        equipment_id: z.union([z.number(), z.string()]).transform(v => parseInt(v)),
-        pickup_time: z.string().optional()
+        equipment_id: z.union([z.number(), z.string()]).transform(v => parseInt(v))
+    })
+};
+
+const queueSchema = {
+    body: z.object({
+        student_id: z.string().min(1, 'กรุณาระบุรหัสนักศึกษา'),
+        equipment_id: z.union([z.number(), z.string()]).transform(v => parseInt(v))
     })
 };
 
@@ -59,12 +65,10 @@ router.post('/login.php', async (req, res) => {
 router.get('/get_equipments.php', async (req, res) => {
     try {
         const sql = `SELECT e.*, 
-            (SELECT COUNT(*) FROM equipment_items WHERE equipment_id = e.equipment_id AND status = 'available') 
-            - (SELECT COUNT(*) FROM borrowed WHERE equipment_id = e.equipment_id AND status = 'pending' AND DATE(pickup_time) <= CURDATE()) 
-            AS available_quantity 
+            (SELECT COUNT(*) FROM equipment_items WHERE equipment_id = e.equipment_id AND status = 'available') AS available_quantity,
+            (SELECT COUNT(*) FROM equipment_queue WHERE equipment_id = e.equipment_id AND status IN ('waiting', 'called')) AS queue_count
             FROM equipments e`;
         const [rows] = await pool.query(sql);
-        // Ensure available_quantity is never negative
         rows.forEach(r => { if (r.available_quantity < 0) r.available_quantity = 0; });
         res.json(rows);
     } catch (error) {
@@ -79,15 +83,43 @@ router.get('/get_detail.php', async (req, res) => {
     const id = parseInt(req.query.id);
     try {
         const sql = `SELECT e.*, 
-            (SELECT COUNT(*) FROM equipment_items WHERE equipment_id = e.equipment_id AND status = 'available') 
-            - (SELECT COUNT(*) FROM borrowed WHERE equipment_id = e.equipment_id AND status = 'pending' AND DATE(pickup_time) <= CURDATE()) 
-            AS available_quantity 
+            (SELECT COUNT(*) FROM equipment_items WHERE equipment_id = e.equipment_id AND status = 'available') AS available_quantity,
+            (SELECT COUNT(*) FROM equipment_queue WHERE equipment_id = e.equipment_id AND status IN ('waiting', 'called')) AS queue_count
             FROM equipments e WHERE e.equipment_id = ?`;
         const [rows] = await pool.query(sql, [id]);
         if (rows[0] && rows[0].available_quantity < 0) rows[0].available_quantity = 0;
         res.json(rows[0] || {});
     } catch (error) {
         res.status(500).json({ error: "Database Error" });
+    }
+});
+
+// ============================================================
+// Public route — Get queue for an equipment
+// ============================================================
+router.get('/get_queue.php', async (req, res) => {
+    const equipmentId = parseInt(req.query.equipment_id);
+    if (!equipmentId) return res.status(400).json({ success: false, message: "equipment_id is required" });
+    try {
+        const [rows] = await pool.query(
+            `SELECT q.id, q.position, q.status, q.queued_at, q.called_at, q.expires_at,
+                    s.name_th as student_name, q.student_id
+             FROM equipment_queue q
+             LEFT JOIN student_profiles s ON q.student_id = s.student_id
+             WHERE q.equipment_id = ? AND q.status IN ('waiting', 'called')
+             ORDER BY q.position ASC`,
+            [equipmentId]
+        );
+        // Mask student names for privacy (show only first 2 chars)
+        const maskedRows = rows.map(r => ({
+            ...r,
+            student_name: r.student_name ? r.student_name.substring(0, 4) + '***' : 'ผู้ใช้',
+            student_id: r.student_id ? r.student_id.substring(0, 3) + '****' : ''
+        }));
+        res.json({ success: true, data: maskedRows, total: rows.length });
+    } catch (error) {
+        console.error("Get Queue Error:", error);
+        res.status(500).json({ success: false, error: "Database Error" });
     }
 });
 
@@ -101,6 +133,9 @@ router.use('/cancel_request.php', authMiddleware);
 router.use('/report_lost.php', authMiddleware);
 router.use('/update_student_profile.php', authMiddleware);
 router.use('/get_notifications.php', authMiddleware);
+router.use('/join_queue.php', authMiddleware);
+router.use('/my_queue.php', authMiddleware);
+router.use('/cancel_queue.php', authMiddleware);
 
 // ============================================================
 // Get Student Profile
@@ -153,10 +188,10 @@ router.get('/get_borrowed.php', async (req, res) => {
 });
 
 // ============================================================
-// Checkout — with Database Transaction
+// Checkout — ยืมอุปกรณ์ (เฉพาะที่ยังมีเหลือ)
 // ============================================================
 router.post('/checkout.php', validate(checkoutSchema), async (req, res) => {
-    const { student_id, equipment_id, pickup_time } = req.body;
+    const { student_id, equipment_id } = req.body;
 
     const connection = await pool.getConnection();
     try {
@@ -173,6 +208,17 @@ router.post('/checkout.php', validate(checkoutSchema), async (req, res) => {
             return res.json({ success: false, message: "นักศึกษา 1 คน ยืม/จองอุปกรณ์ชิ้นนี้ได้สูงสุด 1 ชิ้น" });
         }
 
+        // Check if student is already in queue for this equipment
+        const [queueCheck] = await connection.query(
+            "SELECT id FROM equipment_queue WHERE student_id = ? AND equipment_id = ? AND status IN ('waiting', 'called')",
+            [student_id, equipment_id]
+        );
+        if (queueCheck.length > 0) {
+            await connection.rollback();
+            connection.release();
+            return res.json({ success: false, message: "คุณอยู่ในคิวของอุปกรณ์ชิ้นนี้แล้ว" });
+        }
+
         // Limit to 5 items per day
         const [dailyCount] = await connection.query(
             "SELECT COUNT(id) as total FROM borrowed WHERE student_id = ? AND DATE(borrow_date) = CURDATE() AND status != 'rejected'",
@@ -184,51 +230,20 @@ router.post('/checkout.php', validate(checkoutSchema), async (req, res) => {
             return res.json({ success: false, message: "ระบบจำกัดการยืมอุปกรณ์สูงสุด 5 ชิ้นต่อวัน" });
         }
 
-        // Calculate pickup time and max 1 day advance validation
-        let pTime = pickup_time ? new Date(pickup_time) : new Date();
-        const now = new Date();
-
-        const maxAdvanceDate = new Date(now);
-        maxAdvanceDate.setDate(maxAdvanceDate.getDate() + 1);
-        maxAdvanceDate.setHours(23, 59, 59, 999);
-
-        if (pTime > maxAdvanceDate) {
-            await connection.rollback();
-            connection.release();
-            return res.json({ success: false, message: "สามารถจองล่วงหน้าได้สูงสุดไม่เกิน 1 วันเท่านั้น" });
-        }
-
-        if (pTime < new Date(now.getTime() - 5 * 60 * 1000)) {
-            pTime = new Date();
-        }
-
-        // Smart stock check: count available items minus pending reservations for the same pickup date
-        const pickupDateStr = pTime.toISOString().slice(0, 10); // YYYY-MM-DD
+        // Check stock — only count truly available items
         const [stockCheck] = await connection.query(
-            `SELECT 
-                (SELECT COUNT(*) FROM equipment_items WHERE equipment_id = ? AND status = 'available') 
-                - (SELECT COUNT(*) FROM borrowed WHERE equipment_id = ? AND status = 'pending' AND DATE(pickup_time) = ?) 
-                AS smart_available`,
-            [equipment_id, equipment_id, pickupDateStr]
+            `SELECT COUNT(*) as available FROM equipment_items WHERE equipment_id = ? AND status = 'available'`,
+            [equipment_id]
         );
-        if (stockCheck[0].smart_available <= 0) {
+        if (stockCheck[0].available <= 0) {
             await connection.rollback();
             connection.release();
-            return res.json({ success: false, message: "อุปกรณ์ชิ้นนี้ไม่มีให้ยืมในวันที่เลือก" });
+            return res.json({ success: false, message: "อุปกรณ์ชิ้นนี้ไม่มีให้ยืมในขณะนี้ กรุณาจองคิวแทน" });
         }
-
-        // Expiration time = pickup_time + 30 minutes
-        const expTime = new Date(pTime.getTime() + 30 * 60 * 1000);
-
-        const pad = (n) => n.toString().padStart(2, '0');
-        const formatLocal = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-
-        const formattedPTime = formatLocal(pTime);
-        const formattedExpTime = formatLocal(expTime);
 
         await connection.query(
-            "INSERT INTO borrowed (student_id, equipment_id, borrow_date, pickup_time, reservation_expires_at, status) VALUES (?, ?, NOW(), ?, ?, 'pending')",
-            [student_id, equipment_id, formattedPTime, formattedExpTime]
+            "INSERT INTO borrowed (student_id, equipment_id, borrow_date, status) VALUES (?, ?, NOW(), 'pending')",
+            [student_id, equipment_id]
         );
 
         await connection.commit();
@@ -238,19 +253,166 @@ router.post('/checkout.php', validate(checkoutSchema), async (req, res) => {
         
         // Notify user via Email and In-App
         const notifTitle = "ส่งคำขอยืมสำเร็จ";
-        const notifMsg = `ระบบได้รับคำขอยืมอุปกรณ์แล้ว กรุณามารับอุปกรณ์ภายใน 30 นาทีจากเวลานัดรับ (${pTime.toLocaleTimeString('th-TH', {timeZone: 'Asia/Bangkok'})})`;
+        const notifMsg = `ระบบได้รับคำขอยืมอุปกรณ์แล้ว กรุณารอการอนุมัติจากเจ้าหน้าที่`;
         const [studentProfile] = await pool.query("SELECT email FROM student_profiles WHERE student_id = ?", [student_id]);
         if (studentProfile.length > 0 && studentProfile[0].email) {
             await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [studentProfile[0].email, notifTitle, notifMsg]);
             mailer.sendManualNotification(studentProfile[0].email, notifTitle, notifMsg);
         }
 
-        res.json({ success: true, message: "ส่งคำขอยืมอุปกรณ์สำเร็จ กรุณามารับอุปกรณ์ภายใน 30 นาทีจากเวลานัดรับ" });
+        res.json({ success: true, message: "ส่งคำขอยืมอุปกรณ์สำเร็จ กรุณารอการอนุมัติจากเจ้าหน้าที่" });
     } catch (error) {
         await connection.rollback();
         connection.release();
         console.error("Checkout Error:", error);
         res.status(500).json({ success: false, message: "ไม่สามารถทำรายการได้" });
+    }
+});
+
+// ============================================================
+// Join Queue — จองคิวอุปกรณ์ (เฉพาะที่หมดแล้ว)
+// ============================================================
+router.post('/join_queue.php', validate(queueSchema), async (req, res) => {
+    const { student_id, equipment_id } = req.body;
+
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // Check if student already has this equipment borrowed
+        const [borrowCheck] = await connection.query(
+            "SELECT id FROM borrowed WHERE student_id = ? AND equipment_id = ? AND status IN ('borrowed', 'pending')",
+            [student_id, equipment_id]
+        );
+        if (borrowCheck.length > 0) {
+            await connection.rollback();
+            connection.release();
+            return res.json({ success: false, message: "คุณกำลังยืมอุปกรณ์ชิ้นนี้อยู่แล้ว" });
+        }
+
+        // Check if student is already in queue
+        const [queueCheck] = await connection.query(
+            "SELECT id FROM equipment_queue WHERE student_id = ? AND equipment_id = ? AND status IN ('waiting', 'called')",
+            [student_id, equipment_id]
+        );
+        if (queueCheck.length > 0) {
+            await connection.rollback();
+            connection.release();
+            return res.json({ success: false, message: "คุณอยู่ในคิวของอุปกรณ์ชิ้นนี้แล้ว" });
+        }
+
+        // Count current queue size (max 10)
+        const [queueCount] = await connection.query(
+            "SELECT COUNT(*) as total FROM equipment_queue WHERE equipment_id = ? AND status IN ('waiting', 'called')",
+            [equipment_id]
+        );
+        if (queueCount[0].total >= 10) {
+            await connection.rollback();
+            connection.release();
+            return res.json({ success: false, message: "คิวเต็มแล้ว (สูงสุด 10 คน) กรุณาลองใหม่ภายหลัง" });
+        }
+
+        // Get next position number
+        const [maxPos] = await connection.query(
+            "SELECT COALESCE(MAX(position), 0) as max_pos FROM equipment_queue WHERE equipment_id = ? AND status IN ('waiting', 'called')",
+            [equipment_id]
+        );
+        const nextPosition = maxPos[0].max_pos + 1;
+
+        await connection.query(
+            "INSERT INTO equipment_queue (equipment_id, student_id, position, status, queued_at) VALUES (?, ?, ?, 'waiting', NOW())",
+            [equipment_id, student_id, nextPosition]
+        );
+
+        await connection.commit();
+        connection.release();
+
+        req.app.get('io').emit('data_updated');
+
+        // Get equipment name for notification
+        const [equipInfo] = await pool.query("SELECT name FROM equipments WHERE equipment_id = ?", [equipment_id]);
+        const equipName = equipInfo.length > 0 ? equipInfo[0].name : 'อุปกรณ์';
+
+        // Notify user
+        const notifTitle = "จองคิวสำเร็จ";
+        const notifMsg = `คุณอยู่ในคิวลำดับที่ ${nextPosition} สำหรับอุปกรณ์ "${equipName}" ระบบจะแจ้งเตือนเมื่อถึงคิวของคุณ (มีเวลา 5 นาทีในการมารับ)`;
+        const [studentProfile] = await pool.query("SELECT email FROM student_profiles WHERE student_id = ?", [student_id]);
+        if (studentProfile.length > 0 && studentProfile[0].email) {
+            await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [studentProfile[0].email, notifTitle, notifMsg]);
+            mailer.sendManualNotification(studentProfile[0].email, notifTitle, notifMsg);
+        }
+
+        res.json({ success: true, message: `จองคิวสำเร็จ ลำดับที่ ${nextPosition}`, position: nextPosition });
+    } catch (error) {
+        await connection.rollback();
+        connection.release();
+        console.error("Join Queue Error:", error);
+        res.status(500).json({ success: false, message: "ไม่สามารถจองคิวได้" });
+    }
+});
+
+// ============================================================
+// My Queue — ดูรายการคิวของตัวเอง
+// ============================================================
+router.get('/my_queue.php', async (req, res) => {
+    const student_id = req.query.student_id;
+    if (!student_id) return res.status(400).json({ success: false, message: "student_id is required" });
+    try {
+        const sql = `SELECT q.*, e.name as equipment_name, e.equipment_img, e.price
+                     FROM equipment_queue q
+                     LEFT JOIN equipments e ON q.equipment_id = e.equipment_id
+                     WHERE q.student_id = ? AND q.status IN ('waiting', 'called')
+                     ORDER BY q.queued_at ASC`;
+        const [rows] = await pool.query(sql, [student_id]);
+        res.json({ success: true, data: rows });
+    } catch (error) {
+        console.error("My Queue Error:", error);
+        res.status(500).json({ success: false, message: "Database Error" });
+    }
+});
+
+// ============================================================
+// Cancel Queue — ยกเลิกคิวตัวเอง
+// ============================================================
+router.post('/cancel_queue.php', async (req, res) => {
+    const { id, student_id } = req.body;
+    if (!id || !student_id) return res.status(400).json({ success: false, message: "Missing id or student_id" });
+
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        const [queueItem] = await connection.query(
+            "SELECT * FROM equipment_queue WHERE id = ? AND student_id = ? AND status IN ('waiting', 'called')",
+            [parseInt(id), student_id]
+        );
+        if (queueItem.length === 0) {
+            await connection.rollback();
+            connection.release();
+            return res.status(404).json({ success: false, message: "ไม่พบรายการคิวนี้" });
+        }
+
+        await connection.query("UPDATE equipment_queue SET status = 'cancelled' WHERE id = ?", [parseInt(id)]);
+
+        // Re-order positions for remaining queue items
+        const [remaining] = await connection.query(
+            "SELECT id FROM equipment_queue WHERE equipment_id = ? AND status IN ('waiting', 'called') ORDER BY position ASC",
+            [queueItem[0].equipment_id]
+        );
+        for (let i = 0; i < remaining.length; i++) {
+            await connection.query("UPDATE equipment_queue SET position = ? WHERE id = ?", [i + 1, remaining[i].id]);
+        }
+
+        await connection.commit();
+        connection.release();
+
+        req.app.get('io').emit('data_updated');
+        res.json({ success: true, message: "ยกเลิกคิวเรียบร้อยแล้ว" });
+    } catch (error) {
+        await connection.rollback();
+        connection.release();
+        console.error("Cancel Queue Error:", error);
+        res.status(500).json({ success: false, message: "Database Error" });
     }
 });
 
@@ -281,6 +443,18 @@ router.post('/cancel_request.php', async (req, res) => {
 
             await connection.commit();
             connection.release();
+
+            const [studentProfile] = await pool.query(
+                "SELECT s.email, e.name as equipment_name FROM student_profiles s JOIN borrowed b ON s.student_id = b.student_id LEFT JOIN equipments e ON b.equipment_id = e.equipment_id WHERE b.id = ?",
+                [parseInt(id)]
+            );
+            
+            if (studentProfile.length > 0 && studentProfile[0].email) {
+                const notifTitle = "ยกเลิกคำขอยืมสำเร็จ";
+                const notifMsg = `คุณได้ยกเลิกคำขอยืมอุปกรณ์ "${studentProfile[0].equipment_name}" เรียบร้อยแล้ว`;
+                await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [studentProfile[0].email, notifTitle, notifMsg]);
+                mailer.sendManualNotification(studentProfile[0].email, notifTitle, notifMsg);
+            }
 
             req.app.get('io').emit('data_updated');
             res.json({ success: true, message: "ยกเลิกรายการเรียบร้อยแล้ว" });

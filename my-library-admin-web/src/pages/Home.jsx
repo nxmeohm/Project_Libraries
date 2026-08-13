@@ -135,6 +135,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
     const [requestsData, setRequestsData] = useState([]);
     const [filterStatus, setFilterStatus] = useState("all");
     const [isRequestsLoading, setIsRequestsLoading] = useState(false);
+    const [requestFilterDate, setRequestFilterDate] = useState("");
 
     const fetchRequests = () => {
         setIsRequestsLoading(true);
@@ -461,7 +462,15 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
         status: a.status
     })) : RECENT_ACTIVITY;
 
-    const filteredRequests = requestsData.filter(r => filterStatus === "all" || r.status === filterStatus);
+    const filteredRequests = requestsData.filter(r => {
+        const matchStatus = filterStatus === "all" || r.status === filterStatus;
+        if (!matchStatus) return false;
+        if (!requestFilterDate) return true;
+        
+        const bDate = r.borrow_date ? new Date(r.borrow_date).toISOString().split('T')[0] : "";
+        const rDate = r.return_date ? new Date(r.return_date).toISOString().split('T')[0] : "";
+        return bDate === requestFilterDate || rDate === requestFilterDate;
+    });
 
     const filteredModalHistory = modalUserHistory.filter(h => {
         if (!modalHistorySearchDate) return true;
@@ -638,22 +647,41 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                         <div className="p-8 pt-6">
                             <div className="bg-white border border-purple-100 rounded-3xl shadow-sm p-6">
                                 {/* Filters */}
-                                <div className="flex gap-3 mb-6 overflow-x-auto pb-2">
-                                    {[
-                                        { id: "all", label: "ทั้งหมด" },
-                                        { id: "pending", label: "รออนุมัติ" },
-                                        { id: "borrowed", label: "กำลังยืม" },
-                                        { id: "overdue", label: "เลยกำหนด" },
-                                        { id: "returned", label: "คืนแล้ว" }
-                                    ].map(f => (
-                                        <button
-                                            key={f.id}
-                                            onClick={() => setFilterStatus(f.id)}
-                                            className={`px-4 py-2 rounded-full text-[13px] font-semibold whitespace-nowrap transition ${filterStatus === f.id ? "bg-purple-700 text-white shadow-md shadow-purple-200" : "bg-purple-50 text-purple-700 hover:bg-purple-100"}`}
-                                        >
-                                            {f.label}
-                                        </button>
-                                    ))}
+                                <div className="flex flex-wrap gap-3 mb-6 items-center pb-2">
+                                    <div className="flex gap-3 overflow-x-auto">
+                                        {[
+                                            { id: "all", label: "ทั้งหมด" },
+                                            { id: "pending", label: "รออนุมัติ" },
+                                            { id: "borrowed", label: "กำลังยืม" },
+                                            { id: "overdue", label: "เลยกำหนด" },
+                                            { id: "returned", label: "คืนแล้ว" }
+                                        ].map(f => (
+                                            <button
+                                                key={f.id}
+                                                onClick={() => setFilterStatus(f.id)}
+                                                className={`px-4 py-2 rounded-full text-[13px] font-semibold whitespace-nowrap transition ${filterStatus === f.id ? "bg-purple-700 text-white shadow-md shadow-purple-200" : "bg-purple-50 text-purple-700 hover:bg-purple-100"}`}
+                                            >
+                                                {f.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="ml-auto flex items-center gap-2">
+                                        <label className="text-[13px] font-semibold text-slate-500 whitespace-nowrap">ระบุวันที่:</label>
+                                        <input
+                                            type="date"
+                                            value={requestFilterDate}
+                                            onChange={(e) => setRequestFilterDate(e.target.value)}
+                                            className="border border-purple-100 rounded-lg px-3 py-1.5 text-[13px] text-slate-700 focus:outline-none focus:border-purple-300 focus:ring-1 focus:ring-purple-300"
+                                        />
+                                        {requestFilterDate && (
+                                            <button 
+                                                onClick={() => setRequestFilterDate("")}
+                                                className="text-[12px] text-red-500 hover:text-red-700 font-semibold ml-1 whitespace-nowrap"
+                                            >
+                                                ล้างค่า
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
 
                                 {/* Table */}
