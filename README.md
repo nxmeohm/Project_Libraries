@@ -1,78 +1,113 @@
-# 📚 Project Libraries (ระบบยืม-คืนอุปกรณ์)
+# 📚 SUT Library Management System (ระบบยืม-คืนอุปกรณ์)
 
-ระบบยืม-คืนอุปกรณ์ที่พัฒนาขึ้นเพื่ออำนวยความสะดวกในการยืมและคืนอุปกรณ์ต่างๆ ภายในองค์กรหรือสถานศึกษา โดยแบ่งการทำงานออกเป็นแอปพลิเคชันสำหรับผู้ใช้งานทั่วไป (นักศึกษา) และระบบจัดการสำหรับเจ้าหน้าที่ (Admin)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.0-success.svg)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![Node.js](https://img.shields.io/badge/Node.js-Express-339933?logo=nodedotjs&logoColor=white)
+![Socket.io](https://img.shields.io/badge/Socket.io-Real--time-010101?logo=socketdotio&logoColor=white)
 
-## 🗂 โครงสร้างโปรเจกต์ (Project Structure)
-
-โปรเจกต์นี้ประกอบด้วยส่วนสำคัญ 3 ส่วนหลัก ดังนี้:
-
-### 1. `my-library-mobile` (แอปพลิเคชันสำหรับนักศึกษา)
-แอปพลิเคชันมือถือพัฒนาด้วย **React Native (Expo)** 
-- **ฟีเจอร์หลัก:**
-  - ค้นหาและดูรายละเอียดอุปกรณ์แบบ Real-time
-  - ตรวจสอบสถานะของอุปกรณ์ (พร้อมใช้งาน, งดใช้ชั่วคราว, กำลังซ่อมแซม ฯลฯ)
-  - เพิ่มอุปกรณ์ลงตะกร้าและทำการยืม
-  - สแกน QR Code
-
-### 2. `my-library-admin-web` (เว็บไซต์ระบบจัดการหลังบ้านสำหรับ Admin)
-เว็บไซต์ระบบจัดการพัฒนาด้วย **React (Vite) + Tailwind CSS**
-- **ฟีเจอร์หลัก:**
-  - Dashboard สรุปสถิติการยืม-คืน (รายวัน, รายเดือน, รายปี)
-  - ระบบจัดการคลังอุปกรณ์ (เพิ่ม, แก้ไข, ลบ, เปลี่ยนสถานะ, ดูรูปภาพพรีวิว)
-  - ระบบจัดการผู้ใช้งานนักศึกษา
-
-### 3. `my-library-api-node` (API Server สำหรับ Admin)
-เซิร์ฟเวอร์หลังบ้านพัฒนาด้วย **Node.js (Express) + MySQL**
-- **ฟีเจอร์หลัก:**
-  - API endpoints สำหรับระบบ Admin (พอร์ต `5000`)
-  - ควบคุมการดึงข้อมูล อัปเดต และแก้ไขฐานข้อมูล
-
-*(หมายเหตุ: API สำหรับส่วนของ Mobile App พัฒนาด้วย **PHP** และรันอยู่บนเซิร์ฟเวอร์ Laragon)*
+ระบบสารสนเทศเพื่อการจัดการยืม-คืนอุปกรณ์และครุภัณฑ์ภายในองค์กร/สถานศึกษา พัฒนาขึ้นเพื่อเพิ่มประสิทธิภาพในการให้บริการอุปกรณ์ ลดขั้นตอนการทำงานที่ซับซ้อน และเพิ่มความโปร่งใสในการจัดการทรัพยากร ด้วยระบบที่ครอบคลุมทั้งฝั่งผู้ใช้งาน (นักศึกษา) และผู้ดูแลระบบ (Admin) พร้อมการอัปเดตข้อมูลแบบ **Real-Time** ⚡
 
 ---
 
-## 🚀 วิธีการติดตั้งและรันโปรเจกต์ (Getting Started)
+## ✨ ฟีเจอร์หลัก (Key Features)
+
+### 👨‍🎓 ฝั่งผู้ใช้งาน (User Web / Mobile)
+- **Real-time Inventory:** ดูรายการอุปกรณ์ จำนวนคงเหลือ และสถานะการยืมแบบ Real-time (ทันทีที่มีคนยืม ของจะลดลงในระบบของทุกคนโดยอัตโนมัติ)
+- **Smart Cart & Checkout:** ระบบตะกร้ายืมอุปกรณ์ พร้อมตรวจสอบสิทธิ์และข้อจำกัดอัตโนมัติ (เช่น จองล่วงหน้า ยืมได้สูงสุด 5 ชิ้น/วัน ฯลฯ)
+- **Status Tracking:** ติดตามสถานะคำขอยืม (รออนุมัติ, กำลังยืม, คืนแล้ว, เลยกำหนด) และประวัติการทำรายการย้อนหลัง
+- **QR Code Identity:** ระบบสร้าง QR Code ประจำตัวเพื่อยืนยันตัวตนตอนรับของ
+- **Notifications:** รับอีเมลแจ้งเตือนเมื่อคำขอถูกอนุมัติ/ปฏิเสธ หรือเมื่ออุปกรณ์ใกล้ถึงกำหนดคืน
+
+### 👨‍💻 ฝั่งผู้ดูแลระบบ (Admin Dashboard)
+- **Real-time Dashboard:** แดชบอร์ดสรุปสถิติ (ยอดการยืม, ของที่กำลังถูกยืม, ยอดที่เลยกำหนดคืน, ค่าปรับสะสม) ซึ่งจะอัปเดตตัวเลขแบบ Real-time เมื่อนักศึกษาทำรายการ
+- **Request Management:** หน้าต่างจัดการคำขอ (อนุมัติ, ปฏิเสธ, หรือรับคืนอุปกรณ์) พร้อมคำนวณค่าปรับกรณีส่งล่าช้า หรือสูญหาย
+- **Equipment Inventory:** จัดการข้อมูลครุภัณฑ์ เพิ่ม/ลบ/แก้ไขข้อมูล พร้อมอัปโหลดรูปภาพ (มีระบบ Smart Image Fallback ดึงรูปสำรองอัจฉริยะ)
+- **Automated Cron Jobs:** ระบบตรวจสอบอัตโนมัติทำงานเบื้องหลัง:
+  - ยกเลิกคำขอที่เลยเวลารับของ (30 นาที) อัตโนมัติ พร้อมคืนจำนวนสต็อก
+  - ตรวจสอบรายการที่ค้างส่ง (Overdue) แบบอัตโนมัติทุกวัน และอัปเดตสถานะในระบบ
+  - ส่งอีเมลแจ้งเตือนผู้ใช้งานที่ใกล้ถึงกำหนดคืน และแจ้งเตือนด่วนสำหรับของที่ต้องคืนในวันนี้
+
+---
+
+## 🗂 โครงสร้างโปรเจกต์ (Project Architecture)
+
+โปรเจกต์นี้ถูกออกแบบเป็น Micro-frontend & Monorepo สไตล์ โดยแบ่งออกเป็น 4 ส่วนหลัก:
+
+| โฟลเดอร์ | รายละเอียด | เทคโนโลยี |
+| --- | --- | --- |
+| 📁 `my-library-user-web` | เว็บแอปพลิเคชันสำหรับผู้ใช้ทั่วไป (ค้นหา/จอง/ยืม/เช็คสถานะ) | React (Vite) + Tailwind CSS |
+| 📁 `my-library-admin-web` | เว็บไซต์ระบบหลังบ้านสำหรับเจ้าหน้าที่ (Dashboard/จัดการคำขอ) | React (Vite) + Tailwind CSS |
+| 📁 `my-library-api-node` | API Server หลักที่ประมวลผลการทำงานทั้งหมด | Node.js (Express) + MySQL + Socket.IO |
+| 📁 `my-library-mobile` | (Optional) แอปพลิเคชันมือถือสำหรับนักศึกษา | React Native (Expo) |
+
+---
+
+## 🛠 เทคโนโลยีที่ใช้ (Tech Stack)
+
+**Frontend:**
+- React (Vite) - *Fast and modern UI building*
+- Tailwind CSS - *Rapid styling and responsive design*
+- Lucide React - *Beautiful icons*
+- Socket.IO-Client - *Listening for live data updates*
+
+**Backend:**
+- Node.js & Express.js - *High-performance API server*
+- MySQL2 - *Relational database driver*
+- Socket.IO - *WebSockets for broadcasting real-time events*
+- Node-Cron - *Task automation for expiration and reminders*
+- Nodemailer - *For sending emails via SMTP*
+- Multer & Jimp - *Image uploading and compression processing*
+
+---
+
+## 🚀 วิธีการติดตั้งและใช้งาน (Getting Started)
 
 ### ⚙️ สิ่งที่ต้องเตรียม (Prerequisites)
-- [Node.js](https://nodejs.org/)
-- [Laragon](https://laragon.org/) หรือ [XAMPP](https://www.apachefriends.org/) สำหรับรัน PHP และ MySQL Database
-- แอปพลิเคชัน **Expo Go** บนมือถือ
+- [Node.js](https://nodejs.org/) (เวอร์ชัน 18 ขึ้นไป)
+- MySQL Server (เช่น [XAMPP](https://www.apachefriends.org/) หรือ [Laragon](https://laragon.org/))
 
-### 1. การตั้งค่าฐานข้อมูล (Database)
-1. เปิด Laragon/XAMPP และ Start Apache กับ MySQL
-2. นำโฟลเดอร์ไฟล์ API (PHP) ไปวางไว้ที่ `C:\laragon\www\my_library_api`
+### 1. การตั้งค่าฐานข้อมูล (Database Setup)
+1. เปิดการทำงานของ MySQL Server ผ่าน XAMPP / Laragon
+2. สร้าง Database (เช่นชื่อ `my_library`) และนำเข้าไฟล์ฐานข้อมูล `database.sql` ของคุณ (ถ้ามี)
+3. ในโฟลเดอร์ `my-library-api-node` ให้คัดลอกไฟล์ `.env.example` มาเป็นชื่อ `.env` และตั้งค่าต่างๆ:
+   - การเชื่อมต่อฐานข้อมูล (DB Host, User, Password)
+   - ข้อมูล SMTP (Email / App Password) 
+   - กำหนดพอร์ตของระบบ
 
-### 2. รัน Admin API (Node.js)
+### 2. รัน API Server (Backend)
+เปิด Terminal และเข้าไปที่โฟลเดอร์ของ API จากนั้นรันคำสั่ง:
 ```bash
 cd my-library-api-node
 npm install
-npm run start
+node server.js
 ```
-*(ระบบจะทำงานที่ `http://localhost:5000`)*
+*(เซิร์ฟเวอร์จะรันอยู่ที่ `http://localhost:5000`)*
 
-### 3. รัน Admin Web (React Vite)
+### 3. รันเว็บ Admin
+เปิด Terminal อันใหม่ จากนั้นรันคำสั่ง:
 ```bash
 cd my-library-admin-web
 npm install
 npm run dev
 ```
-*(เข้าใช้งานผ่านเว็บเบราว์เซอร์ที่ `http://localhost:5173`)*
+*(เข้าใช้งานระบบ Admin ผ่านเบราว์เซอร์ที่ `http://localhost:5173`)*
 
-### 4. รัน Mobile App (Expo)
+### 4. รันเว็บ User (ผู้ยืม)
+เปิด Terminal อันใหม่ จากนั้นรันคำสั่ง:
 ```bash
-cd my-library-mobile
+cd my-library-user-web
 npm install
-npx expo start -c
+npm run dev
 ```
-*(สแกน QR Code ที่แสดงใน Terminal ด้วยแอป Expo Go บนมือถือของคุณ)*
+*(เข้าใช้งานระบบนักศึกษา ผ่านเบราว์เซอร์ที่ `http://localhost:5174`)*
 
 ---
 
-## 🛠 เทคโนโลยีที่ใช้ (Tech Stack)
-- **Frontend (Web):** React, Vite, Tailwind CSS, Lucide React
-- **Frontend (Mobile):** React Native, Expo
-- **Backend:** Node.js (Express) & PHP
-- **Database:** MySQL
+## 🔮 แผนการพัฒนาในอนาคต (Roadmap)
+- [ ] เพิ่มระบบสแกนบาร์โค้ดครุภัณฑ์ผ่านกล้องเว็บแคมเพื่อตัดสต๊อก
+- [ ] พัฒนาระบบออกรายงานสรุปผลรายเดือนเป็นไฟล์ PDF / Excel
+- [ ] เชื่อมต่อระบบ Single Sign-On (SSO) ขององค์กร
 
 ---
-*Created by [nxmeohm]*
+*Developed with ❤️ for better educational support systems.*
