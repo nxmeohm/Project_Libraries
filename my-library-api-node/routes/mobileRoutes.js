@@ -504,7 +504,7 @@ router.post('/report_lost.php', validate(reportLostSchema), async (req, res) => 
         );
 
         const notifTitle = "แจ้งเตือนอุปกรณ์สูญหาย/ชำรุด";
-        const notifMsg = `คุณได้แจ้งอุปกรณ์ "${item.equipment_name}" สูญหาย/ชำรุด (วันที่หาย: ${lost_date}) กรุณาติดต่อบรรณารักษ์เพื่อชำระค่าปรับ`;
+        const notifMsg = `คุณได้แจ้งอุปกรณ์ "${item.equipment_name}" สูญหาย/ชำรุด (วันที่หาย: ${lost_date}) กรุณาติดต่อบรรณารักษ์`;
         if (item.student_email) {
             await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [item.student_email, notifTitle, notifMsg]);
             mailer.sendManualNotification(item.student_email, notifTitle, notifMsg);

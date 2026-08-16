@@ -123,7 +123,7 @@ const notificationSchema = {
 router.get('/dashboard', async (req, res) => {
     try {
         const response = {
-            kpi: { today: 0, returned: 0, overdue: 0, pending: 0, fines: 0 },
+            kpi: { today: 0, returned: 0, overdue: 0, pending: 0 },
             recent_activity: []
         };
 
@@ -144,8 +144,7 @@ router.get('/dashboard', async (req, res) => {
         const [pendingRes] = await pool.query("SELECT COUNT(*) as c FROM borrowed WHERE status = 'pending'");
         response.kpi.pending = pendingRes[0].c;
 
-        const [finesRes] = await pool.query("SELECT SUM(fine_amount) as total FROM borrowed WHERE fine_amount IS NOT NULL AND status IN ('returned', 'fine_paid')");
-        response.kpi.fines = finesRes[0].total || 0;
+        // Fines removed
 
         const sql = `
             SELECT 
@@ -241,10 +240,10 @@ router.get('/requests', async (req, res) => {
                 if (now > dueDate) {
                     const diffTime = Math.abs(now - dueDate);
                     overdue_days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                    calculated_fine = overdue_days * 20;
+                    calculated_fine = 0;
                 }
-            } else if (row.status === 'returned' || row.status === 'fine_paid' || row.status === 'damaged_lost') {
-                calculated_fine = parseFloat(row.fine_amount) || 0;
+            } else if (row.status === 'returned' || row.status === 'damaged_lost') {
+                calculated_fine = 0;
             }
 
             return {
@@ -291,7 +290,6 @@ router.post('/update-request', validate(updateRequestSchema), async (req, res) =
     else if (action === 'reject') new_status = "rejected";
     else if (action === 'return') new_status = "returned";
     else if (action === 'lost') new_status = "damaged_lost";
-    else if (action === 'fine_paid') new_status = "fine_paid";
     else return res.status(400).json({ success: false, message: "Invalid action" });
 
     // Use database transaction for data integrity
@@ -349,25 +347,9 @@ router.post('/update-request', validate(updateRequestSchema), async (req, res) =
         }
         
         if (action === 'return') {
-            if (fine && parseFloat(fine) > 0) {
-                await connection.query("UPDATE borrowed SET status = ?, return_date = NOW(), fine_amount = ? WHERE id = ?", [new_status, parseFloat(fine), id]);
-            } else {
-                await connection.query("UPDATE borrowed SET status = ?, return_date = NOW() WHERE id = ?", [new_status, id]);
-            }
+            await connection.query("UPDATE borrowed SET status = ?, return_date = NOW() WHERE id = ?", [new_status, id]);
         } else if (action === 'lost') {
-            await connection.query("UPDATE borrowed SET status = ?, return_date = NOW(), fine_amount = ? WHERE id = ?", [new_status, parseFloat(fine || 0), id]);
-        } else if (action === 'fine_paid') {
-            await connection.query("UPDATE borrowed SET status = ? WHERE id = ?", [new_status, id]);
-            
-            // Restore damaged equipment back to available
-            const equip_id = borrowInfo.equipment_id;
-            const [lostItem] = await connection.query(
-                "SELECT item_id FROM equipment_items WHERE equipment_id = ? AND status = 'damaged_lost' LIMIT 1 FOR UPDATE",
-                [equip_id]
-            );
-            if (lostItem.length > 0) {
-                await connection.query("UPDATE equipment_items SET status = 'available' WHERE item_id = ?", [lostItem[0].item_id]);
-            }
+            await connection.query("UPDATE borrowed SET status = ?, return_date = NOW() WHERE id = ?", [new_status, id]);
         } else {
             await connection.query("UPDATE borrowed SET status = ? WHERE id = ?", [new_status, id]);
         }
@@ -376,7 +358,7 @@ router.post('/update-request', validate(updateRequestSchema), async (req, res) =
         connection.release();
 
         // Auto-call next in queue when equipment becomes available
-        if (action === 'return' || action === 'fine_paid') {
+        if (action === 'return') {
             setImmediate(async () => {
                 try {
                     await callNextInQueue(borrowInfo.equipment_id, req.app.get('io'));
@@ -390,27 +372,13 @@ router.post('/update-request', validate(updateRequestSchema), async (req, res) =
         setImmediate(async () => {
             try {
                 if (action === 'return') {
-                    if (fine && parseFloat(fine) > 0) {
-                        if (borrowInfo.student_email) {
-                            mailer.sendReturnWithFineEmail(borrowInfo.student_email, borrowInfo.student_name, borrowInfo.equipment_name, fine);
-                        }
-                    } else {
-                        if (borrowInfo.student_email) {
-                            mailer.sendReturnEmail(borrowInfo.student_email, borrowInfo.student_name, borrowInfo.equipment_name);
-                        }
+                    if (borrowInfo.student_email) {
+                        mailer.sendReturnEmail(borrowInfo.student_email, borrowInfo.student_name, borrowInfo.equipment_name);
                     }
                 } else if (action === 'lost') {
                     if (borrowInfo.student_email) {
-                        mailer.sendFineEmail(borrowInfo.student_email, borrowInfo.student_name, borrowInfo.equipment_name, fine || 0);
-                        const notifTitle = "แจ้งเตือนค่าปรับอุปกรณ์";
-                        const notifMsg = `อุปกรณ์ "${borrowInfo.equipment_name}" สูญหาย/ชำรุดเสียหาย คุณมียอดค่าปรับที่ต้องชำระจำนวน ${fine || 0} บาท ติดต่อบรรณารักษ์ด่วน`;
-                        await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [borrowInfo.student_email, notifTitle, notifMsg]);
-                    }
-                } else if (action === 'fine_paid') {
-                    if (borrowInfo.student_email) {
-                        mailer.sendFinePaidEmail(borrowInfo.student_email, borrowInfo.student_name, borrowInfo.equipment_name);
-                        const notifTitle = "ชำระค่าปรับสำเร็จ";
-                        const notifMsg = `ขอบคุณครับ/ค่ะ ระบบได้รับยอดชำระค่าปรับสำหรับอุปกรณ์ "${borrowInfo.equipment_name}" เรียบร้อยแล้ว`;
+                        const notifTitle = "แจ้งเตือนอุปกรณ์ชำรุด/สูญหาย";
+                        const notifMsg = `อุปกรณ์ "${borrowInfo.equipment_name}" ถูกบันทึกว่าสูญหาย/ชำรุด กรุณาติดต่อบรรณารักษ์`;
                         await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [borrowInfo.student_email, notifTitle, notifMsg]);
                     }
                 } else if (action === 'approve') {
@@ -443,8 +411,9 @@ router.post('/update-request', validate(updateRequestSchema), async (req, res) =
 // ============================================================
 // 4. Notifications — POST (send)
 // ============================================================
-router.post('/notifications', validate(notificationSchema), async (req, res) => {
+router.post('/notifications', upload.single('notification_img'), validate(notificationSchema), async (req, res) => {
     const { target, title, message } = req.body;
+    const image_url = req.file ? 'uploads/equipments/' + req.file.filename : null; // Using existing uploads folder
 
     try {
         let emails = [];
@@ -456,7 +425,7 @@ router.post('/notifications', validate(notificationSchema), async (req, res) => 
         }
 
         // Save notification to database for UI display
-        await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'announcement')", [target, title, message]);
+        await pool.query("INSERT INTO notifications (target, title, message, type, image_url) VALUES (?, ?, ?, 'announcement', ?)", [target, title, message, image_url]);
         req.app.get('io').emit('data_updated');
 
         if (emails.length === 0) {
@@ -517,8 +486,24 @@ router.get('/equipments', async (req, res) => {
 // ============================================================
 // 7. Add Equipment
 // ============================================================
+const autoCategory = (name) => {
+    const n = name.toLowerCase();
+    if (n.includes('หูฟัง') || n.includes('headphone')) return 'หูฟัง';
+    if (n.includes('ipad') || n.includes('ไอแพด')) return 'iPad';
+    if (n.includes('ปลั๊ก')) return 'ปลั๊กไฟพ่วง';
+    if (n.includes('ปากกาแท็บเล็ต') || n.includes('stylus') || n.includes('pencil')) return 'ปากกาแท็บเล็ต';
+    if (n.includes('เมาส์') || n.includes('mouse')) return 'เมาส์';
+    if (n.includes('สายเชื่อมต่อ') || n.includes('adapter') || n.includes('cable') || n.includes('dongle')) return 'สายเชื่อมต่อ';
+    if (n.includes('cyberdict') || n.includes('ดิกชันนารี')) return 'CyberDict';
+    if (n.includes('เครื่องคิดเลข') || n.includes('calculator')) return 'เครื่องคิดเลข';
+    if (n.includes('สายชาร์จ') || n.includes('charger') || n.includes('lightning') || n.includes('type-c')) return 'สายชาร์จโทรศัพท์';
+    if (n.includes('โคมไฟ') || n.includes('lamp')) return 'โคมไฟ';
+    if (n.includes('ปากกาแปลคำศัพท์') || n.includes('scan') || n.includes('แปล')) return 'ปากกาแปลคำศัพท์';
+    return 'อุปกรณ์ทั่วไป';
+};
 router.post('/equipments', upload.single('equipment_img'), validate(addEquipmentSchema), async (req, res) => {
-    const { name, kit_code, category, total_quantity, available_quantity, borrow_days, price, description, status: equipStatus } = req.body;
+    const { name, kit_code, total_quantity, available_quantity, borrow_days, price, description, status: equipStatus } = req.body;
+    const category = autoCategory(name);
     const equipment_img = req.file ? 'uploads/equipments/' + req.file.filename : null;
     try {
         const sql = `INSERT INTO equipments (kit_code, name, total_quantity, description, usage_type, price, category, borrow_days, status, equipment_img) 
@@ -531,7 +516,7 @@ router.post('/equipments', upload.single('equipment_img'), validate(addEquipment
         for(let i=0; i < total_quantity; i++) {
             const status = (i < available_quantity) ? 'available' : 'borrowed';
             const seq = `c.${i+1}`;
-            const asset = `new-${Date.now()}-${i}`;
+            const asset = `${Date.now()}-${i}`;
             await pool.query(`INSERT INTO equipment_items (equipment_id, sequence_code, full_asset_code, status) VALUES (?, ?, ?, ?)`, [equipment_id, seq, asset, status]);
         }
         req.app.get('io').emit('data_updated');
@@ -547,7 +532,8 @@ router.post('/equipments', upload.single('equipment_img'), validate(addEquipment
 // ============================================================
 router.put('/equipments/:id', upload.single('equipment_img'), async (req, res) => {
     const { id } = req.params;
-    const { name, kit_code, category, total_quantity, available_quantity, borrow_days, price, description, status: equipStatus } = req.body;
+    const { name, kit_code, total_quantity, available_quantity, borrow_days, price, description, status: equipStatus } = req.body;
+    const category = autoCategory(name);
     const equipment_img = req.file ? 'uploads/equipments/' + req.file.filename : null;
     try {
         if (equipment_img) {
@@ -570,7 +556,7 @@ router.put('/equipments/:id', upload.single('equipment_img'), async (req, res) =
             const diff = total - existing.length;
             for(let i=0; i < diff; i++) {
                 const seq = `c.${existing.length + i + 1}`;
-                const asset = `add-${Date.now()}-${i}`;
+                const asset = `${Date.now()}-${i}`;
                 await pool.query("INSERT INTO equipment_items (equipment_id, sequence_code, full_asset_code, status) VALUES (?, ?, ?, 'available')", [parseInt(id), seq, asset]);
             }
         } else if (total < existing.length) {
@@ -771,4 +757,35 @@ router.post('/queue/:id/complete', async (req, res) => {
     }
 });
 
+// ============================================================
+// 15. Get Equipment Items
+// ============================================================
+router.get('/equipments/:id/items', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const [rows] = await pool.query('SELECT * FROM equipment_items WHERE equipment_id = ? ORDER BY sequence_code ASC', [parseInt(id)]);
+        res.json({ success: true, data: rows });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: "Database Error" });
+    }
+});
+
+// ============================================================
+// 16. Update Equipment Item Status
+// ============================================================
+router.put('/equipment-items/:itemId/status', async (req, res) => {
+    const { itemId } = req.params;
+    const { status } = req.body;
+    try {
+        await pool.query('UPDATE equipment_items SET status = ? WHERE item_id = ?', [status, parseInt(itemId)]);
+        req.app.get('io').emit('data_updated');
+        res.json({ success: true, message: "อัปเดตสถานะสำเร็จ" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: "Database Error" });
+    }
+});
+
 module.exports = router;
+

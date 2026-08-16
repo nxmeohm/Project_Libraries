@@ -23,7 +23,6 @@ const KPI_DATA = [
     { key: "returned", label: "คืนแล้วทั้งหมด", value: "2", icon: Check, tone: "green" },
     { key: "overdue", label: "เลยกำหนดคืน", value: "1", icon: Clock, tone: "red" },
     { key: "pending", label: "ผู้ใช้รออนุมัติ", value: "3", icon: User, tone: "amber" },
-    { key: "fines", label: "ค่าปรับสะสม (ของชำรุด)", value: "฿35,000", icon: DollarSign, tone: "red" },
 ];
 
 const CHART_DATA = {
@@ -56,7 +55,6 @@ const STATUS_MAP = {
     overdue: { label: "เลยกำหนด", cls: "bg-red-600 text-white" },
     rejected: { label: "ยกเลิก", cls: "bg-slate-500 text-white" },
     damaged_lost: { label: "สูญหาย/ชำรุด", cls: "bg-orange-600 text-white" },
-    fine_paid: { label: "ชำระค่าปรับแล้ว", cls: "bg-teal-600 text-white" },
 };
 
 const KPI_TONE = {
@@ -152,23 +150,13 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
             });
     };
 
-    const handleAction = async (id, action, defaultFine = 0) => {
-        let fine = 0;
-        if (action === 'lost') {
-            const amountStr = prompt(`ระบุค่าปรับ (บาท) สำหรับอุปกรณ์สูญหาย/เสียหาย:\n(ราคาประเมินอุปกรณ์: ${defaultFine} บาท)`, defaultFine);
-            if (amountStr === null) return;
-            fine = parseFloat(amountStr) || 0;
-        } else if (action === 'return' && defaultFine > 0) {
-            if (!confirm(`นักศึกษามีค่าปรับล่าช้า ${defaultFine} บาท ชำระเงินเรียบร้อยแล้วใช่หรือไม่?\nกด OK เพื่อยืนยันรับคืนและบันทึกยอดค่าปรับ`)) return;
-            fine = defaultFine;
-        } else {
-            if (!confirm(`ยืนยันการดำเนินการ?`)) return;
-        }
+    const handleAction = async (id, action) => {
+        if (!confirm(`ยืนยันการดำเนินการ?`)) return;
 
         try {
             const data = await authFetch('/api/admin/update-request', {
                 method: "POST",
-                body: JSON.stringify({ id, action, fine })
+                body: JSON.stringify({ id, action })
             });
             if (data.success) {
                 showToast('อัปเดตสถานะเรียบร้อยแล้ว', 'success');
@@ -233,6 +221,50 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editEquip, setEditEquip] = useState(null);
     const [inventorySearch, setInventorySearch] = useState("");
+
+    const [isItemsModalOpen, setIsItemsModalOpen] = useState(false);
+    const [selectedKitItems, setSelectedKitItems] = useState([]);
+    const [selectedKitName, setSelectedKitName] = useState("");
+    const [isKitItemsLoading, setIsKitItemsLoading] = useState(false);
+
+    const handleViewItems = async (eq) => {
+        setSelectedKitName(eq.name);
+        setIsItemsModalOpen(true);
+        setIsKitItemsLoading(true);
+        try {
+            const data = await authFetch(`/api/admin/equipments/${eq.equipment_id}/items`);
+            if (data.success) {
+                setSelectedKitItems(data.data);
+            } else {
+                setSelectedKitItems([]);
+                showToast('ไม่สามารถดึงข้อมูลไอเท็มได้: ' + data.message, 'error');
+            }
+        } catch (err) {
+            console.error(err);
+            showToast('ไม่สามารถติดต่อเซิร์ฟเวอร์ได้', 'error');
+        } finally {
+            setIsKitItemsLoading(false);
+        }
+    };
+
+    const handleUpdateItemStatus = async (itemId, newStatus) => {
+        try {
+            const data = await authFetch(`/api/admin/equipment-items/${itemId}/status`, {
+                method: 'PUT',
+                body: JSON.stringify({ status: newStatus })
+            });
+            if (data.success) {
+                showToast('อัปเดตสถานะสำเร็จ', 'success');
+                setSelectedKitItems(prev => prev.map(item => item.item_id === itemId ? { ...item, status: newStatus } : item));
+                fetchEquipments();
+            } else {
+                showToast('เกิดข้อผิดพลาด: ' + data.message, 'error');
+            }
+        } catch (err) {
+            console.error(err);
+            showToast('ไม่สามารถติดต่อเซิร์ฟเวอร์ได้', 'error');
+        }
+    };
 
     const fetchEquipments = () => {
         setIsEquipmentsLoading(true);
@@ -365,16 +397,27 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
             });
     };
 
+    const [notificationImageFile, setNotificationImageFile] = useState(null);
+
     const handleSendNotification = async () => {
         if (!newNotification.title || !newNotification.message) return showToast('กรุณากรอกหัวข้อและข้อความให้ครบถ้วน', 'warning');
         try {
+            const formData = new FormData();
+            formData.append('target', newNotification.target);
+            formData.append('title', newNotification.title);
+            formData.append('message', newNotification.message);
+            if (notificationImageFile) {
+                formData.append('notification_img', notificationImageFile);
+            }
+
             const data = await authFetch('/api/admin/notifications', {
                 method: "POST",
-                body: JSON.stringify(newNotification)
+                body: formData
             });
             if (data.success) {
                 showToast('ส่งการแจ้งเตือนสำเร็จ', 'success');
                 setNewNotification({ target: "all", title: "", message: "" });
+                setNotificationImageFile(null);
                 fetchNotifications();
             } else {
                 showToast('เกิดข้อผิดพลาด: ' + data.message, 'error');
@@ -443,8 +486,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
         { key: "today", label: "ยืมวันนี้", value: dashboardData.kpi.today.toString(), icon: CheckSquare, tone: "purple" },
         { key: "returned", label: "คืนแล้วทั้งหมด", value: dashboardData.kpi.returned.toString(), icon: Check, tone: "green" },
         { key: "overdue", label: "เลยกำหนดคืน", value: dashboardData.kpi.overdue.toString(), icon: Clock, tone: "red" },
-        { key: "pending", label: "ผู้ใช้รออนุมัติ", value: dashboardData.kpi.pending.toString(), icon: User, tone: "amber" },
-        { key: "fines", label: "ค่าปรับสะสม", value: `฿${(dashboardData.kpi.fines || 0).toLocaleString()}`, icon: DollarSign, tone: "red" },
+        { key: "pending", label: "ผู้ใช้รออนุมัติ", value: (dashboardData.kpi.pending || 0).toLocaleString(), icon: User, tone: "amber" },
     ] : KPI_DATA;
 
     const formatThaiDate = (dateString) => {
@@ -543,7 +585,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
 
                         <div className="p-8 pt-6">
                             {/* KPI cards */}
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
                                 {currentKpiData.map((kpi) => {
                                     const Icon = kpi.icon;
                                     return (
@@ -689,7 +731,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                     <table className="w-full border-collapse min-w-[800px]">
                                         <thead>
                                             <tr>
-                                                {["รหัสนศ.", "ชื่อ-นามสกุล", "อุปกรณ์", "วันที่ขอ", "กำหนดคืน", "ค่าปรับ", "สถานะ", "การจัดการ"].map((h) => (
+                                                {["รหัสนศ.", "ชื่อ-นามสกุล", "อุปกรณ์", "วันที่ขอ", "กำหนดคืน", "สถานะ", "การจัดการ"].map((h) => (
                                                     <th key={h} className="text-left text-[11.5px] uppercase tracking-wide text-slate-400 font-bold pb-4 border-b-2 border-purple-100 whitespace-nowrap px-4 first:pl-2">
                                                         {h}
                                                     </th>
@@ -709,13 +751,6 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                                     </td>
                                                     <td className="py-4 px-4 text-[13px] text-slate-600">{formatThaiDate(r.borrow_date)}</td>
                                                     <td className="py-4 px-4 text-[13px] text-slate-600">{formatThaiDate(r.return_date)}</td>
-                                                    <td className="py-4 px-4 text-[13px] font-semibold">
-                                                        {r.fine_amount > 0 ? (
-                                                            <span className="text-red-500">{r.fine_amount} บ.</span>
-                                                        ) : (
-                                                            <span className="text-slate-300">-</span>
-                                                        )}
-                                                    </td>
                                                     <td className="py-4 px-4">
                                                         <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${STATUS_MAP[r.status]?.cls || 'bg-slate-100 text-slate-600'}`}>
                                                             {STATUS_MAP[r.status]?.label || r.status}
@@ -792,7 +827,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                     <table className="w-full border-collapse min-w-[800px]">
                                         <thead>
                                             <tr>
-                                                {["อุปกรณ์", "รหัส", "หมวดหมู่", "สถานะ", "คงเหลือ/ทั้งหมด", "ยืมได้ (วัน)", "ราคา / ค่าปรับ", "การจัดการ"].map((h) => (
+                                                {["อุปกรณ์", "รหัส", "หมวดหมู่", "สถานะ", "คงเหลือ/ทั้งหมด", "ยืมได้ (วัน)", "ราคา", "การจัดการ"].map((h) => (
                                                     <th key={h} className="text-left text-[11.5px] uppercase tracking-wide text-slate-400 font-bold pb-4 border-b-2 border-purple-100 whitespace-nowrap px-4 first:pl-2">
                                                         {h}
                                                     </th>
@@ -831,12 +866,14 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                                     <td className="py-4 px-4 text-[13px] text-slate-600">{eq.borrow_days || 7}</td>
                                                     <td className="py-4 px-4">
                                                         <div className="text-[13px] font-semibold">฿{eq.price}</div>
-                                                        <div className="text-[11px] text-slate-400">ค่าปรับวัน ฿{eq.price * 2}</div>
                                                     </td>
                                                     <td className="py-4 px-4">
                                                         <div className="flex gap-2">
                                                             <button onClick={() => { setEditEquip(eq); setIsEditModalOpen(true); }} className="w-8 h-8 rounded-lg border border-purple-200 text-purple-600 flex items-center justify-center hover:bg-purple-50 transition">
                                                                 <Edit3 size={15} />
+                                                            </button>
+                                                            <button onClick={() => handleViewItems(eq)} className="w-8 h-8 rounded-lg border border-blue-200 text-blue-500 flex items-center justify-center hover:bg-blue-50 transition">
+                                                                <Eye size={15} />
                                                             </button>
                                                             <button onClick={() => handleDeleteEquipment(eq.equipment_id)} className="w-8 h-8 rounded-lg border border-red-200 text-red-500 flex items-center justify-center hover:bg-red-50 transition">
                                                                 <Trash2 size={15} />
@@ -879,7 +916,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                             <input type="text" placeholder="เช่น iPad Air (Gen 5)" className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
                                                 value={newEquip.name} onChange={e => setNewEquip({ ...newEquip, name: e.target.value })} />
                                         </div>
-                                        <div className="grid grid-cols-3 gap-4">
+                                        <div className="grid grid-cols-2 gap-4">
                                             <div>
                                                 <label className="block text-[13.5px] font-bold text-purple-900 mb-2">รหัสครุภัณฑ์</label>
                                                 <div className="flex w-full bg-slate-50 border border-purple-100 rounded-xl overflow-hidden focus-within:border-purple-400">
@@ -887,16 +924,6 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                                     <input type="text" placeholder="XXXX" className="w-full bg-transparent px-4 py-3 text-[14px] outline-none"
                                                         value={newEquip.kit_code.replace(/^Kit /i, '')} onChange={e => setNewEquip({ ...newEquip, kit_code: `Kit ${e.target.value}` })} />
                                                 </div>
-                                            </div>
-                                            <div>
-                                                <label className="block text-[13.5px] font-bold text-purple-900 mb-2">หมวดหมู่</label>
-                                                <select className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
-                                                    value={newEquip.category} onChange={e => setNewEquip({ ...newEquip, category: e.target.value })}>
-                                                    <option>อุปกรณ์อิเล็กทรอนิกส์</option>
-                                                    <option>อุปกรณ์เสริม</option>
-                                                    <option>อุปกรณ์ชาร์จ</option>
-                                                    <option>อุปกรณ์ทั่วไป</option>
-                                                </select>
                                             </div>
                                             <div>
                                                 <label className="block text-[13.5px] font-bold text-purple-900 mb-2">สถานะ</label>
@@ -927,7 +954,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                             </div>
                                         </div>
                                         <div>
-                                            <label className="block text-[13.5px] font-bold text-purple-900 mb-2">ราคาสินค้า (บาท) — ใช้คำนวณค่าปรับกรณีชำรุด</label>
+                                            <label className="block text-[13.5px] font-bold text-purple-900 mb-2">ราคาสินค้า (บาท)</label>
                                             <input type="number" className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
                                                 value={newEquip.price} onChange={e => setNewEquip({ ...newEquip, price: parseFloat(e.target.value) })} />
                                         </div>
@@ -942,6 +969,72 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                             </button>
                                             <button onClick={handleSaveEquipment} className="w-full py-3.5 rounded-xl bg-purple-900 text-white font-bold text-[14px] shadow-lg shadow-purple-900/30 hover:bg-purple-800 transition">
                                                 บันทึก
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Items Modal */}
+                        {isItemsModalOpen && (
+                            <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                                <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+                                    <div className="px-8 py-5 border-b border-purple-100 flex justify-between items-center bg-purple-50">
+                                        <h3 className="font-bold text-[16px] text-purple-900 flex items-center gap-2">
+                                            <Package size={18} /> รายการอุปกรณ์ย่อย: {selectedKitName}
+                                        </h3>
+                                        <button onClick={() => setIsItemsModalOpen(false)} className="text-slate-400 hover:text-red-500 transition">
+                                            <X size={20} />
+                                        </button>
+                                    </div>
+                                    <div className="p-8 overflow-y-auto">
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full border-collapse">
+                                                <thead>
+                                                    <tr>
+                                                        {["ลำดับ (Sequence)", "รหัสครุภัณฑ์ (Asset Code)", "สถานะ"].map((h) => (
+                                                            <th key={h} className="text-left text-[12px] uppercase tracking-wide text-slate-400 font-bold pb-4 border-b-2 border-purple-100 px-4 first:pl-2">
+                                                                {h}
+                                                            </th>
+                                                        ))}
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {isKitItemsLoading ? (
+                                                        <tr><td colSpan="3" className="py-8 text-center text-slate-400 text-sm">กำลังโหลดข้อมูล...</td></tr>
+                                                    ) : selectedKitItems.length > 0 ? selectedKitItems.map((item) => (
+                                                        <tr key={item.item_id} className="hover:bg-purple-50 transition border-b border-purple-50 last:border-0">
+                                                            <td className="py-4 px-4 first:pl-2 text-[13px] font-medium text-slate-700">{item.sequence_code}</td>
+                                                            <td className="py-4 px-4 text-[13px] text-slate-600">{item.full_asset_code}</td>
+                                                            <td className="py-4 px-4">
+                                                                {item.status === 'borrowed' ? (
+                                                                    <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-purple-100 text-purple-700 inline-block text-center cursor-not-allowed">
+                                                                        ถูกยืม
+                                                                    </span>
+                                                                ) : (
+                                                                    <select
+                                                                        className={`px-3 py-1 rounded-full text-[11px] font-bold outline-none cursor-pointer text-center ${item.status === 'available' ? 'bg-green-100 text-green-700' :
+                                                                                'bg-orange-100 text-orange-700'
+                                                                            }`}
+                                                                        value={item.status}
+                                                                        onChange={(e) => handleUpdateItemStatus(item.item_id, e.target.value)}
+                                                                    >
+                                                                        <option value="available" className="bg-white text-slate-700">ใช้งานได้</option>
+                                                                        <option value="damaged_lost" className="bg-white text-slate-700">งดใช้ชั่วคราว</option>
+                                                                    </select>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    )) : (
+                                                        <tr><td colSpan="3" className="py-8 text-center text-slate-400 text-sm">ไม่มีไอเท็มในอุปกรณ์นี้</td></tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <div className="pt-6 flex justify-end">
+                                            <button onClick={() => setIsItemsModalOpen(false)} className="px-6 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-[13px] hover:bg-slate-200 transition">
+                                                ปิด
                                             </button>
                                         </div>
                                     </div>
@@ -980,7 +1073,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                             <input type="text" className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
                                                 value={editEquip.name} onChange={e => setEditEquip({ ...editEquip, name: e.target.value })} />
                                         </div>
-                                        <div className="grid grid-cols-3 gap-4">
+                                        <div className="grid grid-cols-2 gap-4">
                                             <div>
                                                 <label className="block text-[13.5px] font-bold text-purple-900 mb-2">รหัสอุปกรณ์ (Kit Code)</label>
                                                 <div className="flex w-full bg-slate-50 border border-purple-100 rounded-xl overflow-hidden focus-within:border-purple-400">
@@ -988,16 +1081,6 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                                     <input type="text" className="w-full bg-transparent px-4 py-3 text-[14px] outline-none"
                                                         value={(editEquip.kit_code || '').replace(/^Kit /i, '')} onChange={e => setEditEquip({ ...editEquip, kit_code: `Kit ${e.target.value}` })} />
                                                 </div>
-                                            </div>
-                                            <div>
-                                                <label className="block text-[13.5px] font-bold text-purple-900 mb-2">หมวดหมู่</label>
-                                                <select className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
-                                                    value={editEquip.category} onChange={e => setEditEquip({ ...editEquip, category: e.target.value })}>
-                                                    <option>อุปกรณ์อิเล็กทรอนิกส์</option>
-                                                    <option>อุปกรณ์เสริม</option>
-                                                    <option>อุปกรณ์ชาร์จ</option>
-                                                    <option>อุปกรณ์ทั่วไป</option>
-                                                </select>
                                             </div>
                                             <div>
                                                 <label className="block text-[13.5px] font-bold text-purple-900 mb-2">สถานะ</label>
@@ -1284,6 +1367,15 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                             onChange={e => setNewNotification({ ...newNotification, message: e.target.value })}
                                         ></textarea>
                                     </div>
+                                    <div>
+                                        <label className="block text-[13px] font-bold text-slate-600 mb-1.5">รูปภาพประกอบ (ไม่บังคับ)</label>
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-[13px] outline-none focus:border-purple-400 transition"
+                                            onChange={(e) => setNotificationImageFile(e.target.files[0])}
+                                        />
+                                    </div>
                                     <button
                                         onClick={handleSendNotification}
                                         className="bg-[#3b2075] text-white px-5 py-2.5 rounded-xl text-[13px] font-semibold flex items-center gap-2 shadow-md hover:bg-[#2d175e] transition"
@@ -1308,6 +1400,11 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                                     <span className="text-[11px] text-slate-400 whitespace-nowrap pt-0.5">{formatThaiDate(notif.created_at)}</span>
                                                 </div>
                                                 <p className="text-[13px] text-slate-600 mb-3">{notif.message}</p>
+                                                {notif.image_url && (
+                                                    <div className="mb-3">
+                                                        <img src={`http://localhost:5000/${notif.image_url}`} alt="Notification Image" className="rounded-lg max-h-32 object-cover" />
+                                                    </div>
+                                                )}
                                                 <div className="inline-block bg-purple-100 text-purple-700 text-[11px] font-semibold px-2 py-0.5 rounded-md">
                                                     ถึง: {notif.target === 'all' ? 'ทั้งหมด' : notif.target}
                                                 </div>

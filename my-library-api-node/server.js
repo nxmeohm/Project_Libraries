@@ -104,7 +104,7 @@ cron.schedule('0 0 * * *', async () => {
                     mailer.sendOverdueEmail(row.student_email, row.student_name, row.equipment_name);
                 }
                 const notifTitle = "แจ้งเตือนอุปกรณ์เลยกำหนดคืน";
-                const notifMsg = `อุปกรณ์ "${row.equipment_name}" ที่คุณยืมเลยกำหนดส่งคืนแล้ว กรุณานำมาคืนโดยเร็วที่สุด (มีค่าปรับล่าช้า 20 บาท/วัน)`;
+                const notifMsg = `อุปกรณ์ "${row.equipment_name}" ที่คุณยืมเลยกำหนดส่งคืนแล้ว กรุณานำมาคืนโดยเร็วที่สุด`;
                 await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [row.student_email, notifTitle, notifMsg]);
             }
         }
@@ -141,7 +141,7 @@ cron.schedule('0 8 * * *', async () => {
             
             if ([1, 2, 3].includes(diffDays) && row.student_email) {
                 const notifTitle = "แจ้งเตือนใกล้ครบกำหนดคืนอุปกรณ์";
-                const notifMsg = `อุปกรณ์ "${row.equipment_name}" จะครบกำหนดคืนในอีก ${diffDays} วัน กรุณานำมาคืนภายในวันที่กำหนดเพื่อหลีกเลี่ยงค่าปรับ`;
+                const notifMsg = `อุปกรณ์ "${row.equipment_name}" จะครบกำหนดคืนในอีก ${diffDays} วัน กรุณานำมาคืนภายในวันที่กำหนด`;
                 await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [row.student_email, notifTitle, notifMsg]);
                 mailer.sendManualNotification(row.student_email, notifTitle, notifMsg);
             }
@@ -180,7 +180,7 @@ cron.schedule('0 16 * * *', async () => {
             
             if (diffDays === 0 && row.student_email) {
                 const notifTitle = "แจ้งเตือนด่วน: อุปกรณ์ครบกำหนดคืนวันนี้";
-                const notifMsg = `อุปกรณ์ "${row.equipment_name}" จะครบกำหนดคืนภายในวันนี้ กรุณานำมาคืนก่อนห้องสมุดปิด เพื่อหลีกเลี่ยงค่าปรับล่าช้าและเพื่อให้คิวจองถัดไปใช้งานต่อได้`;
+                const notifMsg = `อุปกรณ์ "${row.equipment_name}" จะครบกำหนดคืนภายในวันนี้ กรุณานำมาคืนก่อนห้องสมุดปิด เพื่อให้คิวจองถัดไปใช้งานต่อได้`;
                 await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [row.student_email, notifTitle, notifMsg]);
                 if (mailer.sendUrgentReminderEmail) {
                     mailer.sendUrgentReminderEmail(row.student_email, row.student_name, row.equipment_name);

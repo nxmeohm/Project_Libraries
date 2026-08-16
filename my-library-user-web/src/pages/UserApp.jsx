@@ -1,6 +1,6 @@
 import {
     Home, Search, ClipboardList, Bell, LogOut, User, Package, ShoppingCart,
-    ChevronRight, Clock, AlertCircle, Info, X, Trash2, CheckCircle, BookOpen,
+    ChevronRight, ChevronDown, ChevronUp, Clock, AlertCircle, Info, X, Trash2, CheckCircle, BookOpen,
     Calendar, ChevronLeft, Megaphone, Settings, AlertTriangle, Save, Key, ShieldCheck, FileText, Lock, Timer, Users
 } from "lucide-react";
 import QRCode from "react-qr-code";
@@ -416,30 +416,57 @@ function NotificationsView({ title, notifications, isLoading, onNotificationClic
         );
     }
 
+    const [expandedId, setExpandedId] = useState(null);
+
     return (
         <div className="p-8 pt-6 max-w-3xl mx-auto w-full">
             <h2 className="text-2xl font-bold text-[#3D2B56] mb-6">{title}</h2>
             <div className="space-y-4">
                 {notifications.map((notif, index) => {
                     const { icon: Icon, color, bg } = getNotifIcon(notif.type);
+                    const isExpanded = expandedId === notif.id;
+                    const hasDetails = notif.desc || notif.image_url;
+
                     return (
-                        <button 
-                            key={index}
-                            onClick={() => onNotificationClick && onNotificationClick(notif)}
-                            className={`w-full flex items-start gap-4 p-5 rounded-2xl transition text-left ${notif.action === 'none' ? 'bg-white border border-slate-100 cursor-default' : 'bg-white border border-slate-100 hover:shadow-md hover:border-purple-200 cursor-pointer group'}`}
-                        >
-                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${bg}`}>
-                                <Icon size={24} className={color} />
-                            </div>
-                            <div className="flex-1 pt-0.5">
-                                <h4 className="text-[15px] font-bold text-slate-800">{notif.title}</h4>
-                                <p className="text-[13px] text-slate-500 mt-1 leading-relaxed">{notif.desc}</p>
-                                <p className="text-[11.5px] text-slate-400 mt-2">{formatTimeAgo(notif.date)}</p>
-                            </div>
-                            {notif.action === 'receipt' && (
-                                <ChevronRight size={20} className="text-slate-300 group-hover:text-[#3D2B56] mt-4 transition" />
+                        <div key={index} className={`w-full bg-white border border-slate-100 rounded-2xl transition ${hasDetails ? 'hover:shadow-md hover:border-purple-200' : ''}`}>
+                            <button 
+                                onClick={() => {
+                                    if (hasDetails) {
+                                        setExpandedId(isExpanded ? null : notif.id);
+                                    }
+                                    if (onNotificationClick) onNotificationClick(notif);
+                                }}
+                                className={`w-full flex items-start gap-4 p-5 text-left ${hasDetails ? 'cursor-pointer group' : 'cursor-default'}`}
+                            >
+                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${bg}`}>
+                                    <Icon size={24} className={color} />
+                                </div>
+                                <div className="flex-1 pt-0.5">
+                                    <h4 className="text-[15px] font-bold text-slate-800">{notif.title}</h4>
+                                    {!isExpanded && notif.desc && (
+                                        <p className="text-[13px] text-slate-500 mt-1 leading-relaxed line-clamp-1">{notif.desc}</p>
+                                    )}
+                                    <p className="text-[11.5px] text-slate-400 mt-2">{formatTimeAgo(notif.date)}</p>
+                                </div>
+                                {hasDetails && (
+                                    <div className="mt-4 flex items-center justify-center w-8 h-8 rounded-full transition-colors group-hover:bg-purple-50">
+                                        {isExpanded ? <ChevronUp size={20} className="text-purple-600" /> : <ChevronDown size={20} className="text-slate-400 group-hover:text-purple-600" />}
+                                    </div>
+                                )}
+                            </button>
+                            {isExpanded && hasDetails && (
+                                <div className="px-5 pb-5 pt-2 pl-[84px] border-t border-slate-50 animate-in slide-in-from-top-2 duration-200">
+                                    {notif.desc && (
+                                        <p className="text-[14px] text-slate-600 leading-relaxed whitespace-pre-wrap">{notif.desc}</p>
+                                    )}
+                                    {notif.image_url && (
+                                        <div className="mt-4">
+                                            <img src={`http://localhost:5000/${notif.image_url}`} alt="รูปประกาศ" className="max-w-full max-h-64 object-cover rounded-xl border border-slate-100 shadow-sm" />
+                                        </div>
+                                    )}
+                                </div>
                             )}
-                        </button>
+                        </div>
                     );
                 })}
             </div>
@@ -699,6 +726,7 @@ export default function UserApp({ studentId, onLogout }) {
                             type: type === 'announcement' ? 'system' : 'warning',
                             title: item.title,
                             desc: item.message,
+                            image_url: item.image_url,
                             date: new Date(item.created_at),
                             action: 'none'
                         });
@@ -1236,10 +1264,18 @@ export default function UserApp({ studentId, onLogout }) {
                                     <button onClick={() => setCurrentPage("search")} className="text-[13px] font-bold text-purple-600 hover:underline">ดูทั้งหมด</button>
                                 </div>
                                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                                    {equipments.slice(0, 5).map(item => (
+                                    {[...equipments].sort((a, b) => b.equipment_id - a.equipment_id).slice(0, 5).map(item => (
                                         <button key={item.equipment_id} onClick={() => openDetail(item.equipment_id)}
-                                            className="bg-white border border-purple-100 rounded-2xl p-4 text-center hover:shadow-md hover:border-purple-200 transition group">
-                                            <div className="w-16 h-12 mx-auto bg-purple-50 rounded-xl flex items-center justify-center mb-3 overflow-hidden">
+                                            className="relative bg-white border border-purple-100 rounded-2xl p-4 text-center hover:shadow-md hover:border-purple-200 transition group">
+                                            
+                                            {/* NEW Badge */}
+                                            {item.created_at && (new Date() - new Date(item.created_at)) / (1000 * 60 * 60 * 24) <= 14 && (
+                                                <div className="absolute top-3 right-3 bg-gradient-to-r from-rose-500 to-pink-500 text-white text-[10px] tracking-wider font-extrabold px-2 py-0.5 rounded-full shadow-sm">
+                                                    NEW
+                                                </div>
+                                            )}
+
+                                            <div className="w-16 h-12 mx-auto bg-purple-50 rounded-xl flex items-center justify-center mb-3 overflow-hidden mt-1">
                                                 {item.equipment_img ? (
                                                     <img src={`${IMG_BASE}${item.equipment_img}`} alt="" className="w-10 h-10 object-contain" />
                                                 ) : (
@@ -1435,7 +1471,6 @@ export default function UserApp({ studentId, onLogout }) {
                                         <div className="text-[12.5px] text-slate-600 leading-relaxed">
                                             <p className="font-bold text-[#3D2B56] mb-1">ข้อกำหนดการยืม</p>
                                             <p>• ยืมได้สูงสุด 5 ชิ้น/ครั้ง • กำหนดคืนตามจำนวนวันของอุปกรณ์แต่ละชิ้น</p>
-                                            <p className="text-red-500 font-bold mt-1">⚠️ หากเกินกำหนดคืนจะมีค่าปรับ วันละ 20 บาท</p>
                                         </div>
                                     </div>
 
@@ -1552,17 +1587,6 @@ export default function UserApp({ studentId, onLogout }) {
                                 ))}
                             </div>
 
-                            {/* Fine alert */}
-                            {totalFine > 0 && (
-                                <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-center gap-3">
-                                    <AlertCircle size={20} className="text-red-500 shrink-0" />
-                                    <div>
-                                        <p className="text-[13px] text-red-600 font-semibold">คุณมีค่าปรับค้างชำระ</p>
-                                        <p className="text-[16px] text-red-700 font-bold">รวม {totalFine.toLocaleString()} บาท</p>
-                                    </div>
-                                </div>
-                            )}
-
                             {/* Item cards */}
                             {filteredStatusItems.length > 0 ? filteredStatusItems.map(item => {
                                 const s = getItemStatus(item);
@@ -1618,7 +1642,7 @@ export default function UserApp({ studentId, onLogout }) {
                                                     <p className="text-[12px] text-slate-600 pl-6"><strong>หมายเหตุ:</strong> {item.lost_note}</p>
                                                 )}
                                                 <p className="text-[11.5px] text-orange-700 pl-6 pt-1">
-                                                    * สถานะสูญหาย/ชำรุดแล้ว กรุณาติดต่อบรรณารักษ์เพื่อชำระค่าปรับ
+                                                    * สถานะสูญหาย/ชำรุดแล้ว กรุณาติดต่อบรรณารักษ์
                                                 </p>
                                             </div>
                                         )}
@@ -1628,14 +1652,6 @@ export default function UserApp({ studentId, onLogout }) {
                                             <div className="flex items-center gap-1.5 mt-3">
                                                 <CheckCircle size={14} className={s.type === 'returned-late' ? 'text-red-500' : 'text-green-500'} />
                                                 <span className={`text-[12px] font-semibold ${s.type === 'returned-late' ? 'text-red-500' : 'text-green-600'}`}>คืนเมื่อ {formatThaiDate(item.return_date)}</span>
-                                            </div>
-                                        )}
-
-                                        {/* Fine */}
-                                        {s.fine > 0 && (
-                                            <div className="mt-3 bg-red-50 rounded-xl p-3 flex items-center gap-2">
-                                                <AlertCircle size={15} className="text-red-500" />
-                                                <span className="text-[12px] text-red-600">ค่าปรับ {s.overdueDays} วัน × 20 บาท = <strong>{s.fine} บาท</strong></span>
                                             </div>
                                         )}
                                     </div>
@@ -1654,7 +1670,6 @@ export default function UserApp({ studentId, onLogout }) {
                                     <p className="font-bold text-[#3D2B56] text-[13px] mb-1">ข้อกำหนดการยืม-คืน</p>
                                     <p>• วันทำการปกติ (จ-ศ): 08:30-20:00 น.</p>
                                     <p>• วันเสาร์-อาทิตย์ / วันหยุด: 09:00-17:00 น.</p>
-                                    <p className="text-red-500 font-bold mt-1">⚠️ หากยืมเกินกำหนดจะมีค่าปรับ วันละ 20 บาท</p>
                                 </div>
                             </div>
                         </div>
@@ -1677,6 +1692,11 @@ export default function UserApp({ studentId, onLogout }) {
                                                 <span className="text-[11px] text-slate-400">{formatThaiDate(notif.created_at)}</span>
                                             </div>
                                             <p className="text-[13px] text-slate-600 leading-relaxed">{notif.message}</p>
+                                            {notif.image_url && (
+                                                <div className="mt-3">
+                                                    <img src={`http://localhost:5000/${notif.image_url}`} alt="Notification" className="rounded-xl max-h-40 object-cover" />
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -2145,9 +2165,6 @@ export default function UserApp({ studentId, onLogout }) {
                             
                             <h4 className="font-bold text-slate-800 text-[15px] mt-4">2. การคืนอุปกรณ์</h4>
                             <p>นำอุปกรณ์มาคืนที่เจ้าหน้าที่ห้องสมุด โดยสามารถโชว์ <strong>QR Code ในหน้าใบเสร็จ</strong> หรือบอกรหัสนักศึกษา เพื่อให้เจ้าหน้าที่ทำรายการคืนให้ในระบบ</p>
-                            
-                            <h4 className="font-bold text-slate-800 text-[15px] mt-4">3. ค่าปรับ</h4>
-                            <p>หากคืนอุปกรณ์เกินกำหนดเวลา ระบบจะมีค่าปรับตามจำนวนวันที่ล่าช้า โปรดคืนอุปกรณ์ให้ตรงเวลาเพื่อหลีกเลี่ยงค่าปรับ</p>
                         </div>
                     </div>
                 </div>
