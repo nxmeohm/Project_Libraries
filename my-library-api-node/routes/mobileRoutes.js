@@ -242,7 +242,7 @@ router.post('/checkout.php', validate(checkoutSchema), async (req, res) => {
         }
 
         await connection.query(
-            "INSERT INTO borrowed (student_id, equipment_id, borrow_date, status) VALUES (?, ?, NOW(), 'pending')",
+            "INSERT INTO borrowed (student_id, equipment_id, borrow_date, status, reservation_expires_at) VALUES (?, ?, NOW(), 'pending', DATE_ADD(NOW(), INTERVAL 15 MINUTE))",
             [student_id, equipment_id]
         );
 
@@ -522,7 +522,7 @@ router.post('/report_lost.php', validate(reportLostSchema), async (req, res) => 
 // Update Student Profile
 // ============================================================
 router.post('/update_student_profile.php', async (req, res) => {
-    const { student_id, name_th, name_en, email, phone_number, department, student_img, current_password, new_password } = req.body;
+    const { student_id, name_th, name_en, email, phone_number, department, student_img, current_password, new_password, notify_email } = req.body;
     if (!student_id) return res.status(400).json({ success: false, message: "Missing student_id" });
 
     try {
@@ -544,9 +544,10 @@ router.post('/update_student_profile.php', async (req, res) => {
                  email = COALESCE(?, email),
                  phone_number = COALESCE(?, phone_number),
                  department = COALESCE(?, department),
-                 student_img = COALESCE(?, student_img)
+                 student_img = COALESCE(?, student_img),
+                 notify_email = COALESCE(?, notify_email)
              WHERE student_id = ?`,
-            [name_th || null, name_en || null, email || null, phone_number || null, department || null, student_img || null, student_id]
+            [name_th || null, name_en || null, email || null, phone_number || null, department || null, student_img || null, notify_email !== undefined ? notify_email : null, student_id]
         );
 
         const [updatedRows] = await pool.query("SELECT * FROM student_profiles WHERE student_id = ?", [student_id]);

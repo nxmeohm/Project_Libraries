@@ -3,6 +3,7 @@ import {
     Check,
     CheckSquare,
     ChevronRight,
+    ChevronDown,
     Clock, DollarSign,
     LayoutGrid,
     LogOut,
@@ -10,10 +11,33 @@ import {
     Search,
     User,
     Users,
-    X, Edit3, Trash2, Plus, Eye, Send
+    X, Edit3, Trash2, Plus, Eye, Send, QrCode, FileText, Download, Upload
 } from "lucide-react";
+import jsQR from "jsqr";
 import { useState, useEffect } from "react";
 import { io } from "socket.io-client";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
+import * as XLSX from 'xlsx';
+import * as htmlToImage from 'html-to-image';
+import jsPDF from 'jspdf';
+import React from 'react';
+
+class ReportErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null };
+    }
+    static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+    }
+    render() {
+        if (this.state.hasError) {
+            return <div className="p-8 text-red-600 font-bold bg-red-50 border border-red-200 rounded-xl m-8">Report Error: {this.state.error?.toString()}</div>;
+        }
+        return this.props.children;
+    }
+}
+
 
 /* ============================================================
    Mock data — ตรงกับข้อมูลตัวอย่างในภาพ
@@ -70,6 +94,7 @@ const NAV_ITEMS = [
     { key: "equipment", label: "คลังอุปกรณ์", icon: Package },
     { key: "users", label: "ผู้ใช้งาน / ประวัติ", icon: Users },
     { key: "notify", label: "ประกาศ", icon: Bell },
+    { key: "report", label: "รายงาน", icon: FileText },
 ];
 
 /* ============================================================
@@ -129,6 +154,296 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
     const [isLoading, setIsLoading] = useState(true);
     const [toast, setToast] = useState(null);
     const showToast = (message, type = 'info') => setToast({ message, type });
+
+    const handleImageUpload = (e, targetField) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new window.Image();
+            img.onload = () => {
+                const canvas = document.createElement("canvas");
+                const context = canvas.getContext("2d");
+                canvas.width = img.width;
+                canvas.height = img.height;
+                context.drawImage(img, 0, 0, img.width, img.height);
+                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: "dontInvert",
+                });
+                if (code) {
+                    if (targetField === 'queue') {
+                        setScanQueueId(code.data);
+                        if (code.data.trim().length > 6) setTimeout(() => setIsScanningQueue(false), 200);
+                    } else if (targetField === 'barcode') {
+                        setScanBarcode(code.data);
+                    }
+                    showToast("อ่าน QR Code สำเร็จ", "success");
+                } else {
+                    showToast("ไม่พบ QR Code ในรูปภาพ", "error");
+                }
+            };
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+        e.target.value = ''; // Reset input
+    };
+    /* --- Report Feature States & Functions --- */
+    const [reportType, setReportType] = useState('monthly');
+    const [reportYear, setReportYear] = useState(new Date().getFullYear());
+    const [reportMonth, setReportMonth] = useState(new Date().getMonth() + 1);
+    const [reportData, setReportData] = useState([]);
+    const [equipmentBreakdownData, setEquipmentBreakdownData] = useState([]);
+    const [studentBreakdownData, setStudentBreakdownData] = useState([]);
+    const [equipSortOrder, setEquipSortOrder] = useState('desc');
+    const [displayFormat, setDisplayFormat] = useState('dashboard');
+    const [isReportLoading, setIsReportLoading] = useState(false);
+    const [isEquipBreakdownLoading, setIsEquipBreakdownLoading] = useState(false);
+    const [isStudentBreakdownLoading, setIsStudentBreakdownLoading] = useState(false);
+    
+    // UI Display Toggles
+    const [activeTab, setActiveTab] = useState('overview'); // overview, students, equipments
+    const [showExportDropdown, setShowExportDropdown] = useState(false);
+
+    const REPORT_LABEL = { monthly: 'รายเดือน', yearly: 'รายปี', fiscal_year: 'ปีงบประมาณ', equipment_stats: 'สถิติอุปกรณ์ยอดนิยม' };
+    const THAI_MONTHS = ['', 'มกราคม', 'ฟุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+
+    const getReportTitle = () => {
+        const label = REPORT_LABEL[reportType] || reportType;
+        if (reportType === 'monthly') return `รายงาน${label} - ${THAI_MONTHS[parseInt(reportMonth)]} ${parseInt(reportYear) + 543}`;
+        if (reportType === 'yearly') return `รายงาน${label} - ปี ${parseInt(reportYear) + 543}`;
+        if (reportType === 'fiscal_year') return `รายงาน${label} - ปีงบประมาณ ${parseInt(reportYear) + 543}`;
+        return `รายงาน${label}`;
+    };
+
+    const getReportSummary = () => {
+        if (!reportData || reportData.length === 0) return null;
+        const totalBorrows = reportData.reduce((sum, r) => sum + (parseInt(r.total_borrows) || 0), 0);
+        const totalReturned = reportData.reduce((sum, r) => sum + (parseInt(r.total_returned) || 0), 0);
+        const totalOverdue = reportData.reduce((sum, r) => sum + (parseInt(r.total_overdue) || 0), 0);
+        return { totalBorrows, totalReturned, totalOverdue };
+    };
+
+    const generateReport = async () => {
+        setIsReportLoading(true);
+        try {
+            const data = await authFetch(`/api/admin/reports?type=${reportType}&year=${reportYear}&month=${reportMonth}&sort=${equipSortOrder}`);
+            if (data.success) {
+                const formattedData = (data.data || []).map(item => {
+                    if (item.report_date) {
+                        const d = new Date(item.report_date);
+                        item.report_date = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear() + 543}`;
+                    }
+                    return item;
+                });
+                setReportData(formattedData);
+                fetchEquipmentBreakdown();
+                fetchStudentBreakdown();
+            } else {
+                showToast("ดึงข้อมูลไม่สำเร็จ: " + data.message, "error");
+            }
+        } catch(e) {
+            console.error(e);
+            showToast("เกิดข้อผิดพลาดในการสร้างรายงาน", "error");
+        }
+        setIsReportLoading(false);
+    };
+
+    const fetchEquipmentBreakdown = async () => {
+        setIsEquipBreakdownLoading(true);
+        try {
+            const data = await authFetch(`/api/admin/reports/equipment-breakdown?year=${reportYear}&month=${reportMonth}&type=${reportType}`);
+            if (data.success) {
+                setEquipmentBreakdownData(data.data);
+            }
+        } catch (error) {
+            console.error("Error fetching equipment breakdown:", error);
+            showToast("เกิดข้อผิดพลาดในการดึงข้อมูลอุปกรณ์", "error");
+        } finally {
+            setIsEquipBreakdownLoading(false);
+        }
+    };
+
+    const fetchStudentBreakdown = async () => {
+        setIsStudentBreakdownLoading(true);
+        try {
+            const data = await authFetch(`/api/admin/reports/student-breakdown?year=${reportYear}&month=${reportMonth}&type=${reportType}`);
+            if (data.success) {
+                setStudentBreakdownData(data.data);
+            }
+        } catch (error) {
+            console.error("Error fetching student breakdown:", error);
+            showToast("เกิดข้อผิดพลาดในการดึงข้อมูลนักศึกษา", "error");
+        } finally {
+            setIsStudentBreakdownLoading(false);
+        }
+    };
+
+    // Auto-fetch report data when opening the report page
+    useEffect(() => {
+        if (currentPage === "report") {
+            generateReport();
+        }
+    }, [currentPage, reportType, reportYear, reportMonth]);
+
+    /* --- Export Functions (Data-Driven) --- */
+    const exportToExcel = () => {
+        const workbook = XLSX.utils.book_new();
+        // Sheet 1: Report summary
+        if (showReportTable && reportData && reportData.length > 0) {
+            const HEADER_MAP = {
+                report_date: 'วันที่', report_month: 'เดือน', report_year: 'ปี',
+                total_borrows: 'ยืมทั้งหมด', total_returned: 'คืนแล้ว', total_overdue: 'เลยกำหนด',
+                name: 'ชื่ออุปกรณ์'
+            };
+            const mappedData = reportData.map(row => {
+                const newRow = {};
+                Object.entries(row).forEach(([k, v]) => { newRow[HEADER_MAP[k] || k] = v; });
+                return newRow;
+            });
+            const ws1 = XLSX.utils.json_to_sheet(mappedData);
+            XLSX.utils.book_append_sheet(workbook, ws1, "รายงาน");
+        }
+        // Sheet 2: Equipment breakdown
+        if (showReportEquipment && equipmentBreakdownData && equipmentBreakdownData.length > 0) {
+            const eqData = equipmentBreakdownData.map((eq, i) => ({
+                'ลำดับ': i + 1,
+                'ชื่ออุปกรณ์': eq.equipment_name,
+                'รหัส': eq.kit_code,
+                'หมวดหมู่': eq.category,
+                'ยืมทั้งหมด': eq.total_borrows,
+                'คืนแล้ว': eq.total_returned,
+                'เลยกำหนด': eq.total_overdue,
+                'กำลังยืม': eq.currently_borrowed,
+            }));
+            const ws2 = XLSX.utils.json_to_sheet(eqData);
+            XLSX.utils.book_append_sheet(workbook, ws2, "อุปกรณ์");
+        }
+        // 3. Add Student Breakdown sheet
+        if (studentBreakdownData && studentBreakdownData.length > 0) {
+            const wsStudent = XLSX.utils.json_to_sheet(studentBreakdownData.map(s => ({
+                'รหัสนักศึกษา': s.student_id,
+                'ชื่อ-นามสกุล': s.student_name,
+                'ยืมทั้งหมด': s.total_borrows,
+                'คืนแล้ว': s.total_returned,
+                'เลยกำหนด': s.total_overdue,
+                'กำลังยืม': s.currently_borrowed
+            })));
+            XLSX.utils.book_append_sheet(workbook, wsStudent, "ข้อมูลนักศึกษา");
+        }
+
+        if (workbook.SheetNames.length === 0) return showToast("ไม่มีข้อมูลให้ส่งออก", "warning");
+        XLSX.writeFile(workbook, `Report_${reportType}_${Date.now()}.xlsx`);
+        showToast("ส่งออก Excel สำเร็จ", "success");
+    };
+
+    const exportToPDF = async () => {
+        if ((!reportData || reportData.length === 0) && (!equipmentBreakdownData || equipmentBreakdownData.length === 0)) {
+            return showToast('ไม่มีข้อมูลที่จะส่งออก', 'warning');
+        }
+        showToast('กำลังสร้างไฟล์ PDF...', 'info');
+        try {
+            const { default: autoTable } = await import('jspdf-autotable');
+            const doc = new jsPDF('p', 'mm', 'a4');
+            const pageWidth = doc.internal.pageSize.getWidth();
+            let yPos = 15;
+
+            // Title
+            doc.setFontSize(16);
+            doc.setFont('Helvetica', 'bold');
+            doc.text(getReportTitle(), pageWidth / 2, yPos, { align: 'center' });
+            yPos += 10;
+
+            // Report data table
+            if (showReportTable && reportData && reportData.length > 0) {
+                const columns = Object.keys(reportData[0]).map(k => ({ header: k, dataKey: k }));
+                autoTable(doc, {
+                    startY: yPos,
+                    columns: columns,
+                    body: reportData,
+                    theme: 'grid',
+                    headStyles: { fillColor: [61, 43, 86], textColor: 255, fontStyle: 'bold', fontSize: 9 },
+                    bodyStyles: { fontSize: 8 },
+                    margin: { left: 14, right: 14 },
+                });
+                yPos = doc.lastAutoTable.finalY + 10;
+            }
+
+            // Summary
+            const summary = getReportSummary();
+            if (summary) {
+                doc.setFontSize(10);
+                doc.setFont('Helvetica', 'bold');
+                doc.text(`Total Borrows: ${summary.totalBorrows}   |   Returned: ${summary.totalReturned}   |   Overdue: ${summary.totalOverdue}`, 14, yPos);
+                yPos += 10;
+            }
+
+            // Equipment breakdown table
+            if (equipmentBreakdownData && equipmentBreakdownData.length > 0) {
+                doc.setFontSize(12);
+                doc.text('Equipment Breakdown', 14, yPos);
+                autoTable(doc, {
+                    startY: yPos + 5,
+                    head: [['ชื่ออุปกรณ์', 'รหัส', 'ยืมทั้งหมด', 'คืนแล้ว', 'เลยกำหนด']],
+                    body: equipmentBreakdownData.map(eq => [eq.equipment_name, eq.kit_code, eq.total_borrows, eq.total_returned, eq.total_overdue]),
+                    theme: 'grid'
+                });
+            }
+
+            // Student Breakdown Section
+            if (studentBreakdownData && studentBreakdownData.length > 0) {
+                const finalY = doc.lastAutoTable.finalY || 40;
+                doc.setFontSize(14);
+                doc.text("ข้อมูลการยืมแยกตามนักศึกษา", 14, finalY + 15);
+                
+                autoTable(doc, {
+                    startY: finalY + 20,
+                    head: [['รหัสนักศึกษา', 'ชื่อ-นามสกุล', 'ยืมทั้งหมด', 'คืนแล้ว', 'เลยกำหนด', 'กำลังยืม']],
+                    body: studentBreakdownData.map(s => [
+                        s.student_id,
+                        s.student_name,
+                        s.total_borrows,
+                        s.total_returned,
+                        s.total_overdue,
+                        s.currently_borrowed
+                    ]),
+                    styles: { fontSize: 10 },
+                    headStyles: { fillColor: [61, 43, 86] }
+                });
+            }
+
+            doc.save(`Report_${reportType}_${Date.now()}.pdf`);
+            showToast('ส่งออก PDF สำเร็จ', 'success');
+        } catch (err) {
+            console.error('PDF export error:', err);
+            showToast('เกิดข้อผิดพลาดในการส่งออก PDF: ' + err.message, 'error');
+        }
+    };
+
+    const exportToImage = async () => {
+        const element = document.getElementById('report-capture-area');
+        if (!element) return showToast('ไม่พบข้อมูลที่จะส่งออก', 'warning');
+        showToast('กำลังสร้างรูปภาพ...', 'info');
+        try {
+            const dataUrl = await htmlToImage.toPng(element, {
+                quality: 1,
+                pixelRatio: 2,
+                backgroundColor: '#ffffff',
+            });
+            const link = document.createElement('a');
+            link.download = `report_${reportType}_${reportYear}.png`;
+            link.href = dataUrl;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('ส่งออกรูปภาพสำเร็จ', 'success');
+        } catch (err) {
+            console.error('Image export error:', err);
+            showToast('เกิดข้อผิดพลาดในการส่งออกรูปภาพ: ' + err.message, 'error');
+        }
+    };
+    /* ----------------------------------------- */
+
 
     const [requestsData, setRequestsData] = useState([]);
     const [filterStatus, setFilterStatus] = useState("all");
@@ -244,6 +559,40 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
             showToast('ไม่สามารถติดต่อเซิร์ฟเวอร์ได้', 'error');
         } finally {
             setIsKitItemsLoading(false);
+        }
+    };
+
+    const [isScanModalOpen, setIsScanModalOpen] = useState(false);
+    const [scanQueueId, setScanQueueId] = useState("");
+    const [scanBarcode, setScanBarcode] = useState("");
+    const [isScanningQueue, setIsScanningQueue] = useState(true);
+
+    const handlePickupQueue = async (e) => {
+        e.preventDefault();
+        try {
+            const qIdClean = scanQueueId.toUpperCase().replace('QUEUE-', '');
+            if (!qIdClean || !scanBarcode) return showToast('กรุณากรอกข้อมูลให้ครบ', 'warning');
+            const data = await authFetch('/api/admin/pickup_queue.php', {
+                method: 'POST',
+                body: JSON.stringify({
+                    queue_id: qIdClean,
+                    barcode: scanBarcode
+                })
+            });
+            if (data.success) {
+                showToast('จ่ายอุปกรณ์ให้คิวสำเร็จ', 'success');
+                setIsScanModalOpen(false);
+                setScanQueueId("");
+                setScanBarcode("");
+                setIsScanningQueue(true);
+                fetchDashboard();
+                fetchRequests();
+            } else {
+                showToast(data.message || 'เกิดข้อผิดพลาด', 'error');
+            }
+        } catch (err) {
+            console.error(err);
+            showToast('เชื่อมต่อเซิร์ฟเวอร์ล้มเหลว', 'error');
         }
     };
 
@@ -562,6 +911,11 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                     })}
                 </div>
 
+                <button onClick={() => setIsScanModalOpen(true)} className="flex items-center gap-3 px-3 py-3 rounded-xl text-[13.5px] font-medium transition bg-green-500/20 text-green-300 hover:bg-green-500/30 mb-4 justify-center shadow-sm">
+                    <QrCode size={18} />
+                    สแกนจ่ายคิว
+                </button>
+
                 <div className="border-t border-white/10 pt-3.5 flex items-center gap-2.5">
                     <div className="w-8.5 h-8.5 w-[34px] h-[34px] rounded-full bg-white/15 flex items-center justify-center font-bold text-[13px] shrink-0">A</div>
                     <div className="text-[12.5px] leading-tight">
@@ -747,7 +1101,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                                     <td className="py-4 px-4 text-[13px] font-semibold">{r.student_name}</td>
                                                     <td className="py-4 px-4">
                                                         <div className="text-[13px] font-medium">{r.equipment_name}</div>
-                                                        <div className="text-[11px] text-slate-400">{r.equipment_code}</div>
+                                                        <div className="text-[11px] text-slate-400">Kit {String(r.equipment_code).replace(/^Kit\s*/i, '')}</div>
                                                     </td>
                                                     <td className="py-4 px-4 text-[13px] text-slate-600">{formatThaiDate(r.borrow_date)}</td>
                                                     <td className="py-4 px-4 text-[13px] text-slate-600">{formatThaiDate(r.return_date)}</td>
@@ -1419,6 +1773,297 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                             </div>
                         </div>
                     </>
+                ) : currentPage === "report" ? (
+                    <ReportErrorBoundary>
+                        {/* Header */}
+                        <div className="bg-white border-b border-purple-100 px-8 py-5 sticky top-0 z-10 flex items-center gap-4">
+                            <div className="p-2 bg-purple-100 rounded-xl text-purple-700">
+                                <FileText size={24} strokeWidth={2} />
+                            </div>
+                            <div>
+                                <h1 className="text-2xl font-black text-slate-800 tracking-tight leading-tight">รายงานและสถิติ</h1>
+                                <p className="text-[13px] text-slate-500">สร้างและส่งออกข้อมูลรายงาน</p>
+                            </div>
+                        </div>
+
+                        <div className="p-8 pb-32">
+                            {/* 1. Filter Card */}
+                            <div className="bg-white rounded-[20px] p-6 shadow-sm border border-slate-100 mb-6">
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+                                    <div>
+                                        <label className="block text-[13px] font-bold text-slate-500 mb-2">ประเภทรายงาน</label>
+                                        <div className="relative">
+                                            <select value={reportType} onChange={e => setReportType(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56] appearance-none cursor-pointer">
+                                                <option value="monthly">รายเดือน</option>
+                                                <option value="yearly">รายปี</option>
+                                                <option value="fiscal_year">ปีงบประมาณ</option>
+                                                <option value="equipment_stats">สถิติอุปกรณ์ยอดนิยม</option>
+                                            </select>
+                                            <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                        </div>
+                                    </div>
+                                    
+                                    {['monthly', 'yearly', 'fiscal_year'].includes(reportType) && (
+                                        <div>
+                                            <label className="block text-[13px] font-bold text-slate-500 mb-2">ปี (ค.ศ.)</label>
+                                            <div className="relative">
+                                                <input type="number" value={reportYear} onChange={e => setReportYear(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56]" />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {reportType === 'monthly' && (
+                                        <div>
+                                            <label className="block text-[13px] font-bold text-slate-500 mb-2">เดือน</label>
+                                            <div className="relative">
+                                                <select value={reportMonth} onChange={e => setReportMonth(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56] appearance-none cursor-pointer">
+                                                    {Array.from({length: 12}).map((_, i) => <option key={i+1} value={i+1}>{THAI_MONTHS[i+1]}</option>)}
+                                                </select>
+                                                <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {reportType === 'equipment_stats' && (
+                                        <div>
+                                            <label className="block text-[13px] font-bold text-slate-500 mb-2">การจัดอันดับ</label>
+                                            <div className="relative">
+                                                <select value={equipSortOrder} onChange={e => setEquipSortOrder(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56] appearance-none cursor-pointer">
+                                                    <option value="desc">ใช้มากที่สุด</option>
+                                                    <option value="asc">ใช้น้อยที่สุด</option>
+                                                </select>
+                                                <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div>
+                                        <label className="block text-[13px] font-bold text-slate-500 mb-2">รูปแบบการแสดงผล</label>
+                                        <div className="relative">
+                                            <select value={displayFormat} onChange={e => setDisplayFormat(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56] appearance-none cursor-pointer">
+                                                <option value="dashboard">Dashboard (รวมทั้งหมด)</option>
+                                                <option value="table">ตารางข้อมูล</option>
+                                                <option value="chart">แผนภูมิ / กราฟ</option>
+                                            </select>
+                                            <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="flex md:justify-end mt-4 md:mt-0">
+                                        <button onClick={() => { generateReport(); }} disabled={isReportLoading} className="bg-[#3D2B56] text-white px-8 py-2.5 rounded-xl text-[14px] font-bold shadow-sm hover:bg-[#2A1D3C] transition active:scale-95 w-full md:w-auto">
+                                            {isReportLoading ? "กำลังดึงข้อมูล..." : "สร้างรายงาน"}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 2. Data Card */}
+                            <div className="bg-white rounded-[20px] shadow-sm border border-slate-100 overflow-visible relative">
+                                {/* Header / Tabs */}
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 px-6 pt-4 pb-0">
+                                    <div className="flex items-center gap-6 overflow-x-auto custom-scrollbar">
+                                        <button 
+                                            onClick={() => setActiveTab('overview')} 
+                                            className={`flex items-center gap-2 pb-4 px-2 border-b-2 transition ${activeTab === 'overview' ? 'border-[#3D2B56] text-[#3D2B56] font-bold' : 'border-transparent text-slate-500 hover:text-slate-700 font-medium'}`}
+                                        >
+                                            <FileText size={16} /> ภาพรวม <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-[10px]">{reportData.length}</span>
+                                        </button>
+                                        <button 
+                                            onClick={() => setActiveTab('students')} 
+                                            className={`flex items-center gap-2 pb-4 px-2 border-b-2 transition ${activeTab === 'students' ? 'border-blue-600 text-blue-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700 font-medium'}`}
+                                        >
+                                            <User size={16} /> ข้อมูลนักศึกษา <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full text-[10px]">{studentBreakdownData.length}</span>
+                                        </button>
+                                        <button 
+                                            onClick={() => setActiveTab('equipments')} 
+                                            className={`flex items-center gap-2 pb-4 px-2 border-b-2 transition ${activeTab === 'equipments' ? 'border-amber-500 text-amber-500 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700 font-medium'}`}
+                                        >
+                                            <Package size={16} /> ข้อมูลอุปกรณ์ <span className="bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full text-[10px]">{equipmentBreakdownData.length}</span>
+                                        </button>
+                                    </div>
+                                    
+                                    <div className="pb-4 sm:pb-3 mt-4 sm:mt-0 relative">
+                                        <button 
+                                            onClick={() => setShowExportDropdown(!showExportDropdown)} 
+                                            className="flex items-center gap-2 border border-slate-200 text-slate-600 hover:bg-slate-50 px-4 py-2 rounded-xl text-[13px] font-bold transition"
+                                        >
+                                            <Download size={14} /> ดาวน์โหลด <ChevronDown size={14} className={`transition ${showExportDropdown ? 'rotate-180' : ''}`} />
+                                        </button>
+                                        
+                                        {showExportDropdown && (
+                                            <div className="absolute right-0 top-[110%] w-40 bg-white border border-slate-100 shadow-lg rounded-xl overflow-hidden z-50 py-1">
+                                                <button onClick={() => { exportToExcel(); setShowExportDropdown(false); }} className="w-full text-left px-4 py-2 text-[13px] font-semibold text-slate-700 hover:bg-green-50 hover:text-green-700 flex items-center gap-2">
+                                                    <div className="w-2 h-2 rounded-full bg-green-500"></div> Excel (.xlsx)
+                                                </button>
+                                                <button onClick={() => { exportToPDF(); setShowExportDropdown(false); }} className="w-full text-left px-4 py-2 text-[13px] font-semibold text-slate-700 hover:bg-red-50 hover:text-red-700 flex items-center gap-2">
+                                                    <div className="w-2 h-2 rounded-full bg-red-500"></div> PDF (.pdf)
+                                                </button>
+                                                <button onClick={() => { exportToImage(); setShowExportDropdown(false); }} className="w-full text-left px-4 py-2 text-[13px] font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2">
+                                                    <div className="w-2 h-2 rounded-full bg-blue-500"></div> Image (.png)
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Content Area */}
+                                <div id="report-capture-area" className="p-6">
+                                    {(isReportLoading || isEquipBreakdownLoading || isStudentBreakdownLoading) ? (
+                                        <div className="py-20 text-center text-slate-400">กำลังโหลดข้อมูลรายงาน...</div>
+                                    ) : (!reportData || reportData.length === 0) ? (
+                                        <div className="py-20 text-center text-slate-400">ไม่มีข้อมูล หรือยังไม่ได้กดสร้างรายงาน</div>
+                                    ) : (
+                                        <>
+                                            {/* TAB 1: OVERVIEW */}
+                                            {activeTab === 'overview' && (
+                                                <div className="space-y-6">
+                                                    {/* KPI Cards */}
+                                                    {displayFormat === 'dashboard' && (
+                                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                                            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 flex flex-col justify-center border-l-4 border-l-purple-600">
+                                                                <p className="text-[12px] text-slate-500 font-bold mb-1">ยอดการยืมทั้งหมด</p>
+                                                                <p className="text-3xl font-extrabold text-slate-800">{getReportSummary()?.totalBorrows || 0}</p>
+                                                            </div>
+                                                            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 flex flex-col justify-center border-l-4 border-l-green-500">
+                                                                <p className="text-[12px] text-slate-500 font-bold mb-1">คืนแล้ว</p>
+                                                                <p className="text-3xl font-extrabold text-slate-800">{getReportSummary()?.totalReturned || 0}</p>
+                                                            </div>
+                                                            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 flex flex-col justify-center border-l-4 border-l-red-500">
+                                                                <p className="text-[12px] text-slate-500 font-bold mb-1">เลยกำหนด</p>
+                                                                <p className="text-3xl font-extrabold text-slate-800">{getReportSummary()?.totalOverdue || 0}</p>
+                                                            </div>
+                                                            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 flex flex-col justify-center border-l-4 border-l-blue-500">
+                                                                <p className="text-[12px] text-slate-500 font-bold mb-1">ประเภทอุปกรณ์ที่ถูกยืม</p>
+                                                                <p className="text-3xl font-extrabold text-slate-800">
+                                                                    {equipmentBreakdownData && equipmentBreakdownData.length > 0
+                                                                        ? new Set(equipmentBreakdownData.map(e => e.category)).size
+                                                                        : 0}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Chart */}
+                                                    {(displayFormat === 'dashboard' || displayFormat === 'chart') && reportType !== 'equipment_stats' && (
+                                                        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)]">
+                                                            <h2 className="text-[14px] font-bold text-slate-700 mb-6">📉 ปริมาณการยืม-คืน</h2>
+                                                            <div className="h-[300px]">
+                                                                <ResponsiveContainer width="100%" height="100%">
+                                                                    <BarChart data={reportData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                                                        <XAxis dataKey={reportType === 'monthly' ? 'report_date' : 'report_month'} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                                                                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                                                                        <RechartsTooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }} />
+                                                                        <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                                                                        <Bar dataKey="total_borrows" name="ยอดการยืม" fill="#3D2B56" radius={[4, 4, 0, 0]} />
+                                                                        <Bar dataKey="total_returned" name="คืนแล้ว" fill="#16a34a" radius={[4, 4, 0, 0]} />
+                                                                    </BarChart>
+                                                                </ResponsiveContainer>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    
+                                                    {/* Report Table */}
+                                                    {(displayFormat === 'dashboard' || displayFormat === 'table') && (
+                                                        <div className="overflow-x-auto max-h-[400px] overflow-y-auto custom-scrollbar border border-slate-100 rounded-2xl">
+                                                            <table className="w-full text-left border-collapse relative">
+                                                                <thead className="sticky top-0 bg-slate-50/90 backdrop-blur z-10">
+                                                                    <tr className="text-[12.5px] uppercase text-slate-500 border-b border-slate-200">
+                                                                        {reportData[0] && Object.keys(reportData[0]).map(k => (
+                                                                            <th key={k} className="py-3 px-4 font-bold whitespace-nowrap">{k === 'report_date' ? 'วันที่' : k === 'total_borrows' ? 'ยืมทั้งหมด' : k === 'total_returned' ? 'คืนแล้ว' : k === 'total_overdue' ? 'เลยกำหนด' : k}</th>
+                                                                        ))}
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {reportData.map((row, i) => (
+                                                                        <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/50 transition">
+                                                                            {row && Object.values(row).map((val, idx) => (
+                                                                                <td key={idx} className={`py-3 px-4 text-[13px] ${idx > 0 ? 'font-semibold text-slate-700' : 'text-slate-500'}`}>
+                                                                                    {val}
+                                                                                </td>
+                                                                            ))}
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* TAB 2: STUDENTS */}
+                                            {activeTab === 'students' && (
+                                                <div className="overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar border border-slate-100 rounded-2xl">
+                                                    <table className="w-full text-left border-collapse relative">
+                                                        <thead className="sticky top-0 bg-blue-50/90 backdrop-blur z-10">
+                                                            <tr className="text-[12px] uppercase text-blue-700 border-b border-blue-100">
+                                                                <th className="py-3 px-4 font-bold w-16">#</th>
+                                                                <th className="py-3 px-4 font-bold">รหัสนักศึกษา</th>
+                                                                <th className="py-3 px-4 font-bold">ชื่อ-นามสกุล</th>
+                                                                <th className="py-3 px-4 font-bold text-center">ยืมทั้งหมด</th>
+                                                                <th className="py-3 px-4 font-bold text-center">คืนแล้ว</th>
+                                                                <th className="py-3 px-4 font-bold text-center">เลยกำหนด</th>
+                                                                <th className="py-3 px-4 font-bold text-center">กำลังยืม</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {studentBreakdownData.map((s, i) => (
+                                                                <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/80 transition">
+                                                                    <td className="py-3 px-4 text-[13px] text-slate-400 font-medium">{i + 1}</td>
+                                                                    <td className="py-3 px-4 text-[13px] text-slate-500 font-mono">{s.student_id || '-'}</td>
+                                                                    <td className="py-3 px-4 text-[13px] text-slate-700 font-bold">{s.student_name || 'ไม่ระบุ'}</td>
+                                                                    <td className="py-3 px-4 text-center text-[13px] font-bold text-slate-700">{s.total_borrows}</td>
+                                                                    <td className="py-3 px-4 text-center text-[13px] font-bold text-green-600">{s.total_returned}</td>
+                                                                    <td className="py-3 px-4 text-center text-[13px] font-bold text-red-500">{s.total_overdue}</td>
+                                                                    <td className="py-3 px-4 text-center text-[13px] font-bold text-amber-500">{s.currently_borrowed}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
+
+                                            {/* TAB 3: EQUIPMENTS */}
+                                            {activeTab === 'equipments' && (
+                                                <div className="overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar border border-slate-100 rounded-2xl">
+                                                    <table className="w-full text-left border-collapse relative">
+                                                        <thead className="sticky top-0 bg-amber-50/90 backdrop-blur z-10">
+                                                            <tr className="text-[12px] uppercase text-amber-700 border-b border-amber-100">
+                                                                <th className="py-3 px-4 font-bold w-16">#</th>
+                                                                <th className="py-3 px-4 font-bold">ชื่ออุปกรณ์</th>
+                                                                <th className="py-3 px-4 font-bold">รหัส</th>
+                                                                <th className="py-3 px-4 font-bold">หมวดหมู่</th>
+                                                                <th className="py-3 px-4 font-bold text-center">ยืมทั้งหมด</th>
+                                                                <th className="py-3 px-4 font-bold text-center">คืนแล้ว</th>
+                                                                <th className="py-3 px-4 font-bold text-center">เลยกำหนด</th>
+                                                                <th className="py-3 px-4 font-bold text-center">กำลังยืม</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {equipmentBreakdownData.map((eq, i) => (
+                                                                <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/80 transition">
+                                                                    <td className="py-3 px-4 text-[13px] text-slate-400 font-medium">{i + 1}</td>
+                                                                    <td className="py-3 px-4 text-[13px] text-slate-700 font-bold">{eq.equipment_name}</td>
+                                                                    <td className="py-3 px-4 text-[12px] text-slate-500 font-mono">{eq.kit_code}</td>
+                                                                    <td className="py-3 px-4">
+                                                                        <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[11px] font-bold">{eq.category}</span>
+                                                                    </td>
+                                                                    <td className="py-3 px-4 text-center text-[13px] font-bold text-slate-700">{eq.total_borrows}</td>
+                                                                    <td className="py-3 px-4 text-center text-[13px] font-bold text-green-600">{eq.total_returned}</td>
+                                                                    <td className="py-3 px-4 text-center text-[13px] font-bold text-red-500">{eq.total_overdue}</td>
+                                                                    <td className="py-3 px-4 text-center text-[13px] font-bold text-amber-500">{eq.currently_borrowed}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
+                                        </>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </ReportErrorBoundary>
                 ) : (
                     <div className="flex items-center justify-center h-full min-h-[70vh]">
                         <div className="text-center text-slate-400">
@@ -1430,6 +2075,54 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                     </div>
                 )}
             </div>
+            {/* ================= MODALS ================= */}
+            {isScanModalOpen && (
+                <div className="fixed inset-0 bg-[#3D2B56]/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-[slideIn_0.3s_ease]">
+                        <div className="px-6 py-5 border-b border-purple-100 flex items-center justify-between bg-purple-50">
+                            <h2 className="text-[17px] font-bold text-slate-800">สแกนจ่ายคิว (Queue)</h2>
+                            <button onClick={() => setIsScanModalOpen(false)} className="w-8 h-8 rounded-full hover:bg-white flex items-center justify-center text-slate-500 hover:text-slate-800 transition">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <form onSubmit={handlePickupQueue} className="p-6">
+                            <div className="space-y-4">
+                                {isScanningQueue ? (
+                                    <div>
+                                        <label className="block text-[13px] font-bold text-slate-700 mb-2">สแกนรหัสคิว (QR Code)</label>
+                                        <div className="flex gap-2">
+                                            <input autoFocus type="text" value={scanQueueId} onChange={e => {
+                                                setScanQueueId(e.target.value);
+                                                if (e.target.value.trim().length > 6) setTimeout(() => setIsScanningQueue(false), 200);
+                                            }} placeholder="เช่น QUEUE-123" className="flex-1 bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400" />
+                                            <label className="bg-purple-100 text-purple-700 rounded-xl px-4 flex items-center justify-center cursor-pointer hover:bg-purple-200 transition" title="อัพโหลดรูป QR Code">
+                                                <Upload size={20} />
+                                                <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, 'queue')} />
+                                            </label>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <label className="block text-[13px] font-bold text-slate-700 mb-2">คิว: {scanQueueId}</label>
+                                        <label className="block text-[13px] font-bold text-slate-700 mb-2">สแกนรหัสอุปกรณ์ (Equipment QR/Barcode)</label>
+                                        <div className="flex gap-2">
+                                            <input autoFocus type="text" value={scanBarcode} onChange={e => setScanBarcode(e.target.value)} placeholder="เช่น EQC-XXX-001" className="flex-1 bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400" />
+                                            <label className="bg-purple-100 text-purple-700 rounded-xl px-4 flex items-center justify-center cursor-pointer hover:bg-purple-200 transition" title="อัพโหลดรูป QR Code">
+                                                <Upload size={20} />
+                                                <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, 'barcode')} />
+                                            </label>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="flex gap-3 mt-6">
+                                <button type="button" onClick={() => { setIsScanModalOpen(false); setIsScanningQueue(true); setScanQueueId(""); setScanBarcode(""); }} className="flex-1 px-4 py-2.5 rounded-xl text-[13.5px] font-bold border border-slate-200 text-slate-600 hover:bg-slate-50 transition">ยกเลิก</button>
+                                <button type="submit" disabled={!scanQueueId || !scanBarcode} className="flex-1 px-4 py-2.5 rounded-xl text-[13.5px] font-bold bg-[#3D2B56] text-white hover:bg-[#2A1D3C] transition disabled:opacity-50">ยืนยัน</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -1,7 +1,7 @@
 import {
     Home, Search, ClipboardList, Bell, LogOut, User, Package, ShoppingCart,
     ChevronRight, ChevronDown, ChevronUp, Clock, AlertCircle, Info, X, Trash2, CheckCircle, BookOpen,
-    Calendar, ChevronLeft, Megaphone, Settings, AlertTriangle, Save, Key, ShieldCheck, FileText, Lock, Timer, Users
+    Calendar, ChevronLeft, Megaphone, Settings, AlertTriangle, Save, Key, ShieldCheck, FileText, Lock, Timer, Users, Zap, QrCode
 } from "lucide-react";
 import QRCode from "react-qr-code";
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -499,8 +499,7 @@ export default function UserApp({ studentId, onLogout }) {
     // Cart states
     const [cartItems, setCartItems] = useState([]);
     const [transactionId, setTransactionId] = useState("");
-    const [pickupDate, setPickupDate] = useState(new Date().toISOString().split('T')[0]);
-    const [pickupTime, setPickupTime] = useState(`${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`);
+    // Pickup Schedule Picker removed
 
     // Queue states (replaces old cart states)
     const [myQueueItems, setMyQueueItems] = useState([]);
@@ -510,6 +509,7 @@ export default function UserApp({ studentId, onLogout }) {
     
     // Receipt Modal State
     const [selectedReceipt, setSelectedReceipt] = useState(null);
+    const [selectedQueueQR, setSelectedQueueQR] = useState(null);
     // PIN Modal State
     const [pinCode, setPinCode] = useState(localStorage.getItem('user_pin') || '');
     const [isPinVisible, setIsPinVisible] = useState(false);
@@ -542,6 +542,10 @@ export default function UserApp({ studentId, onLogout }) {
 
     // Report Lost modal state
     const [isLostModalOpen, setIsLostModalOpen] = useState(false);
+
+    // Quick borrow modal state
+    const [isQuickBorrowConfirmOpen, setIsQuickBorrowConfirmOpen] = useState(false);
+    const [quickBorrowTarget, setQuickBorrowTarget] = useState(null);
     const [lostItemTarget, setLostItemTarget] = useState(null);
     const [lostDate, setLostDate] = useState(new Date().toISOString().split('T')[0]);
     const [lostNote, setLostNote] = useState("");
@@ -576,6 +580,7 @@ export default function UserApp({ studentId, onLogout }) {
                             phone_number: data.phone_number || data.phone || "",
                             department: data.department || ""
                         }));
+                        setNotifyDue(data.notify_email !== 0);
                     }
                 })
                 .catch(console.error);
@@ -797,6 +802,70 @@ export default function UserApp({ studentId, onLogout }) {
         setIsSubmittingLost(false);
     };
 
+    // Handle quick borrow
+    const executeQuickBorrow = async () => {
+        const equipment = quickBorrowTarget;
+        if (!equipment) return;
+        setIsQuickBorrowConfirmOpen(false);
+        try {
+            console.log("Quick borrow clicked:", equipment);
+            setIsLoading(true);
+            
+            const reqBody = { student_id: studentId, equipment_id: equipment.equipment_id };
+            const data = await authFetch('/checkout.php', {
+                method: 'POST',
+                body: JSON.stringify(reqBody)
+            });
+            
+            setIsLoading(false);
+            if (data.success) {
+                showToast('ยืมด่วนสำเร็จ กรุณารับใบเสร็จ', 'success');
+                
+                // Show receipt instantly using local data
+                const txId = new Date().getTime().toString();
+                setSelectedReceipt({
+                    txId: txId,
+                    borrowDate: new Date(),
+                    status: 'pending',
+                    items: [equipment]
+                });
+                
+                // Update lists in background
+                fetchBorrowed();
+                fetchMyQueue();
+            } else {
+                showToast(data.message || 'ผิดพลาด', 'error');
+            }
+        } catch (e) {
+            console.error("Quick borrow error:", e);
+            setIsLoading(false);
+            showToast('ไม่สามารถดำเนินการได้', 'error');
+        }
+    };
+
+    const handleToggleNotifyEmail = async () => {
+        const newValue = !notifyDue;
+        setNotifyDue(newValue); // Optimistic update
+        try {
+            const res = await authFetch('/update_student_profile.php', {
+                method: 'POST',
+                body: JSON.stringify({
+                    student_id: studentId,
+                    notify_email: newValue ? 1 : 0
+                })
+            });
+            if (!res.success) {
+                setNotifyDue(!newValue); // Revert on fail
+                showToast(res.message || 'ไม่สามารถบันทึกการตั้งค่าได้', 'error');
+            } else {
+                showToast('บันทึกการตั้งค่าการแจ้งเตือนแล้ว', 'success');
+            }
+        } catch (e) {
+            setNotifyDue(!newValue);
+            showToast('เชื่อมต่อเซิร์ฟเวอร์ล้มเหลว', 'error');
+        }
+    };
+
     // Handle save settings
     const handleSaveSettings = async (e) => {
         e.preventDefault();
@@ -872,16 +941,13 @@ export default function UserApp({ studentId, onLogout }) {
         if (cartItems.length === 0) return;
         setIsLoading(true);
         let successItems = [];
-        const selectedPickupDateTime = `${pickupDate}T${pickupTime}:00`;
-
         for (const item of cartItems) {
             try {
                 const result = await authFetch('/checkout.php', {
                     method: 'POST',
                     body: JSON.stringify({
                         student_id: studentId,
-                        equipment_id: item.equipment_id,
-                        pickup_time: selectedPickupDateTime
+                        equipment_id: item.equipment_id
                     })
                 });
                 if (result.success) {
@@ -906,7 +972,6 @@ export default function UserApp({ studentId, onLogout }) {
             setTransactionDetails({
                 transactionId: txId,
                 borrowTime: borrowTime,
-                pickupTime: `${pickupDate} ${pickupTime}`,
                 items: successItems
             });
 
@@ -1026,6 +1091,10 @@ export default function UserApp({ studentId, onLogout }) {
     // Derived data
     const activeItems = borrowedItems.filter(i => i.status === 'borrowed' || i.status === 'pending');
     const returnedCount = borrowedItems.filter(i => i.status === 'returned').length;
+
+    const activeEquipmentIds = activeItems.map(i => i.equipment_id);
+    const previouslyBorrowedIds = [...new Set(borrowedItems.filter(i => !activeEquipmentIds.includes(i.equipment_id)).map(i => i.equipment_id))];
+    const previouslyBorrowedEquipments = equipments.filter(eq => previouslyBorrowedIds.includes(eq.equipment_id)).slice(0, 5);
 
     // Status filtered items
     const filteredStatusItems = borrowedItems.filter(item => {
@@ -1288,6 +1357,35 @@ export default function UserApp({ studentId, onLogout }) {
                                     ))}
                                 </div>
                             </div>
+                            {/* Quick Borrow / Previously Borrowed */}
+                            {previouslyBorrowedEquipments.length > 0 && (
+                                <div>
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h3 className="text-[16px] font-bold text-slate-800">ยืมด่วน (อุปกรณ์ที่เคยยืม)</h3>
+                                    </div>
+                                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                                        {previouslyBorrowedEquipments.map(item => (
+                                            <div key={item.equipment_id} className="relative bg-white border border-purple-100 rounded-2xl p-4 text-center hover:shadow-md hover:border-purple-200 transition group flex flex-col justify-between h-full">
+                                                <button onClick={() => openDetail(item.equipment_id)} className="w-full">
+                                                    <div className="w-16 h-12 mx-auto bg-purple-50 rounded-xl flex items-center justify-center mb-3 overflow-hidden">
+                                                        {item.equipment_img ? (
+                                                            <img src={`${IMG_BASE}${item.equipment_img}`} alt="" className="w-10 h-10 object-contain" />
+                                                        ) : (
+                                                            <Package size={24} className="text-purple-400" />
+                                                        )}
+                                                    </div>
+                                                    <p className="text-[13px] font-bold text-slate-700 line-clamp-2 h-[40px]">{item.name}</p>
+                                                    <p className="text-[12px] font-bold text-green-600 mt-2 mb-3">เหลือ {item.available_quantity ?? item.total_quantity} ชิ้น</p>
+                                                </button>
+                                                <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setQuickBorrowTarget(item); setIsQuickBorrowConfirmOpen(true); }} 
+                                                    className="w-full bg-gradient-to-r from-purple-600 to-[#3D2B56] text-white text-[12.5px] font-bold py-2 rounded-xl shadow-sm hover:shadow-md transition active:scale-95 flex items-center justify-center gap-1.5">
+                                                    <Zap size={14} className="fill-white" /> ยืมด่วน
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Currently Borrowing */}
                             <div>
@@ -1428,43 +1526,6 @@ export default function UserApp({ studentId, onLogout }) {
                                         </div>
                                     </div>
 
-                                    {/* Pickup Schedule Picker */}
-                                    <div className="bg-white border border-purple-100 rounded-3xl p-5 shadow-sm space-y-3">
-                                        <div className="flex items-center gap-2 text-[#3D2B56] font-bold text-[14.5px] pb-2 border-b border-slate-100">
-                                            <Clock size={18} className="text-purple-600" />
-                                            <span>เลือกวัน-เวลานัดรับอุปกรณ์ (จองล่วงหน้าได้ไม่เกิน 1 วัน)</span>
-                                        </div>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                                            <div>
-                                                <label className="block text-[12px] font-semibold text-slate-600 mb-1">วันที่นัดรับ</label>
-                                                <input
-                                                    type="date"
-                                                    min={new Date().toISOString().split('T')[0]}
-                                                    max={new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
-                                                    value={pickupDate}
-                                                    onChange={e => setPickupDate(e.target.value)}
-                                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-[13.5px] outline-none focus:border-purple-500 font-sans"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-[12px] font-semibold text-slate-600 mb-1">เวลานัดรับ</label>
-                                                <input
-                                                    type="time"
-                                                    value={pickupTime}
-                                                    onChange={e => setPickupTime(e.target.value)}
-                                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-[13.5px] outline-none focus:border-purple-500 font-sans"
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-[12px] text-amber-800 leading-relaxed">
-                                            ⚠️ <strong>เงื่อนไขการจองและการรับอุปกรณ์:</strong>
-                                            <br />
-                                            • สามารถจองล่วงหน้าได้ <strong>สูงสุด 1 วัน</strong> (วันนี้ หรือ วันพรุ่งนี้)
-                                            <br />
-                                            • เมื่อถึงเวลานัดรับ ต้องมารับอุปกรณ์ <strong>ภายใน 30 นาที</strong> หากเกินกำหนดระบบจะทำการตัดสิทธิ์และนำอุปกรณ์กลับเข้าคลังโดยอัตโนมัติ
-                                        </div>
-                                    </div>
-
                                     {/* Info */}
                                     <div className="flex gap-3 items-start p-4 bg-purple-50 rounded-2xl border border-purple-100">
                                         <Info size={18} className="text-purple-600 shrink-0 mt-0.5" />
@@ -1549,10 +1610,20 @@ export default function UserApp({ studentId, onLogout }) {
                                                             </span>
                                                         </div>
                                                     </div>
-                                                    <button onClick={() => handleCancelQueue(q.id)} 
-                                                        className="w-8 h-8 rounded-lg border border-red-200 text-red-500 flex items-center justify-center hover:bg-red-50 transition" title="ยกเลิกคิว">
-                                                        <X size={15} />
-                                                    </button>
+                                                    <div className="flex flex-col gap-2 shrink-0">
+                                                        <button 
+                                                            onClick={() => setSelectedQueueQR(q)}
+                                                            className="px-3 py-1.5 bg-[#3D2B56] text-white text-[12px] font-bold rounded-lg shadow-sm hover:bg-[#2A1D3C] transition flex items-center gap-1.5"
+                                                        >
+                                                            <QrCode size={14} />
+                                                            เปิด QR Code
+                                                        </button>
+                                                        <button onClick={() => handleCancelQueue(q.id)} 
+                                                            className="px-3 py-1.5 border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 text-[12px] font-bold rounded-lg shadow-sm transition flex justify-center items-center gap-1.5">
+                                                            <X size={14} />
+                                                            ยกเลิกคิว
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
@@ -1803,10 +1874,10 @@ export default function UserApp({ studentId, onLogout }) {
                                             <Bell size={18} className="text-[#3D2B56]" />
                                         </div>
                                         <div className="flex-1">
-                                            <div className="text-[14px] font-bold text-slate-800">แจ้งเตือนก่อนครบกำหนดคืน</div>
-                                            <div className="text-[12px] text-slate-500 mt-0.5">แจ้งเตือนเป็นระยะช่วงๆ</div>
+                                            <div className="text-[14px] font-bold text-slate-800">การแจ้งเตือนผ่าน Email</div>
+                                            <div className="text-[12px] text-slate-500 mt-0.5">เปิดรับข่าวสารและการแจ้งเตือนกำหนดคืนทางอีเมล</div>
                                         </div>
-                                        <div onClick={() => setNotifyDue(!notifyDue)} className={`w-12 h-6 ${notifyDue ? 'bg-[#2196F3]' : 'bg-slate-200'} rounded-full flex items-center px-1 shrink-0 cursor-pointer transition-colors duration-200`}>
+                                        <div onClick={handleToggleNotifyEmail} className={`w-12 h-6 ${notifyDue ? 'bg-[#2196F3]' : 'bg-slate-200'} rounded-full flex items-center px-1 shrink-0 cursor-pointer transition-colors duration-200`}>
                                             <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ${notifyDue ? 'translate-x-6' : ''}`}></div>
                                         </div>
                                     </div>
@@ -1873,12 +1944,7 @@ export default function UserApp({ studentId, onLogout }) {
                                 <span className="text-sm text-slate-500">วันเวลาที่ยืม</span>
                                 <span className="text-sm font-bold text-slate-800">{transactionDetails.borrowTime}</span>
                             </div>
-                            {transactionDetails.pickupTime && (
-                                <div className="flex justify-between items-center pb-3 border-b border-purple-100/50">
-                                    <span className="text-sm text-slate-500">กำหนดรับอุปกรณ์</span>
-                                    <span className="text-sm font-bold text-slate-800">{transactionDetails.pickupTime}</span>
-                                </div>
-                            )}
+
                             {transactionDetails.items && (
                                 <div className="flex justify-between items-center">
                                     <span className="text-sm text-slate-500">จำนวนรายการ</span>
@@ -2216,7 +2282,12 @@ export default function UserApp({ studentId, onLogout }) {
                                     <QRCode value={selectedReceipt.txId} size={120} />
                                 </div>
                             </div>
-                            <p className="text-center text-[12px] text-slate-400 mt-4">แสดง QR Code นี้ให้บรรณารักษ์เมื่อมาคืนอุปกรณ์</p>
+                            {selectedReceipt.status === 'pending' && (
+                                <p className="text-center text-[13px] font-bold text-orange-600 mt-4 bg-orange-50 py-1.5 rounded-lg border border-orange-100">
+                                    ⏳ กรุณามารับอุปกรณ์ภายใน 15 นาที
+                                </p>
+                            )}
+                            <p className="text-center text-[12px] text-slate-400 mt-3">แสดง QR Code นี้ให้เจ้าหน้าที่เมื่อมารับ/คืนอุปกรณ์</p>
                         </div>
                     </div>
                 </div>
@@ -2313,16 +2384,71 @@ export default function UserApp({ studentId, onLogout }) {
                                             </button>
                                         );
                                     } else {
+                                        const currentQueueCount = detailItem.queue_count || 0;
+                                        const MAX_QUEUE = 10;
+                                        
                                         return (
-                                            <button onClick={() => handleJoinQueue(detailItem)} disabled={isLoading}
-                                                className={`w-full py-4 rounded-2xl text-white font-bold text-[15px] bg-amber-500 shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition ${isLoading ? 'opacity-70' : 'active:scale-[.99]'}`}>
-                                                {isLoading ? "กำลังดำเนินการ..." : "จองคิวอุปกรณ์"}
-                                            </button>
+                                            <div className="space-y-4">
+                                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                                    <div className="flex justify-between items-end mb-2">
+                                                        <span className="text-[13px] font-bold text-slate-700">สถานะคิวปัจจุบัน</span>
+                                                        <span className="text-[12px] text-slate-500">{currentQueueCount} / {MAX_QUEUE} คิว</span>
+                                                    </div>
+                                                    <div className="flex gap-1.5">
+                                                        {Array.from({ length: MAX_QUEUE }).map((_, i) => (
+                                                            <div 
+                                                                key={i} 
+                                                                className={`h-2 flex-1 rounded-full ${i < currentQueueCount ? 'bg-amber-400' : 'bg-slate-200'}`}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                    {currentQueueCount >= MAX_QUEUE && (
+                                                        <p className="text-[12px] text-red-500 font-semibold mt-3 text-center">คิวเต็มแล้ว ไม่สามารถจองเพิ่มได้</p>
+                                                    )}
+                                                </div>
+
+                                                {currentQueueCount < MAX_QUEUE && (
+                                                    <button onClick={() => handleJoinQueue(detailItem)} disabled={isLoading}
+                                                        className={`w-full py-4 rounded-2xl text-white font-bold text-[15px] bg-amber-500 shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition ${isLoading ? 'opacity-70' : 'active:scale-[.99]'}`}>
+                                                        {isLoading ? "กำลังดำเนินการ..." : `จองคิวอุปกรณ์ (คิวที่ ${currentQueueCount + 1})`}
+                                                    </button>
+                                                )}
+                                            </div>
                                         );
                                     }
                                 })()}
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* ================= QUICK BORROW CONFIRM MODAL ================= */}
+            {isQuickBorrowConfirmOpen && quickBorrowTarget && (
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden p-6 text-center">
+                        <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Zap size={32} className="text-purple-600" />
+                        </div>
+                        <h3 className="text-xl font-bold text-slate-800 mb-2">ยืนยันการยืมด่วน</h3>
+                        <p className="text-slate-500 text-[14px] mb-6">
+                            คุณต้องการยืมด่วนอุปกรณ์ <span className="font-bold text-[#3D2B56]">"{quickBorrowTarget.name}"</span> ใช่หรือไม่?
+                        </p>
+                        
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={() => { setIsQuickBorrowConfirmOpen(false); setQuickBorrowTarget(null); }}
+                                className="flex-1 py-3 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition"
+                            >
+                                ยกเลิก
+                            </button>
+                            <button 
+                                onClick={executeQuickBorrow} disabled={isLoading}
+                                className={`flex-1 py-3 rounded-xl font-bold text-white bg-gradient-to-r from-purple-600 to-[#3D2B56] shadow-lg shadow-purple-500/20 hover:shadow-xl transition ${isLoading ? 'opacity-70' : 'active:scale-95'}`}
+                            >
+                                {isLoading ? "รอสักครู่..." : "ยืนยัน"}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -2395,6 +2521,25 @@ export default function UserApp({ studentId, onLogout }) {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ================= QUEUE QR MODAL ================= */}
+            {selectedQueueQR && (
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden p-8 text-center relative">
+                        <button onClick={() => setSelectedQueueQR(null)} className="absolute top-4 right-4 p-2 hover:bg-slate-100 rounded-full transition text-slate-500">
+                            <X size={20} />
+                        </button>
+                        <h3 className="text-[18px] font-bold text-[#3D2B56] mb-1">QR Code คิวของคุณ</h3>
+                        <p className="text-[13px] text-slate-500 mb-6">กรุณาแสดง QR Code นี้แก่เจ้าหน้าที่ห้องสมุด</p>
+                        
+                        <div className="bg-white p-4 rounded-2xl inline-block shadow-sm border border-slate-100 mb-4">
+                            <QRCode value={`QUEUE-${selectedQueueQR.id}`} size={160} />
+                        </div>
+                        <p className="text-[13px] text-slate-600 font-bold mb-1">{selectedQueueQR.equipment_name || `อุปกรณ์ #${selectedQueueQR.equipment_id}`}</p>
+                        <p className="text-[12px] text-slate-400 font-mono">คิวหมายเลข #{selectedQueueQR.position}</p>
                     </div>
                 </div>
             )}

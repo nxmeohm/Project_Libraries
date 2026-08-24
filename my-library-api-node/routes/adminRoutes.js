@@ -734,24 +734,78 @@ router.post('/queue/:id/skip', async (req, res) => {
 });
 
 // ============================================================
-// 14. Queue Management — Mark queue as completed (student picked up)
+// 14. Queue Pickup — Process QR scan and assign physical item
 // ============================================================
-router.post('/queue/:id/complete', async (req, res) => {
-    const { id } = req.params;
+router.post('/pickup_queue.php', async (req, res) => {
+    const { queue_id, barcode } = req.body;
+    
+    if (!queue_id || !barcode) {
+        return res.status(400).json({ success: false, message: "กรุณาระบุรหัสคิวและบาร์โค้ดอุปกรณ์" });
+    }
+
+    const connection = await pool.getConnection();
     try {
-        const [queueItem] = await pool.query(
-            "SELECT * FROM equipment_queue WHERE id = ? AND status = 'called'",
-            [parseInt(id)]
+        await connection.beginTransaction();
+
+        // 1. Verify Queue
+        const [queueItem] = await connection.query(
+            "SELECT * FROM equipment_queue WHERE id = ? AND status = 'called' FOR UPDATE",
+            [parseInt(queue_id)]
         );
         if (queueItem.length === 0) {
-            return res.status(404).json({ success: false, message: "ไม่พบรายการคิวที่ถูกเรียกนี้" });
+            await connection.rollback();
+            connection.release();
+            return res.status(404).json({ success: false, message: "ไม่พบรายการคิว หรือคิวนี้ยังไม่ถูกเรียก/หมดอายุไปแล้ว" });
+        }
+        
+        const q = queueItem[0];
+
+        // 2. Verify Physical Equipment Item
+        const [physicalItem] = await connection.query(
+            "SELECT * FROM equipment_items WHERE barcode = ? AND status = 'available' FOR UPDATE",
+            [barcode]
+        );
+        if (physicalItem.length === 0) {
+            await connection.rollback();
+            connection.release();
+            return res.status(404).json({ success: false, message: "ไม่พบอุปกรณ์บาร์โค้ดนี้ หรืออุปกรณ์ไม่พร้อมใช้งาน" });
+        }
+        
+        const pItem = physicalItem[0];
+
+        // Verify that the physical item matches the equipment model in the queue
+        if (pItem.equipment_id !== q.equipment_id) {
+            await connection.rollback();
+            connection.release();
+            return res.status(400).json({ success: false, message: "บาร์โค้ดที่สแกนไม่ตรงกับรุ่นอุปกรณ์ที่จองไว้ในคิว" });
         }
 
-        await pool.query("UPDATE equipment_queue SET status = 'completed' WHERE id = ?", [parseInt(id)]);
+        // 3. Mark physical item as borrowed
+        await connection.query(
+            "UPDATE equipment_items SET status = 'borrowed' WHERE item_id = ?",
+            [pItem.item_id]
+        );
+
+        // 4. Create Borrowed record
+        await connection.query(
+            "INSERT INTO borrowed (student_id, equipment_id, borrow_date, status) VALUES (?, ?, NOW(), 'borrowed')",
+            [q.student_id, pItem.item_id]
+        );
+
+        // 5. Complete Queue
+        await connection.query(
+            "UPDATE equipment_queue SET status = 'completed' WHERE id = ?",
+            [q.id]
+        );
+
+        await connection.commit();
+        connection.release();
 
         req.app.get('io').emit('data_updated');
         res.json({ success: true, message: "บันทึกการรับอุปกรณ์สำเร็จ" });
     } catch (error) {
+        await connection.rollback();
+        connection.release();
         console.error(error);
         res.status(500).json({ success: false, message: "Database Error" });
     }
@@ -784,6 +838,188 @@ router.put('/equipment-items/:itemId/status', async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ success: false, message: "Database Error" });
+    }
+});
+
+// ============================================================
+// Reports Generation
+// ============================================================
+router.get('/reports', async (req, res) => {
+    try {
+        const { type, year, month } = req.query;
+        let sql = "";
+        let params = [];
+        let rows = [];
+
+        if (type === 'monthly') {
+            const currentYear = year || new Date().getFullYear();
+            const currentMonth = month || (new Date().getMonth() + 1);
+            sql = `
+                SELECT 
+                    DATE(borrow_date) as report_date,
+                    COUNT(id) as total_borrows,
+                    SUM(CASE WHEN status = 'returned' THEN 1 ELSE 0 END) as total_returned,
+                    SUM(CASE WHEN status = 'overdue' THEN 1 ELSE 0 END) as total_overdue
+                FROM borrowed
+                WHERE YEAR(borrow_date) = ? AND MONTH(borrow_date) = ?
+                GROUP BY DATE(borrow_date)
+                ORDER BY report_date ASC
+            `;
+            params = [currentYear, currentMonth];
+            const [resRows] = await pool.query(sql, params);
+            rows = resRows;
+        } 
+        else if (type === 'yearly') {
+            const currentYear = year || new Date().getFullYear();
+            sql = `
+                SELECT 
+                    MONTH(borrow_date) as report_month,
+                    COUNT(id) as total_borrows,
+                    SUM(CASE WHEN status = 'returned' THEN 1 ELSE 0 END) as total_returned
+                FROM borrowed
+                WHERE YEAR(borrow_date) = ?
+                GROUP BY MONTH(borrow_date)
+                ORDER BY report_month ASC
+            `;
+            params = [currentYear];
+            const [resRows] = await pool.query(sql, params);
+            rows = resRows;
+        }
+        else if (type === 'fiscal_year') {
+            // Fiscal Year in Thailand: Oct 1 of (Year-1) to Sep 30 of (Year)
+            // e.g. FY2026 = Oct 1, 2025 to Sep 30, 2026
+            const fyYear = parseInt(year) || new Date().getFullYear();
+            const startStr = `${fyYear - 1}-10-01 00:00:00`;
+            const endStr = `${fyYear}-09-30 23:59:59`;
+            
+            sql = `
+                SELECT 
+                    MONTH(borrow_date) as report_month,
+                    YEAR(borrow_date) as report_year,
+                    COUNT(id) as total_borrows
+                FROM borrowed
+                WHERE borrow_date >= ? AND borrow_date <= ?
+                GROUP BY YEAR(borrow_date), MONTH(borrow_date)
+                ORDER BY report_year ASC, report_month ASC
+            `;
+            params = [startStr, endStr];
+            const [resRows] = await pool.query(sql, params);
+            rows = resRows;
+        }
+        else if (type === 'equipment_stats') {
+            const sort = req.query.sort === 'asc' ? 'ASC' : 'DESC';
+            sql = `
+                SELECT 
+                    e.name,
+                    COUNT(b.id) as total_borrows
+                FROM borrowed b
+                JOIN equipments e ON b.equipment_id = e.equipment_id
+                GROUP BY b.equipment_id
+                ORDER BY total_borrows ${sort}
+                LIMIT 20
+            `;
+            const [resRows] = await pool.query(sql);
+            rows = resRows;
+        }
+
+        res.json({ success: true, data: rows });
+    } catch (error) {
+        console.error("Report generation error:", error);
+        res.status(500).json({ success: false, message: "Error generating report" });
+    }
+});
+
+// ============================================================
+// Equipment Breakdown Report
+// ============================================================
+router.get('/reports/equipment-breakdown', async (req, res) => {
+    try {
+        const { year, month } = req.query;
+        const currentYear = year || new Date().getFullYear();
+        const currentMonth = month || (new Date().getMonth() + 1);
+
+        let whereClauses = ['1=1'];
+        let params = [];
+
+        if (year) {
+            whereClauses.push('YEAR(b.borrow_date) = ?');
+            params.push(currentYear);
+        }
+        if (month) {
+            whereClauses.push('MONTH(b.borrow_date) = ?');
+            params.push(currentMonth);
+        }
+
+        const sql = `
+            SELECT 
+                e.name as equipment_name,
+                e.kit_code,
+                e.category,
+                COUNT(b.id) as total_borrows,
+                SUM(CASE WHEN b.status = 'returned' THEN 1 ELSE 0 END) as total_returned,
+                SUM(CASE WHEN b.status = 'overdue' THEN 1 ELSE 0 END) as total_overdue,
+                SUM(CASE WHEN b.status = 'borrowed' THEN 1 ELSE 0 END) as currently_borrowed
+            FROM borrowed b
+            JOIN equipments e ON b.equipment_id = e.equipment_id
+            WHERE ${whereClauses.join(' AND ')}
+            GROUP BY b.equipment_id, e.name, e.kit_code, e.category
+            ORDER BY total_borrows DESC
+        `;
+        const [rows] = await pool.query(sql, params);
+        res.json({ success: true, data: rows });
+    } catch (error) {
+        console.error("Equipment breakdown report error:", error);
+        res.status(500).json({ success: false, message: "Error generating equipment breakdown report" });
+    }
+});
+
+// ============================================================
+// Student Breakdown Report
+// ============================================================
+router.get('/reports/student-breakdown', async (req, res) => {
+    try {
+        const { year, month, type } = req.query;
+        const currentYear = year || new Date().getFullYear();
+        const currentMonth = month || (new Date().getMonth() + 1);
+
+        let whereClauses = ['1=1'];
+        let params = [];
+
+        if (type === 'monthly') {
+            whereClauses.push('YEAR(b.borrow_date) = ?');
+            params.push(currentYear);
+            whereClauses.push('MONTH(b.borrow_date) = ?');
+            params.push(currentMonth);
+        } else if (type === 'yearly') {
+            whereClauses.push('YEAR(b.borrow_date) = ?');
+            params.push(currentYear);
+        } else if (type === 'fiscal_year') {
+            const fyYear = parseInt(currentYear) || new Date().getFullYear();
+            const startStr = `${fyYear - 1}-10-01 00:00:00`;
+            const endStr = `${fyYear}-09-30 23:59:59`;
+            whereClauses.push('b.borrow_date >= ? AND b.borrow_date <= ?');
+            params.push(startStr, endStr);
+        }
+
+        const sql = `
+            SELECT 
+                s.student_id,
+                s.name_th as student_name,
+                COUNT(b.id) as total_borrows,
+                SUM(CASE WHEN b.status = 'returned' THEN 1 ELSE 0 END) as total_returned,
+                SUM(CASE WHEN b.status = 'overdue' THEN 1 ELSE 0 END) as total_overdue,
+                SUM(CASE WHEN b.status = 'borrowed' THEN 1 ELSE 0 END) as currently_borrowed
+            FROM borrowed b
+            LEFT JOIN student_profiles s ON b.student_id = s.student_id
+            WHERE ${whereClauses.join(' AND ')}
+            GROUP BY s.student_id, s.name_th
+            ORDER BY total_borrows DESC
+        `;
+        const [rows] = await pool.query(sql, params);
+        res.json({ success: true, data: rows });
+    } catch (error) {
+        console.error("Student breakdown report error:", error);
+        res.status(500).json({ success: false, message: "Error generating student breakdown report" });
     }
 });
 
