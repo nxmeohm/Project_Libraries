@@ -941,6 +941,7 @@ export default function UserApp({ studentId, onLogout }) {
         if (cartItems.length === 0) return;
         setIsLoading(true);
         let successItems = [];
+        let firstBorrowId = null;
         for (const item of cartItems) {
             try {
                 const result = await authFetch('/checkout.php', {
@@ -951,6 +952,7 @@ export default function UserApp({ studentId, onLogout }) {
                     })
                 });
                 if (result.success) {
+                    if (!firstBorrowId && result.borrow_id) firstBorrowId = result.borrow_id;
                     successItems.push(item);
                 } else {
                     showToast(result.message || 'ไม่สามารถทำรายการได้', 'error');
@@ -958,7 +960,7 @@ export default function UserApp({ studentId, onLogout }) {
             } catch (e) { console.error(e); }
         }
         if (successItems.length > 0) {
-            const txId = 'LB' + Math.floor(100000 + Math.random() * 900000);
+            const txId = firstBorrowId ? 'LB' + String(firstBorrowId).padStart(6, '0') : 'LB' + Math.floor(100000 + Math.random() * 900000);
             
             let borrowTime;
             try {
@@ -997,7 +999,9 @@ export default function UserApp({ studentId, onLogout }) {
             if (result.success) {
                 showToast(result.message || 'ส่งคำขอยืมสำเร็จ', 'success');
                 setCheckoutSuccess(true);
+                const txId = result.borrow_id ? 'LB' + String(result.borrow_id).padStart(6, '0') : 'LB' + Math.floor(100000 + Math.random() * 900000);
                 setTransactionDetails({
+                    transactionId: txId,
                     equipmentName: equipment.name,
                     borrowTime: new Date().toLocaleString('th-TH', {
                         timeZone: 'Asia/Bangkok', day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit'
@@ -1360,26 +1364,27 @@ export default function UserApp({ studentId, onLogout }) {
                             {/* Quick Borrow / Previously Borrowed */}
                             {previouslyBorrowedEquipments.length > 0 && (
                                 <div>
-                                    <div className="flex items-center justify-between mb-4">
-                                        <h3 className="text-[16px] font-bold text-slate-800">ยืมด่วน (อุปกรณ์ที่เคยยืม)</h3>
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <Timer size={18} className="text-amber-500" />
+                                        <h3 className="text-[16px] font-bold text-slate-800">ใช้งานบ่อย (ยืมด่วน)</h3>
                                     </div>
                                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                                         {previouslyBorrowedEquipments.map(item => (
-                                            <div key={item.equipment_id} className="relative bg-white border border-purple-100 rounded-2xl p-4 text-center hover:shadow-md hover:border-purple-200 transition group flex flex-col justify-between h-full">
+                                            <div key={item.equipment_id} className="relative bg-white border border-amber-300 rounded-2xl p-4 text-center hover:shadow-md hover:border-amber-400 transition group flex flex-col justify-between h-full">
                                                 <button onClick={() => openDetail(item.equipment_id)} className="w-full">
-                                                    <div className="w-16 h-12 mx-auto bg-purple-50 rounded-xl flex items-center justify-center mb-3 overflow-hidden">
+                                                    <div className="w-16 h-12 mx-auto bg-amber-50/50 rounded-xl flex items-center justify-center mb-3 overflow-hidden">
                                                         {item.equipment_img ? (
                                                             <img src={`${IMG_BASE}${item.equipment_img}`} alt="" className="w-10 h-10 object-contain" />
                                                         ) : (
-                                                            <Package size={24} className="text-purple-400" />
+                                                            <Package size={24} className="text-amber-400" />
                                                         )}
                                                     </div>
                                                     <p className="text-[13px] font-bold text-slate-700 line-clamp-2 h-[40px]">{item.name}</p>
-                                                    <p className="text-[12px] font-bold text-green-600 mt-2 mb-3">เหลือ {item.available_quantity ?? item.total_quantity} ชิ้น</p>
+                                                    <p className="text-[12px] font-bold text-slate-600 mt-2 mb-3">เหลือ <span className="text-green-600">{item.available_quantity ?? item.total_quantity}</span> ชิ้น</p>
                                                 </button>
                                                 <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setQuickBorrowTarget(item); setIsQuickBorrowConfirmOpen(true); }} 
-                                                    className="w-full bg-gradient-to-r from-purple-600 to-[#3D2B56] text-white text-[12.5px] font-bold py-2 rounded-xl shadow-sm hover:shadow-md transition active:scale-95 flex items-center justify-center gap-1.5">
-                                                    <Zap size={14} className="fill-white" /> ยืมด่วน
+                                                    className="w-full bg-[#f59e0b] hover:bg-[#d97706] text-white text-[12.5px] font-bold py-2 rounded-xl shadow-sm hover:shadow-md transition active:scale-95 flex items-center justify-center gap-1.5">
+                                                    <Zap size={14} className="fill-white text-white opacity-90" /> ยืมด่วน
                                                 </button>
                                             </div>
                                         ))}
@@ -2306,8 +2311,14 @@ export default function UserApp({ studentId, onLogout }) {
 
                         {isDetailLoading || !detailItem ? (
                             <div className="p-12 text-center text-slate-400">กำลังโหลดข้อมูล...</div>
-                        ) : (
-                            <div className="p-6 space-y-5">
+                        ) : (() => {
+                            const available = detailItem.available_quantity ?? detailItem.total_quantity;
+                            const inQueue = myQueueItems.find(q => q.equipment_id === detailItem.equipment_id);
+                            const currentQueueCount = detailItem.queue_count || 0;
+                            const MAX_QUEUE = 10;
+
+                            return (
+                                <div className="p-6 space-y-5">
                                 {/* Image */}
                                 <div className="w-full h-[200px] bg-slate-50 rounded-2xl flex items-center justify-center overflow-hidden">
                                     {detailItem.equipment_img ? (
@@ -2334,6 +2345,26 @@ export default function UserApp({ studentId, onLogout }) {
                                     </div>
                                 </div>
 
+                                {/* Queue Status */}
+                                {available === 0 && !inQueue && (!detailItem.status || detailItem.status === 'ใช้งานได้') && (
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between items-end">
+                                            <span className="text-[14px] font-bold text-slate-800">สถานะคิวรอ</span>
+                                            <span className="text-[12px] font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-md">{currentQueueCount} / {MAX_QUEUE} รายการ</span>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            {Array.from({ length: MAX_QUEUE }).map((_, i) => (
+                                                <div 
+                                                    key={i} 
+                                                    className={`h-10 flex-1 rounded-md flex items-center justify-center font-bold text-[14px] shadow-sm ${i < currentQueueCount ? 'bg-amber-500 text-white border-b-[3px] border-amber-600' : 'bg-[#e2e8f0] text-slate-400 border-b-[3px] border-[#cbd5e1]'}`}
+                                                >
+                                                    {i + 1}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* Description */}
                                 <div>
                                     <h4 className="font-bold text-slate-800 mb-2">รายละเอียด</h4>
@@ -2354,9 +2385,6 @@ export default function UserApp({ studentId, onLogout }) {
                                             </div>
                                         );
                                     }
-
-                                    const available = detailItem.available_quantity ?? detailItem.total_quantity;
-                                    const inQueue = myQueueItems.find(q => q.equipment_id === detailItem.equipment_id);
 
                                     if (inQueue) {
                                         return (
@@ -2384,33 +2412,16 @@ export default function UserApp({ studentId, onLogout }) {
                                             </button>
                                         );
                                     } else {
-                                        const currentQueueCount = detailItem.queue_count || 0;
-                                        const MAX_QUEUE = 10;
-                                        
                                         return (
                                             <div className="space-y-4">
-                                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                                                    <div className="flex justify-between items-end mb-2">
-                                                        <span className="text-[13px] font-bold text-slate-700">สถานะคิวปัจจุบัน</span>
-                                                        <span className="text-[12px] text-slate-500">{currentQueueCount} / {MAX_QUEUE} คิว</span>
-                                                    </div>
-                                                    <div className="flex gap-1.5">
-                                                        {Array.from({ length: MAX_QUEUE }).map((_, i) => (
-                                                            <div 
-                                                                key={i} 
-                                                                className={`h-2 flex-1 rounded-full ${i < currentQueueCount ? 'bg-amber-400' : 'bg-slate-200'}`}
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                    {currentQueueCount >= MAX_QUEUE && (
-                                                        <p className="text-[12px] text-red-500 font-semibold mt-3 text-center">คิวเต็มแล้ว ไม่สามารถจองเพิ่มได้</p>
-                                                    )}
-                                                </div>
+                                                {currentQueueCount >= MAX_QUEUE && (
+                                                    <p className="text-[12px] text-red-500 font-semibold mt-3 text-center">คิวเต็มแล้ว ไม่สามารถจองเพิ่มได้</p>
+                                                )}
 
                                                 {currentQueueCount < MAX_QUEUE && (
                                                     <button onClick={() => handleJoinQueue(detailItem)} disabled={isLoading}
                                                         className={`w-full py-4 rounded-2xl text-white font-bold text-[15px] bg-amber-500 shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition ${isLoading ? 'opacity-70' : 'active:scale-[.99]'}`}>
-                                                        {isLoading ? "กำลังดำเนินการ..." : `จองคิวอุปกรณ์ (คิวที่ ${currentQueueCount + 1})`}
+                                                        {isLoading ? "กำลังดำเนินการ..." : `จองคิวอุปกรณ์`}
                                                     </button>
                                                 )}
                                             </div>
@@ -2418,7 +2429,8 @@ export default function UserApp({ studentId, onLogout }) {
                                     }
                                 })()}
                             </div>
-                        )}
+                            );
+                        })()}
                     </div>
                 </div>
             )}

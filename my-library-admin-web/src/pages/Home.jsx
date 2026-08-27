@@ -11,7 +11,7 @@ import {
     Search,
     User,
     Users,
-    X, Edit3, Trash2, Plus, Eye, Send, QrCode, FileText, Download, Upload
+    X, Edit3, Trash2, Plus, Eye, Send, QrCode, FileText, Download, Upload, ClipboardList
 } from "lucide-react";
 import jsQR from "jsqr";
 import { useState, useEffect } from "react";
@@ -90,7 +90,8 @@ const KPI_TONE = {
 
 const NAV_ITEMS = [
     { key: "dashboard", label: "แดชบอร์ด", icon: LayoutGrid },
-    { key: "requests", label: "คำขอยืม-คืน", icon: CheckSquare },
+    { key: "borrows", label: "รายการยืม", icon: ClipboardList },
+    { key: "returns", label: "รายการคืน", icon: CheckSquare },
     { key: "equipment", label: "คลังอุปกรณ์", icon: Package },
     { key: "users", label: "ผู้ใช้งาน / ประวัติ", icon: Users },
     { key: "notify", label: "ประกาศ", icon: Bell },
@@ -175,10 +176,12 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                     if (targetField === 'queue') {
                         setScanQueueId(code.data);
                         if (code.data.trim().length > 6) setTimeout(() => setIsScanningQueue(false), 200);
+                        showToast("อ่าน QR Code สำเร็จ", "success");
                     } else if (targetField === 'barcode') {
                         setScanBarcode(code.data);
+                        showToast("อ่าน QR Code อุปกรณ์สำเร็จ กำลังยืนยัน...", "success");
+                        setTimeout(() => handlePickupQueue(null, code.data), 300);
                     }
-                    showToast("อ่าน QR Code สำเร็จ", "success");
                 } else {
                     showToast("ไม่พบ QR Code ในรูปภาพ", "error");
                 }
@@ -565,18 +568,23 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
     const [isScanModalOpen, setIsScanModalOpen] = useState(false);
     const [scanQueueId, setScanQueueId] = useState("");
     const [scanBarcode, setScanBarcode] = useState("");
-    const [isScanningQueue, setIsScanningQueue] = useState(true);
+    const [isSubmittingQueue, setIsSubmittingQueue] = useState(false);
 
-    const handlePickupQueue = async (e) => {
-        e.preventDefault();
+    const handlePickupQueue = async (e, scannedCode = null) => {
+        if (e) e.preventDefault();
+        if (isSubmittingQueue) return;
+        setIsSubmittingQueue(true);
         try {
-            const qIdClean = scanQueueId.toUpperCase().replace('QUEUE-', '');
-            if (!qIdClean || !scanBarcode) return showToast('กรุณากรอกข้อมูลให้ครบ', 'warning');
+            const queueToUse = scannedCode || scanQueueId;
+            const qIdClean = queueToUse.toUpperCase().replace('QUEUE-', '');
+            if (!qIdClean) return showToast('กรุณากรอกรหัสคิว', 'warning');
+            
+            // Automatically assign barcode via backend
             const data = await authFetch('/api/admin/pickup_queue.php', {
                 method: 'POST',
                 body: JSON.stringify({
                     queue_id: qIdClean,
-                    barcode: scanBarcode
+                    barcode: 'AUTO'
                 })
             });
             if (data.success) {
@@ -593,6 +601,8 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
         } catch (err) {
             console.error(err);
             showToast('เชื่อมต่อเซิร์ฟเวอร์ล้มเหลว', 'error');
+        } finally {
+            setIsSubmittingQueue(false);
         }
     };
 
@@ -791,8 +801,9 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                     console.error("Failed to fetch dashboard data", err);
                     setIsLoading(false);
                 });
-        } else if (currentPage === "requests") {
+        } else if (currentPage === "borrows" || currentPage === "returns") {
             fetchRequests();
+            setFilterStatus("all");
         } else if (currentPage === "equipment") {
             fetchEquipments();
         } else if (currentPage === "users") {
@@ -810,7 +821,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
             // Re-fetch data for the current active view
             if (currentPage === "dashboard") {
                 authFetch('/api/admin/dashboard').then(data => { if (data.success) setDashboardData(data.data); }).catch(console.error);
-            } else if (currentPage === "requests") {
+            } else if (currentPage === "borrows" || currentPage === "returns") {
                 fetchRequests();
             } else if (currentPage === "equipment") {
                 fetchEquipments();
@@ -854,6 +865,12 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
     })) : RECENT_ACTIVITY;
 
     const filteredRequests = requestsData.filter(r => {
+        if (currentPage === "borrows") {
+            if (!["pending", "borrowed", "overdue"].includes(r.status)) return false;
+        } else if (currentPage === "returns") {
+            if (!["returned", "damaged_lost"].includes(r.status)) return false;
+        }
+
         const matchStatus = filterStatus === "all" || r.status === filterStatus;
         if (!matchStatus) return false;
         if (!requestFilterDate) return true;
@@ -888,7 +905,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                         const Icon = item.icon;
 
                         let badgeCount = null;
-                        if (item.key === "requests" && dashboardData?.kpi?.pending > 0) {
+                        if (item.key === "borrows" && dashboardData?.kpi?.pending > 0) {
                             badgeCount = dashboardData.kpi.pending;
                         }
 
@@ -990,7 +1007,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                 <div className="flex items-center justify-between mb-4">
                                     <h3 className="text-[15.5px] font-semibold">กิจกรรมล่าสุด</h3>
                                     <button
-                                        onClick={() => setCurrentPage("requests")}
+                                        onClick={() => setCurrentPage("borrows")}
                                         className="text-[12.5px] font-semibold text-purple-700 flex items-center gap-1 hover:gap-1.5 transition-all"
                                     >
                                         ดูทั้งหมด <ChevronRight size={14} />
@@ -1034,24 +1051,27 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                             </div>
                         </div>
                     </>
-                ) : currentPage === "requests" ? (
+                ) : (currentPage === "borrows" || currentPage === "returns") ? (
                     <>
                         <div className="bg-white border-b border-purple-100 px-8 py-5 sticky top-0 z-10">
-                            <h1 className="text-xl font-semibold">คำขอยืม-คืน และสถานะ</h1>
-                            <p className="text-[12.5px] text-slate-400 mt-0.5">อนุมัติคำขอยืม และติดตามสถานะการคืนอุปกรณ์</p>
+                            <h1 className="text-xl font-semibold">{currentPage === "borrows" ? "รายการยืม" : "รายการคืน"} และสถานะ</h1>
+                            <p className="text-[12.5px] text-slate-400 mt-0.5">{currentPage === "borrows" ? "อนุมัติคำขอยืม และตรวจสอบอุปกรณ์ที่กำลังยืม" : "จัดการและติดตามสถานะการคืนอุปกรณ์"}</p>
                         </div>
                         <div className="p-8 pt-6">
                             <div className="bg-white border border-purple-100 rounded-3xl shadow-sm p-6">
                                 {/* Filters */}
                                 <div className="flex flex-wrap gap-3 mb-6 items-center pb-2">
                                     <div className="flex gap-3 overflow-x-auto">
-                                        {[
+                                        {(currentPage === "borrows" ? [
                                             { id: "all", label: "ทั้งหมด" },
                                             { id: "pending", label: "รออนุมัติ" },
                                             { id: "borrowed", label: "กำลังยืม" },
-                                            { id: "overdue", label: "เลยกำหนด" },
-                                            { id: "returned", label: "คืนแล้ว" }
-                                        ].map(f => (
+                                            { id: "overdue", label: "เลยกำหนด" }
+                                        ] : [
+                                            { id: "all", label: "ทั้งหมด" },
+                                            { id: "returned", label: "คืนแล้ว" },
+                                            { id: "damaged_lost", label: "สูญหาย/เสียหาย" }
+                                        ]).map(f => (
                                             <button
                                                 key={f.id}
                                                 onClick={() => setFilterStatus(f.id)}
@@ -1745,9 +1765,9 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
 
                                 {isNotificationsLoading ? (
                                     <div className="text-center text-slate-400 text-sm py-8">กำลังโหลดข้อมูล...</div>
-                                ) : notificationsData.length > 0 ? (
+                                ) : notificationsData.filter(n => n.target === 'all').length > 0 ? (
                                     <div className="space-y-4">
-                                        {notificationsData.map(notif => (
+                                        {notificationsData.filter(n => n.target === 'all').map(notif => (
                                             <div key={notif.id} className="border border-purple-50 rounded-xl p-4 bg-slate-50/50">
                                                 <div className="flex justify-between items-start mb-2">
                                                     <h3 className="text-[14px] font-bold text-slate-700 leading-tight pr-4">{notif.title}</h3>
@@ -1777,9 +1797,6 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                     <ReportErrorBoundary>
                         {/* Header */}
                         <div className="bg-white border-b border-purple-100 px-8 py-5 sticky top-0 z-10 flex items-center gap-4">
-                            <div className="p-2 bg-purple-100 rounded-xl text-purple-700">
-                                <FileText size={24} strokeWidth={2} />
-                            </div>
                             <div>
                                 <h1 className="text-2xl font-black text-slate-800 tracking-tight leading-tight">รายงานและสถิติ</h1>
                                 <p className="text-[13px] text-slate-500">สร้างและส่งออกข้อมูลรายงาน</p>
@@ -1789,8 +1806,8 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                         <div className="p-8 pb-32">
                             {/* 1. Filter Card */}
                             <div className="bg-white rounded-[20px] p-6 shadow-sm border border-slate-100 mb-6">
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
-                                    <div>
+                                <div className="flex flex-wrap items-end gap-4">
+                                    <div className="flex-1 min-w-[180px]">
                                         <label className="block text-[13px] font-bold text-slate-500 mb-2">ประเภทรายงาน</label>
                                         <div className="relative">
                                             <select value={reportType} onChange={e => setReportType(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56] appearance-none cursor-pointer">
@@ -1804,7 +1821,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                     </div>
                                     
                                     {['monthly', 'yearly', 'fiscal_year'].includes(reportType) && (
-                                        <div>
+                                        <div className="flex-1 min-w-[180px]">
                                             <label className="block text-[13px] font-bold text-slate-500 mb-2">ปี (ค.ศ.)</label>
                                             <div className="relative">
                                                 <input type="number" value={reportYear} onChange={e => setReportYear(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56]" />
@@ -1813,7 +1830,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                     )}
 
                                     {reportType === 'monthly' && (
-                                        <div>
+                                        <div className="flex-1 min-w-[180px]">
                                             <label className="block text-[13px] font-bold text-slate-500 mb-2">เดือน</label>
                                             <div className="relative">
                                                 <select value={reportMonth} onChange={e => setReportMonth(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56] appearance-none cursor-pointer">
@@ -1825,7 +1842,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                     )}
 
                                     {reportType === 'equipment_stats' && (
-                                        <div>
+                                        <div className="flex-1 min-w-[180px]">
                                             <label className="block text-[13px] font-bold text-slate-500 mb-2">การจัดอันดับ</label>
                                             <div className="relative">
                                                 <select value={equipSortOrder} onChange={e => setEquipSortOrder(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56] appearance-none cursor-pointer">
@@ -1837,7 +1854,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                         </div>
                                     )}
 
-                                    <div>
+                                    <div className="flex-1 min-w-[180px]">
                                         <label className="block text-[13px] font-bold text-slate-500 mb-2">รูปแบบการแสดงผล</label>
                                         <div className="relative">
                                             <select value={displayFormat} onChange={e => setDisplayFormat(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56] appearance-none cursor-pointer">
@@ -1849,8 +1866,8 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                         </div>
                                     </div>
                                     
-                                    <div className="flex md:justify-end mt-4 md:mt-0">
-                                        <button onClick={() => { generateReport(); }} disabled={isReportLoading} className="bg-[#3D2B56] text-white px-8 py-2.5 rounded-xl text-[14px] font-bold shadow-sm hover:bg-[#2A1D3C] transition active:scale-95 w-full md:w-auto">
+                                    <div className="shrink-0 w-full md:w-auto mt-2 md:mt-0">
+                                        <button onClick={() => { generateReport(); }} disabled={isReportLoading} className="bg-[#3D2B56] text-white px-8 py-2.5 rounded-xl text-[14px] font-bold shadow-sm hover:bg-[#2A1D3C] transition active:scale-95 w-full">
                                             {isReportLoading ? "กำลังดึงข้อมูล..." : "สร้างรายงาน"}
                                         </button>
                                     </div>
@@ -2087,37 +2104,26 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                         </div>
                         <form onSubmit={handlePickupQueue} className="p-6">
                             <div className="space-y-4">
-                                {isScanningQueue ? (
-                                    <div>
-                                        <label className="block text-[13px] font-bold text-slate-700 mb-2">สแกนรหัสคิว (QR Code)</label>
-                                        <div className="flex gap-2">
-                                            <input autoFocus type="text" value={scanQueueId} onChange={e => {
-                                                setScanQueueId(e.target.value);
-                                                if (e.target.value.trim().length > 6) setTimeout(() => setIsScanningQueue(false), 200);
-                                            }} placeholder="เช่น QUEUE-123" className="flex-1 bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400" />
-                                            <label className="bg-purple-100 text-purple-700 rounded-xl px-4 flex items-center justify-center cursor-pointer hover:bg-purple-200 transition" title="อัพโหลดรูป QR Code">
-                                                <Upload size={20} />
-                                                <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, 'queue')} />
-                                            </label>
-                                        </div>
+                                <div>
+                                    <label className="block text-[13px] font-bold text-slate-700 mb-2">สแกนรหัสคิว / ใบเสร็จ (QR Code)</label>
+                                    <div className="flex gap-2">
+                                        <input autoFocus type="text" value={scanQueueId} onChange={e => {
+                                            setScanQueueId(e.target.value);
+                                            if (e.target.value.trim().length > 6) {
+                                                setTimeout(() => handlePickupQueue(null, e.target.value), 300);
+                                            }
+                                        }} placeholder="เช่น LB123456" className="flex-1 bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400" />
+                                        <label className="bg-purple-100 text-purple-700 rounded-xl px-4 flex items-center justify-center cursor-pointer hover:bg-purple-200 transition" title="อัพโหลดรูป QR Code">
+                                            <Upload size={20} />
+                                            <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, 'queue')} />
+                                        </label>
                                     </div>
-                                ) : (
-                                    <div>
-                                        <label className="block text-[13px] font-bold text-slate-700 mb-2">คิว: {scanQueueId}</label>
-                                        <label className="block text-[13px] font-bold text-slate-700 mb-2">สแกนรหัสอุปกรณ์ (Equipment QR/Barcode)</label>
-                                        <div className="flex gap-2">
-                                            <input autoFocus type="text" value={scanBarcode} onChange={e => setScanBarcode(e.target.value)} placeholder="เช่น EQC-XXX-001" className="flex-1 bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400" />
-                                            <label className="bg-purple-100 text-purple-700 rounded-xl px-4 flex items-center justify-center cursor-pointer hover:bg-purple-200 transition" title="อัพโหลดรูป QR Code">
-                                                <Upload size={20} />
-                                                <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, 'barcode')} />
-                                            </label>
-                                        </div>
-                                    </div>
-                                )}
+                                    <p className="text-xs text-slate-500 mt-2">* ระบบจะทำการสุ่มหยิบอุปกรณ์ในสต๊อก 1 เครื่อง และตัดยอดให้อัตโนมัติ</p>
+                                </div>
                             </div>
                             <div className="flex gap-3 mt-6">
-                                <button type="button" onClick={() => { setIsScanModalOpen(false); setIsScanningQueue(true); setScanQueueId(""); setScanBarcode(""); }} className="flex-1 px-4 py-2.5 rounded-xl text-[13.5px] font-bold border border-slate-200 text-slate-600 hover:bg-slate-50 transition">ยกเลิก</button>
-                                <button type="submit" disabled={!scanQueueId || !scanBarcode} className="flex-1 px-4 py-2.5 rounded-xl text-[13.5px] font-bold bg-[#3D2B56] text-white hover:bg-[#2A1D3C] transition disabled:opacity-50">ยืนยัน</button>
+                                <button type="button" onClick={() => { setIsScanModalOpen(false); setScanQueueId(""); }} className="flex-1 px-4 py-2.5 rounded-xl text-[13.5px] font-bold border border-slate-200 text-slate-600 hover:bg-slate-50 transition" disabled={isSubmittingQueue}>ยกเลิก</button>
+                                <button type="submit" disabled={!scanQueueId || isSubmittingQueue} className="flex-1 px-4 py-2.5 rounded-xl text-[13.5px] font-bold bg-[#3D2B56] text-white hover:bg-[#2A1D3C] transition disabled:opacity-50">{isSubmittingQueue ? 'กำลังดำเนินการ...' : 'ยืนยัน'}</button>
                             </div>
                         </form>
                     </div>

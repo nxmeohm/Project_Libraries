@@ -241,13 +241,14 @@ router.post('/checkout.php', validate(checkoutSchema), async (req, res) => {
             return res.json({ success: false, message: "อุปกรณ์ชิ้นนี้ไม่มีให้ยืมในขณะนี้ กรุณาจองคิวแทน" });
         }
 
-        await connection.query(
+        const [insertResult] = await connection.query(
             "INSERT INTO borrowed (student_id, equipment_id, borrow_date, status, reservation_expires_at) VALUES (?, ?, NOW(), 'pending', DATE_ADD(NOW(), INTERVAL 15 MINUTE))",
             [student_id, equipment_id]
         );
 
         await connection.commit();
         connection.release();
+        return res.json({ success: true, message: "ยืมอุปกรณ์สำเร็จ", borrow_id: insertResult.insertId });
 
         req.app.get('io').emit('data_updated');
         

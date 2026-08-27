@@ -743,71 +743,116 @@ router.post('/pickup_queue.php', async (req, res) => {
         return res.status(400).json({ success: false, message: "กรุณาระบุรหัสคิวและบาร์โค้ดอุปกรณ์" });
     }
 
-    const connection = await pool.getConnection();
+    let connection;
     try {
+        connection = await pool.getConnection();
         await connection.beginTransaction();
 
-        // 1. Verify Queue
-        const [queueItem] = await connection.query(
-            "SELECT * FROM equipment_queue WHERE id = ? AND status = 'called' FOR UPDATE",
-            [parseInt(queue_id)]
-        );
-        if (queueItem.length === 0) {
-            await connection.rollback();
-            connection.release();
-            return res.status(404).json({ success: false, message: "ไม่พบรายการคิว หรือคิวนี้ยังไม่ถูกเรียก/หมดอายุไปแล้ว" });
+        const isBorrowRequest = typeof queue_id === 'string' && queue_id.toUpperCase().startsWith('LB');
+        let expectedEquipmentId = null;
+        let bReq = null;
+        let q = null;
+
+        if (isBorrowRequest) {
+            // --- HANDLE BORROW REQUEST (LB...) ---
+            const borrowId = parseInt(queue_id.toUpperCase().replace('LB', ''), 10);
+            if (isNaN(borrowId)) {
+                await connection.rollback();
+                connection.release();
+                return res.status(400).json({ success: false, message: "รหัสรายการยืมไม่ถูกต้อง" });
+            }
+
+            const [borrowItem] = await connection.query(
+                "SELECT * FROM borrowed WHERE id = ? AND status = 'pending' FOR UPDATE",
+                [borrowId]
+            );
+
+            if (borrowItem.length === 0) {
+                await connection.rollback();
+                connection.release();
+                return res.status(404).json({ success: false, message: "ไม่พบรายการยืมที่รออนุมัติ หรือถูกอนุมัติไปแล้ว" });
+            }
+
+            bReq = borrowItem[0];
+            expectedEquipmentId = bReq.equipment_id;
+        } else {
+            // --- HANDLE QUEUE REQUEST ---
+            const parsedQueueId = parseInt(queue_id, 10);
+            if (isNaN(parsedQueueId)) {
+                await connection.rollback();
+                connection.release();
+                return res.status(400).json({ success: false, message: "รหัสคิวไม่ถูกต้อง (ต้องเป็นตัวเลข หรือขึ้นต้นด้วย LB)" });
+            }
+
+            const [queueItem] = await connection.query(
+                "SELECT * FROM equipment_queue WHERE id = ? AND status = 'called' FOR UPDATE",
+                [parsedQueueId]
+            );
+            if (queueItem.length === 0) {
+                await connection.rollback();
+                connection.release();
+                return res.status(404).json({ success: false, message: "ไม่พบรายการคิว หรือคิวนี้ยังไม่ถูกเรียก/หมดอายุไปแล้ว" });
+            }
+            
+            q = queueItem[0];
+            expectedEquipmentId = q.equipment_id;
         }
+
+        let pItem = null;
+
+        if (barcode === 'AUTO') {
+            const [autoItems] = await connection.query(
+                "SELECT * FROM equipment_items WHERE equipment_id = ? AND status = 'available' LIMIT 1 FOR UPDATE",
+                [expectedEquipmentId]
+            );
+            if (autoItems.length === 0) {
+                await connection.rollback();
+                connection.release();
+                return res.status(404).json({ success: false, message: "ไม่มีอุปกรณ์รุ่นนี้ว่างในสต๊อกสำหรับจ่ายคิวอัตโนมัติ" });
+            }
+            pItem = autoItems[0];
+        } else {
+            const [physicalItem] = await connection.query(
+                "SELECT * FROM equipment_items WHERE full_asset_code = ? AND status = 'available' FOR UPDATE",
+                [barcode]
+            );
+            if (physicalItem.length === 0) {
+                await connection.rollback();
+                connection.release();
+                return res.status(404).json({ success: false, message: "ไม่พบอุปกรณ์บาร์โค้ดนี้ หรืออุปกรณ์ไม่พร้อมใช้งาน" });
+            }
+            
+            pItem = physicalItem[0];
+
+            if (pItem.equipment_id !== expectedEquipmentId) {
+                await connection.rollback();
+                connection.release();
+                return res.status(400).json({ success: false, message: "บาร์โค้ดที่สแกนไม่ตรงกับรุ่นอุปกรณ์ที่ขอยืม/จองไว้" });
+            }
+        }
+
+        // --- UPDATE STATUS ---
+        await connection.query("UPDATE equipment_items SET status = 'borrowed' WHERE item_id = ?", [pItem.item_id]);
         
-        const q = queueItem[0];
-
-        // 2. Verify Physical Equipment Item
-        const [physicalItem] = await connection.query(
-            "SELECT * FROM equipment_items WHERE barcode = ? AND status = 'available' FOR UPDATE",
-            [barcode]
-        );
-        if (physicalItem.length === 0) {
-            await connection.rollback();
-            connection.release();
-            return res.status(404).json({ success: false, message: "ไม่พบอุปกรณ์บาร์โค้ดนี้ หรืออุปกรณ์ไม่พร้อมใช้งาน" });
+        if (isBorrowRequest) {
+            await connection.query("UPDATE borrowed SET status = 'borrowed', borrow_date = NOW() WHERE id = ?", [bReq.id]);
+        } else {
+            await connection.query("INSERT INTO borrowed (student_id, equipment_id, borrow_date, status) VALUES (?, ?, NOW(), 'borrowed')", [q.student_id, pItem.item_id]);
+            await connection.query("UPDATE equipment_queue SET status = 'completed' WHERE id = ?", [q.id]);
         }
-        
-        const pItem = physicalItem[0];
-
-        // Verify that the physical item matches the equipment model in the queue
-        if (pItem.equipment_id !== q.equipment_id) {
-            await connection.rollback();
-            connection.release();
-            return res.status(400).json({ success: false, message: "บาร์โค้ดที่สแกนไม่ตรงกับรุ่นอุปกรณ์ที่จองไว้ในคิว" });
-        }
-
-        // 3. Mark physical item as borrowed
-        await connection.query(
-            "UPDATE equipment_items SET status = 'borrowed' WHERE item_id = ?",
-            [pItem.item_id]
-        );
-
-        // 4. Create Borrowed record
-        await connection.query(
-            "INSERT INTO borrowed (student_id, equipment_id, borrow_date, status) VALUES (?, ?, NOW(), 'borrowed')",
-            [q.student_id, pItem.item_id]
-        );
-
-        // 5. Complete Queue
-        await connection.query(
-            "UPDATE equipment_queue SET status = 'completed' WHERE id = ?",
-            [q.id]
-        );
 
         await connection.commit();
         connection.release();
-
+        
         req.app.get('io').emit('data_updated');
         res.json({ success: true, message: "บันทึกการรับอุปกรณ์สำเร็จ" });
     } catch (error) {
-        await connection.rollback();
-        connection.release();
-        console.error(error);
-        res.status(500).json({ success: false, message: "Database Error" });
+        if (connection) {
+            await connection.rollback();
+            connection.release();
+        }
+        console.error("Pickup Queue Error:", error);
+        res.status(500).json({ success: false, message: "DB Error: " + (error.sqlMessage || error.message) });
     }
 });
 
