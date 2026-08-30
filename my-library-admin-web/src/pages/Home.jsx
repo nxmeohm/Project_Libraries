@@ -16,7 +16,7 @@ import {
 import jsQR from "jsqr";
 import { useState, useEffect } from "react";
 import { io } from "socket.io-client";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import * as XLSX from 'xlsx';
 import * as htmlToImage from 'html-to-image';
 import jsPDF from 'jspdf';
@@ -194,6 +194,8 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
     /* --- Report Feature States & Functions --- */
     const [reportType, setReportType] = useState('monthly');
     const [reportYear, setReportYear] = useState(new Date().getFullYear());
+    const [reportStartYear, setReportStartYear] = useState(new Date().getFullYear() - 5);
+    const [reportEndYear, setReportEndYear] = useState(new Date().getFullYear());
     const [reportMonth, setReportMonth] = useState(new Date().getMonth() + 1);
     const [reportData, setReportData] = useState([]);
     const [equipmentBreakdownData, setEquipmentBreakdownData] = useState([]);
@@ -230,7 +232,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
     const generateReport = async () => {
         setIsReportLoading(true);
         try {
-            const data = await authFetch(`/api/admin/reports?type=${reportType}&year=${reportYear}&month=${reportMonth}&sort=${equipSortOrder}`);
+            const data = await authFetch(`/api/admin/reports?type=${reportType}&year=${reportYear}&month=${reportMonth}&sort=${equipSortOrder}&startYear=${reportStartYear}&endYear=${reportEndYear}`);
             if (data.success) {
                 const formattedData = (data.data || []).map(item => {
                     if (item.report_date) {
@@ -255,7 +257,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
     const fetchEquipmentBreakdown = async () => {
         setIsEquipBreakdownLoading(true);
         try {
-            const data = await authFetch(`/api/admin/reports/equipment-breakdown?year=${reportYear}&month=${reportMonth}&type=${reportType}`);
+            const data = await authFetch(`/api/admin/reports/equipment-breakdown?year=${reportYear}&month=${reportMonth}&type=${reportType}&startYear=${reportStartYear}&endYear=${reportEndYear}`);
             if (data.success) {
                 setEquipmentBreakdownData(data.data);
             }
@@ -270,7 +272,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
     const fetchStudentBreakdown = async () => {
         setIsStudentBreakdownLoading(true);
         try {
-            const data = await authFetch(`/api/admin/reports/student-breakdown?year=${reportYear}&month=${reportMonth}&type=${reportType}`);
+            const data = await authFetch(`/api/admin/reports/student-breakdown?year=${reportYear}&month=${reportMonth}&type=${reportType}&startYear=${reportStartYear}&endYear=${reportEndYear}`);
             if (data.success) {
                 setStudentBreakdownData(data.data);
             }
@@ -293,7 +295,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
     const exportToExcel = () => {
         const workbook = XLSX.utils.book_new();
         // Sheet 1: Report summary
-        if (showReportTable && reportData && reportData.length > 0) {
+        if (reportData && reportData.length > 0) {
             const HEADER_MAP = {
                 report_date: 'วันที่', report_month: 'เดือน', report_year: 'ปี',
                 total_borrows: 'ยืมทั้งหมด', total_returned: 'คืนแล้ว', total_overdue: 'เลยกำหนด',
@@ -341,80 +343,26 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
     };
 
     const exportToPDF = async () => {
-        if ((!reportData || reportData.length === 0) && (!equipmentBreakdownData || equipmentBreakdownData.length === 0)) {
-            return showToast('ไม่มีข้อมูลที่จะส่งออก', 'warning');
-        }
+        const element = document.getElementById('report-capture-area');
+        if (!element) return showToast('ไม่พบข้อมูลที่จะส่งออก', 'warning');
         showToast('กำลังสร้างไฟล์ PDF...', 'info');
         try {
-            const { default: autoTable } = await import('jspdf-autotable');
+            const dataUrl = await htmlToImage.toPng(element, {
+                quality: 1,
+                pixelRatio: 2,
+                backgroundColor: '#f8fafc', // slate-50 background for consistency
+            });
+            
+            const { jsPDF } = await import('jspdf');
             const doc = new jsPDF('p', 'mm', 'a4');
-            const pageWidth = doc.internal.pageSize.getWidth();
-            let yPos = 15;
-
-            // Title
-            doc.setFontSize(16);
-            doc.setFont('Helvetica', 'bold');
-            doc.text(getReportTitle(), pageWidth / 2, yPos, { align: 'center' });
-            yPos += 10;
-
-            // Report data table
-            if (showReportTable && reportData && reportData.length > 0) {
-                const columns = Object.keys(reportData[0]).map(k => ({ header: k, dataKey: k }));
-                autoTable(doc, {
-                    startY: yPos,
-                    columns: columns,
-                    body: reportData,
-                    theme: 'grid',
-                    headStyles: { fillColor: [61, 43, 86], textColor: 255, fontStyle: 'bold', fontSize: 9 },
-                    bodyStyles: { fontSize: 8 },
-                    margin: { left: 14, right: 14 },
-                });
-                yPos = doc.lastAutoTable.finalY + 10;
-            }
-
-            // Summary
-            const summary = getReportSummary();
-            if (summary) {
-                doc.setFontSize(10);
-                doc.setFont('Helvetica', 'bold');
-                doc.text(`Total Borrows: ${summary.totalBorrows}   |   Returned: ${summary.totalReturned}   |   Overdue: ${summary.totalOverdue}`, 14, yPos);
-                yPos += 10;
-            }
-
-            // Equipment breakdown table
-            if (equipmentBreakdownData && equipmentBreakdownData.length > 0) {
-                doc.setFontSize(12);
-                doc.text('Equipment Breakdown', 14, yPos);
-                autoTable(doc, {
-                    startY: yPos + 5,
-                    head: [['ชื่ออุปกรณ์', 'รหัส', 'ยืมทั้งหมด', 'คืนแล้ว', 'เลยกำหนด']],
-                    body: equipmentBreakdownData.map(eq => [eq.equipment_name, eq.kit_code, eq.total_borrows, eq.total_returned, eq.total_overdue]),
-                    theme: 'grid'
-                });
-            }
-
-            // Student Breakdown Section
-            if (studentBreakdownData && studentBreakdownData.length > 0) {
-                const finalY = doc.lastAutoTable.finalY || 40;
-                doc.setFontSize(14);
-                doc.text("ข้อมูลการยืมแยกตามนักศึกษา", 14, finalY + 15);
-                
-                autoTable(doc, {
-                    startY: finalY + 20,
-                    head: [['รหัสนักศึกษา', 'ชื่อ-นามสกุล', 'ยืมทั้งหมด', 'คืนแล้ว', 'เลยกำหนด', 'กำลังยืม']],
-                    body: studentBreakdownData.map(s => [
-                        s.student_id,
-                        s.student_name,
-                        s.total_borrows,
-                        s.total_returned,
-                        s.total_overdue,
-                        s.currently_borrowed
-                    ]),
-                    styles: { fontSize: 10 },
-                    headStyles: { fillColor: [61, 43, 86] }
-                });
-            }
-
+            
+            const imgProps = doc.getImageProperties(dataUrl);
+            const pdfWidth = doc.internal.pageSize.getWidth();
+            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+            
+            // If the content is longer than one page, this simple method will scale it to fit width, 
+            // and it might overflow the bottom if extremely long. But for dashboards, it's usually fine.
+            doc.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
             doc.save(`Report_${reportType}_${Date.now()}.pdf`);
             showToast('ส่งออก PDF สำเร็จ', 'success');
         } catch (err) {
@@ -972,15 +920,15 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                             </div>
 
                             {/* Chart panel */}
-                            <div className="bg-white border border-purple-100 rounded-3xl shadow-sm p-5 mb-6">
+                            <div className="bg-white border border-emerald-100 rounded-3xl shadow-sm p-5 mb-6">
                                 <div className="flex items-center justify-between mb-4">
                                     <h3 className="text-[15.5px] font-semibold">แนวโน้มการยืมอุปกรณ์</h3>
-                                    <div className="flex bg-purple-50 rounded-lg p-0.5 gap-0.5">
+                                    <div className="flex bg-emerald-50 rounded-lg p-0.5 gap-0.5">
                                         {[["day", "รายวัน"], ["month", "รายเดือน"], ["year", "รายปี"]].map(([key, label]) => (
                                             <button
                                                 key={key}
                                                 onClick={() => setChartRange(key)}
-                                                className={`px-3.5 py-1.5 text-xs font-semibold rounded-md transition ${chartRange === key ? "bg-purple-700 text-white" : "text-slate-400 hover:text-purple-700"
+                                                className={`px-3.5 py-1.5 text-xs font-semibold rounded-md transition ${chartRange === key ? "bg-emerald-500 text-white shadow-sm" : "text-slate-400 hover:text-emerald-500"
                                                     }`}
                                             >
                                                 {label}
@@ -991,9 +939,9 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                 <div className="flex items-end gap-3.5 h-[180px] px-1">
                                     {chartData.map((d, i) => (
                                         <div key={i} className="flex-1 flex flex-col items-center justify-end gap-2 h-full">
-                                            <span className="text-[10.5px] font-bold text-purple-700">{d.v}</span>
+                                            <span className="text-[10.5px] font-bold text-emerald-500">{d.v}</span>
                                             <div
-                                                className="w-full max-w-[34px] rounded-t-lg rounded-b-sm bg-gradient-to-b from-purple-500 to-purple-700 transition-all duration-300"
+                                                className="w-full max-w-[34px] rounded-t-lg rounded-b-sm bg-gradient-to-b from-emerald-300 to-emerald-500 shadow-sm transition-all duration-300"
                                                 style={{ height: `${Math.max(6, Math.round((d.v / maxVal) * 100))}%` }}
                                             />
                                             <span className="text-[11px] text-slate-400">{d.l}</span>
@@ -1003,12 +951,12 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                             </div>
 
                             {/* Recent activity table */}
-                            <div className="bg-white border border-purple-100 rounded-3xl shadow-sm p-5">
+                            <div className="bg-white border border-emerald-100 rounded-3xl shadow-sm p-5">
                                 <div className="flex items-center justify-between mb-4">
                                     <h3 className="text-[15.5px] font-semibold">กิจกรรมล่าสุด</h3>
                                     <button
                                         onClick={() => setCurrentPage("borrows")}
-                                        className="text-[12.5px] font-semibold text-purple-700 flex items-center gap-1 hover:gap-1.5 transition-all"
+                                        className="text-[12.5px] font-semibold text-emerald-500 flex items-center gap-1 hover:gap-1.5 transition-all"
                                     >
                                         ดูทั้งหมด <ChevronRight size={14} />
                                     </button>
@@ -1813,6 +1761,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                             <select value={reportType} onChange={e => setReportType(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56] appearance-none cursor-pointer">
                                                 <option value="monthly">รายเดือน</option>
                                                 <option value="yearly">รายปี</option>
+                                                <option value="year_range">ช่วงปี (เปรียบเทียบแต่ละปี)</option>
                                                 <option value="fiscal_year">ปีงบประมาณ</option>
                                                 <option value="equipment_stats">สถิติอุปกรณ์ยอดนิยม</option>
                                             </select>
@@ -1824,9 +1773,44 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                         <div className="flex-1 min-w-[180px]">
                                             <label className="block text-[13px] font-bold text-slate-500 mb-2">ปี (ค.ศ.)</label>
                                             <div className="relative">
-                                                <input type="number" value={reportYear} onChange={e => setReportYear(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56]" />
+                                                <select value={reportYear} onChange={e => setReportYear(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56] appearance-none cursor-pointer">
+                                                    {Array.from({length: new Date().getFullYear() - 2020 + 1}).map((_, i) => {
+                                                        const year = new Date().getFullYear() - i;
+                                                        return <option key={year} value={year}>{year}</option>;
+                                                    })}
+                                                </select>
+                                                <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                                             </div>
                                         </div>
+                                    )}
+                                    
+                                    {['year_range', 'equipment_stats'].includes(reportType) && (
+                                        <>
+                                            <div className="flex-1 min-w-[120px]">
+                                                <label className="block text-[13px] font-bold text-slate-500 mb-2">ตั้งแต่ปี (ค.ศ.)</label>
+                                                <div className="relative">
+                                                    <select value={reportStartYear} onChange={e => setReportStartYear(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56] appearance-none cursor-pointer">
+                                                        {Array.from({length: new Date().getFullYear() - 2020 + 1}).map((_, i) => {
+                                                            const year = new Date().getFullYear() - i;
+                                                            return <option key={year} value={year}>{year}</option>;
+                                                        })}
+                                                    </select>
+                                                    <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                                </div>
+                                            </div>
+                                            <div className="flex-1 min-w-[120px]">
+                                                <label className="block text-[13px] font-bold text-slate-500 mb-2">ถึงปี (ค.ศ.)</label>
+                                                <div className="relative">
+                                                    <select value={reportEndYear} onChange={e => setReportEndYear(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56] appearance-none cursor-pointer">
+                                                        {Array.from({length: new Date().getFullYear() - 2020 + 1}).map((_, i) => {
+                                                            const year = new Date().getFullYear() - i;
+                                                            return <option key={year} value={year}>{year}</option>;
+                                                        })}
+                                                    </select>
+                                                    <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                                </div>
+                                            </div>
+                                        </>
                                     )}
 
                                     {reportType === 'monthly' && (
@@ -1968,12 +1952,44 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                                                 <ResponsiveContainer width="100%" height="100%">
                                                                     <BarChart data={reportData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                                                        <XAxis dataKey={reportType === 'monthly' ? 'report_date' : 'report_month'} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                                                                        <XAxis dataKey={reportType === 'monthly' ? 'report_date' : reportType === 'yearly' ? 'report_month' : 'report_year'} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
                                                                         <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
                                                                         <RechartsTooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }} />
-                                                                        <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                                                                        <Bar dataKey="total_borrows" name="ยอดการยืม" fill="#3D2B56" radius={[4, 4, 0, 0]} />
-                                                                        <Bar dataKey="total_returned" name="คืนแล้ว" fill="#16a34a" radius={[4, 4, 0, 0]} />
+                                                                        <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingBottom: '10px' }} verticalAlign="top" />
+                                                                        <Bar dataKey="total_borrows" name="ยอดการยืม" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                                                                        <Bar dataKey="total_returned" name="คืนแล้ว" fill="#10B981" radius={[4, 4, 0, 0]} />
+                                                                    </BarChart>
+                                                                </ResponsiveContainer>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Equipment Stats Chart */}
+                                                    {(displayFormat === 'dashboard' || displayFormat === 'chart') && reportType === 'equipment_stats' && (
+                                                        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)]">
+                                                            <h2 className="text-[14px] font-bold text-slate-700 mb-6">📊 สถิติอุปกรณ์ยอดนิยม</h2>
+                                                            <div className="h-[380px]">
+                                                                <ResponsiveContainer width="100%" height="100%">
+                                                                    <BarChart data={reportData} margin={{ top: 10, right: 10, left: -20, bottom: 80 }}>
+                                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                                                        <XAxis 
+                                                                            dataKey="name" 
+                                                                            axisLine={false} 
+                                                                            tickLine={false} 
+                                                                            interval={0} 
+                                                                            tickFormatter={(value) => value.length > 20 ? `${value.substring(0, 20)}...` : value}
+                                                                            tick={{ fontSize: 11, fill: '#94a3b8', dy: 10 }} 
+                                                                            angle={-45} 
+                                                                            textAnchor="end" 
+                                                                        />
+                                                                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                                                                        <RechartsTooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }} />
+                                                                        <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingBottom: '10px' }} verticalAlign="top" />
+                                                                        <Bar dataKey="total_borrows" name="จำนวนการยืม (ครั้ง)" radius={[4, 4, 0, 0]}>
+                                                                            {reportData.map((entry, index) => (
+                                                                                <Cell key={`cell-${index}`} fill={['#3B82F6', '#10B981', '#FACC15', '#EF4444', '#F97316', '#8B5CF6', '#14B8A6', '#EC4899'][index % 8]} />
+                                                                            ))}
+                                                                        </Bar>
                                                                     </BarChart>
                                                                 </ResponsiveContainer>
                                                             </div>
@@ -1987,7 +2003,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                                                 <thead className="sticky top-0 bg-slate-50/90 backdrop-blur z-10">
                                                                     <tr className="text-[12.5px] uppercase text-slate-500 border-b border-slate-200">
                                                                         {reportData[0] && Object.keys(reportData[0]).map(k => (
-                                                                            <th key={k} className="py-3 px-4 font-bold whitespace-nowrap">{k === 'report_date' ? 'วันที่' : k === 'total_borrows' ? 'ยืมทั้งหมด' : k === 'total_returned' ? 'คืนแล้ว' : k === 'total_overdue' ? 'เลยกำหนด' : k}</th>
+                                                                            <th key={k} className="py-3 px-4 font-bold whitespace-nowrap">{k === 'report_date' ? 'วันที่' : k === 'report_month' ? 'เดือน' : k === 'report_year' ? 'ปี (ค.ศ.)' : k === 'total_borrows' ? 'ยืมทั้งหมด' : k === 'total_returned' ? 'คืนแล้ว' : k === 'total_overdue' ? 'เลยกำหนด' : k === 'name' ? 'ชื่ออุปกรณ์' : k}</th>
                                                                         ))}
                                                                     </tr>
                                                                 </thead>

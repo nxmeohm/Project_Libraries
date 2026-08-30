@@ -1840,16 +1840,6 @@ export default function UserApp({ studentId, onLogout }) {
                                         </div>
                                         <ChevronRight size={18} className="text-slate-300" />
                                     </button>
-                                    <button onClick={() => setSettingsModal('security')} className="w-full flex items-center gap-4 p-4 hover:bg-slate-50 transition text-left">
-                                        <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center shrink-0">
-                                            <Lock size={18} className="text-[#3D2B56]" />
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="text-[14px] font-bold text-slate-800">ความปลอดภัย</div>
-                                            <div className="text-[12px] text-slate-500 mt-0.5">{localStorage.getItem('user_pin') ? 'ตั้งค่าแล้ว' : 'ยังไม่ได้ตั้งค่า'}</div>
-                                        </div>
-                                        <ChevronRight size={18} className="text-slate-300" />
-                                    </button>
                                 </div>
                             </div>
 
@@ -2169,57 +2159,6 @@ export default function UserApp({ studentId, onLogout }) {
                 </div>
             )}
 
-            {settingsModal === 'security' && (
-                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden">
-                        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white">
-                            <h3 className="text-[16px] font-bold text-slate-800 flex items-center gap-2"><Lock size={18} className="text-[#3D2B56]" /> ความปลอดภัย (PIN)</h3>
-                            <button onClick={() => setSettingsModal(null)} className="p-1.5 hover:bg-slate-100 rounded-full transition text-slate-500">
-                                <X size={18} />
-                            </button>
-                        </div>
-                        <div className="p-6">
-                            <p className="text-[14px] text-slate-600 mb-4">
-                                {localStorage.getItem('user_pin') ? 'คุณได้ตั้งรหัส PIN ไว้เรียบร้อยแล้ว' : 'ตั้งรหัส PIN 6 หลักเพื่อเพิ่มความปลอดภัย'}
-                            </p>
-                            <input 
-                                type={isPinVisible ? "text" : "password"}
-                                maxLength={6}
-                                value={pinCode}
-                                onChange={(e) => setPinCode(e.target.value.replace(/\D/g, ''))}
-                                placeholder="ใส่รหัส PIN 6 หลัก"
-                                className="w-full text-center tracking-[0.5em] text-2xl bg-slate-50 border border-slate-200 rounded-xl px-4 py-4 outline-none focus:border-purple-500 font-mono transition"
-                            />
-                            <div className="flex justify-between items-center mt-3 mb-6 px-1">
-                                <label className="flex items-center gap-2 text-[13px] text-slate-500 cursor-pointer select-none">
-                                    <input type="checkbox" checked={isPinVisible} onChange={() => setIsPinVisible(!isPinVisible)} className="accent-purple-600 w-4 h-4" />
-                                    แสดงรหัสผ่าน
-                                </label>
-                                {localStorage.getItem('user_pin') && (
-                                    <button onClick={() => { localStorage.removeItem('user_pin'); setPinCode(''); showToast('ยกเลิกการตั้งรหัส PIN สำเร็จ', 'success'); }} className="text-red-500 text-[13px] font-bold hover:underline">
-                                        ยกเลิก PIN
-                                    </button>
-                                )}
-                            </div>
-                            <button 
-                                onClick={() => {
-                                    if(pinCode.length === 6) {
-                                        localStorage.setItem('user_pin', pinCode);
-                                        showToast('ตั้งรหัส PIN สำเร็จ', 'success');
-                                        setSettingsModal(null);
-                                    } else {
-                                        alert('กรุณาใส่รหัส PIN ให้ครบ 6 หลัก');
-                                    }
-                                }}
-                                disabled={pinCode.length !== 6}
-                                className={`w-full py-3.5 rounded-2xl font-bold text-[14px] transition flex items-center justify-center gap-2 ${pinCode.length === 6 ? 'bg-[#3D2B56] text-white hover:bg-[#2d1f40] shadow-lg shadow-[#3D2B56]/20' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
-                            >
-                                <CheckCircle size={18} /> บันทึกรหัส PIN
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {settingsModal === 'guide' && (
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">

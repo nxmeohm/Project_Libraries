@@ -79,9 +79,60 @@ app.use('/api', mobileRoutes);
 // Cron Jobs
 // ============================================================
 
-// Cron job to check for overdue items every midnight
+// Cron job for midnight tasks (Reset queues/reservations and check overdue)
 cron.schedule('0 0 * * *', async () => {
-    console.log('[Cron] Running daily overdue check...');
+    console.log('[Cron] Running daily midnight tasks...');
+    
+    // ----------------------------------------------------
+    // 1. Reset Reservations and Queues at 00:00
+    // ----------------------------------------------------
+    try {
+        console.log('[Cron] Resetting daily queues and reservations...');
+        
+        // 1.1 Find pending reservations (status = 'pending' in borrowed)
+        const [pendingReservations] = await pool.query(`
+            SELECT b.id, e.name as equipment_name, s.email as student_email
+            FROM borrowed b
+            LEFT JOIN equipments e ON b.equipment_id = e.equipment_id
+            LEFT JOIN student_profiles s ON b.student_id = s.student_id
+            WHERE b.status = 'pending'
+        `);
+
+        for (const resv of pendingReservations) {
+            await pool.query("UPDATE borrowed SET status = 'cancelled' WHERE id = ?", [resv.id]);
+            if (resv.student_email) {
+                const notifTitle = "การจองถูกยกเลิก (สิ้นสุดวัน)";
+                const notifMsg = `ระบบได้ยกเลิกการจองอุปกรณ์ "${resv.equipment_name}" ของคุณเนื่องจากสิ้นสุดวัน กรุณาทำรายการใหม่ในวันถัดไปหากยังต้องการใช้งาน`;
+                await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [resv.student_email, notifTitle, notifMsg]);
+            }
+        }
+        
+        // 1.2 Find active queues (status IN ('waiting', 'called') in equipment_queue)
+        const [activeQueues] = await pool.query(`
+            SELECT q.id, e.name as equipment_name, s.email as student_email
+            FROM equipment_queue q
+            LEFT JOIN equipments e ON q.equipment_id = e.equipment_id
+            LEFT JOIN student_profiles s ON q.student_id = s.student_id
+            WHERE q.status IN ('waiting', 'called')
+        `);
+
+        for (const q of activeQueues) {
+            await pool.query("UPDATE equipment_queue SET status = 'expired' WHERE id = ?", [q.id]);
+            if (q.student_email) {
+                const notifTitle = "คิวถูกยกเลิก (สิ้นสุดวัน)";
+                const notifMsg = `ระบบได้ตัดคิวรออุปกรณ์ "${q.equipment_name}" ของคุณเนื่องจากสิ้นสุดวัน กรุณากดจองคิวใหม่ในวันถัดไป`;
+                await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [q.student_email, notifTitle, notifMsg]);
+            }
+        }
+        
+        console.log(`[Cron] Reset ${pendingReservations.length} reservations and ${activeQueues.length} queues.`);
+    } catch (error) {
+        console.error('[Cron] Error resetting queues/reservations:', error);
+    }
+    
+    // ----------------------------------------------------
+    // 2. Overdue Items Check
+    // ----------------------------------------------------
     try {
         const sql = `
             SELECT b.id, b.student_id, b.equipment_id, e.name as equipment_name, 

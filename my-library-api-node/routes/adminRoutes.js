@@ -951,19 +951,40 @@ router.get('/reports', async (req, res) => {
             const [resRows] = await pool.query(sql, params);
             rows = resRows;
         }
+        else if (type === 'year_range') {
+            const start = req.query.startYear || (new Date().getFullYear() - 5);
+            const end = req.query.endYear || new Date().getFullYear();
+            sql = `
+                SELECT 
+                    YEAR(borrow_date) as report_year,
+                    COUNT(id) as total_borrows,
+                    SUM(CASE WHEN status = 'returned' THEN 1 ELSE 0 END) as total_returned
+                FROM borrowed
+                WHERE YEAR(borrow_date) BETWEEN ? AND ?
+                GROUP BY YEAR(borrow_date)
+                ORDER BY report_year ASC
+            `;
+            params = [start, end];
+            const [resRows] = await pool.query(sql, params);
+            rows = resRows;
+        }
         else if (type === 'equipment_stats') {
             const sort = req.query.sort === 'asc' ? 'ASC' : 'DESC';
+            const start = req.query.startYear || (new Date().getFullYear() - 5);
+            const end = req.query.endYear || new Date().getFullYear();
             sql = `
                 SELECT 
                     e.name,
                     COUNT(b.id) as total_borrows
                 FROM borrowed b
                 JOIN equipments e ON b.equipment_id = e.equipment_id
+                WHERE YEAR(b.borrow_date) BETWEEN ? AND ?
                 GROUP BY b.equipment_id
                 ORDER BY total_borrows ${sort}
                 LIMIT 20
             `;
-            const [resRows] = await pool.query(sql);
+            params = [start, end];
+            const [resRows] = await pool.query(sql, params);
             rows = resRows;
         }
 
@@ -979,20 +1000,32 @@ router.get('/reports', async (req, res) => {
 // ============================================================
 router.get('/reports/equipment-breakdown', async (req, res) => {
     try {
-        const { year, month } = req.query;
+        const { year, month, type, startYear, endYear } = req.query;
         const currentYear = year || new Date().getFullYear();
         const currentMonth = month || (new Date().getMonth() + 1);
 
         let whereClauses = ['1=1'];
         let params = [];
 
-        if (year) {
+        if (type === 'monthly') {
             whereClauses.push('YEAR(b.borrow_date) = ?');
             params.push(currentYear);
-        }
-        if (month) {
             whereClauses.push('MONTH(b.borrow_date) = ?');
             params.push(currentMonth);
+        } else if (type === 'yearly') {
+            whereClauses.push('YEAR(b.borrow_date) = ?');
+            params.push(currentYear);
+        } else if (type === 'fiscal_year') {
+            const fyYear = parseInt(currentYear) || new Date().getFullYear();
+            const startStr = `${fyYear - 1}-10-01 00:00:00`;
+            const endStr = `${fyYear}-09-30 23:59:59`;
+            whereClauses.push('b.borrow_date >= ? AND b.borrow_date <= ?');
+            params.push(startStr, endStr);
+        } else if (type === 'year_range' || type === 'equipment_stats') {
+            const start = startYear || (new Date().getFullYear() - 5);
+            const end = endYear || new Date().getFullYear();
+            whereClauses.push('YEAR(b.borrow_date) BETWEEN ? AND ?');
+            params.push(start, end);
         }
 
         const sql = `
@@ -1023,7 +1056,7 @@ router.get('/reports/equipment-breakdown', async (req, res) => {
 // ============================================================
 router.get('/reports/student-breakdown', async (req, res) => {
     try {
-        const { year, month, type } = req.query;
+        const { year, month, type, startYear, endYear } = req.query;
         const currentYear = year || new Date().getFullYear();
         const currentMonth = month || (new Date().getMonth() + 1);
 
@@ -1044,6 +1077,11 @@ router.get('/reports/student-breakdown', async (req, res) => {
             const endStr = `${fyYear}-09-30 23:59:59`;
             whereClauses.push('b.borrow_date >= ? AND b.borrow_date <= ?');
             params.push(startStr, endStr);
+        } else if (type === 'year_range' || type === 'equipment_stats') {
+            const start = startYear || (new Date().getFullYear() - 5);
+            const end = endYear || new Date().getFullYear();
+            whereClauses.push('YEAR(b.borrow_date) BETWEEN ? AND ?');
+            params.push(start, end);
         }
 
         const sql = `
