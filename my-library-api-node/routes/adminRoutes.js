@@ -837,7 +837,7 @@ router.post('/pickup_queue.php', async (req, res) => {
         if (isBorrowRequest) {
             await connection.query("UPDATE borrowed SET status = 'borrowed', borrow_date = NOW() WHERE id = ?", [bReq.id]);
         } else {
-            await connection.query("INSERT INTO borrowed (student_id, equipment_id, borrow_date, status) VALUES (?, ?, NOW(), 'borrowed')", [q.student_id, pItem.item_id]);
+            await connection.query("INSERT INTO borrowed (student_id, equipment_id, borrow_date, status) VALUES (?, ?, NOW(), 'borrowed')", [q.student_id, pItem.equipment_id]);
             await connection.query("UPDATE equipment_queue SET status = 'completed' WHERE id = ?", [q.id]);
         }
 
@@ -852,6 +852,82 @@ router.post('/pickup_queue.php', async (req, res) => {
             connection.release();
         }
         console.error("Pickup Queue Error:", error);
+        res.status(500).json({ success: false, message: "DB Error: " + (error.sqlMessage || error.message) });
+    }
+});
+
+// ============================================================
+// 14.5 Return Equipment by Barcode (Asset Code)
+// ============================================================
+router.post('/return_by_barcode.php', async (req, res) => {
+    const { barcode } = req.body;
+    
+    if (!barcode) {
+        return res.status(400).json({ success: false, message: "กรุณาระบุบาร์โค้ดอุปกรณ์" });
+    }
+
+    let connection;
+    try {
+        connection = await pool.getConnection();
+        await connection.beginTransaction();
+
+        // 1. Find the physical equipment item by barcode
+        const [items] = await connection.query(
+            "SELECT * FROM equipment_items WHERE full_asset_code = ? FOR UPDATE",
+            [barcode]
+        );
+
+        if (items.length === 0) {
+            await connection.rollback();
+            connection.release();
+            return res.status(404).json({ success: false, message: "ไม่พบรหัสครุภัณฑ์นี้ในระบบ" });
+        }
+
+        const pItem = items[0];
+
+        if (pItem.status !== 'borrowed') {
+            await connection.rollback();
+            connection.release();
+            return res.status(400).json({ success: false, message: `อุปกรณ์นี้ไม่ได้ถูกยืมอยู่ (สถานะปัจจุบัน: ${pItem.status})` });
+        }
+
+        // 2. Find the active borrowed record for this item (Model ID)
+        const [borrows] = await connection.query(
+            "SELECT * FROM borrowed WHERE equipment_id = ? AND status = 'borrowed' ORDER BY borrow_date ASC LIMIT 1 FOR UPDATE",
+            [pItem.equipment_id]
+        );
+
+        if (borrows.length === 0) {
+            // Edge case: item is marked borrowed but no active record found
+            await connection.rollback();
+            connection.release();
+            return res.status(404).json({ success: false, message: "ไม่พบประวัติการยืมที่กำลังใช้งานของอุปกรณ์นี้" });
+        }
+
+        const bReq = borrows[0];
+
+        // 3. Update records
+        await connection.query(
+            "UPDATE equipment_items SET status = 'available' WHERE item_id = ?",
+            [pItem.item_id]
+        );
+
+        await connection.query(
+            "UPDATE borrowed SET status = 'returned', return_date = NOW() WHERE id = ?",
+            [bReq.id]
+        );
+
+        await connection.commit();
+        connection.release();
+        
+        req.app.get('io').emit('data_updated');
+        res.json({ success: true, message: "รับคืนอุปกรณ์สำเร็จ" });
+    } catch (error) {
+        if (connection) {
+            await connection.rollback();
+            connection.release();
+        }
+        console.error("Return by Barcode Error:", error);
         res.status(500).json({ success: false, message: "DB Error: " + (error.sqlMessage || error.message) });
     }
 });
@@ -891,99 +967,61 @@ router.put('/equipment-items/:itemId/status', async (req, res) => {
 // ============================================================
 router.get('/reports', async (req, res) => {
     try {
-        const { type, year, month } = req.query;
+        const { type, startDate, endDate } = req.query;
         let sql = "";
         let params = [];
         let rows = [];
 
+        let whereClause = "DATE(borrow_date) >= ? AND DATE(borrow_date) <= ?";
+        let baseParams = [startDate, endDate];
+
         if (type === 'monthly') {
-            const currentYear = year || new Date().getFullYear();
-            const currentMonth = month || (new Date().getMonth() + 1);
             sql = `
                 SELECT 
-                    DATE(borrow_date) as report_date,
+                    MONTH(borrow_date) as report_month,
+                    YEAR(borrow_date) as report_year,
                     COUNT(id) as total_borrows,
                     SUM(CASE WHEN status = 'returned' THEN 1 ELSE 0 END) as total_returned,
                     SUM(CASE WHEN status = 'overdue' THEN 1 ELSE 0 END) as total_overdue
                 FROM borrowed
-                WHERE YEAR(borrow_date) = ? AND MONTH(borrow_date) = ?
-                GROUP BY DATE(borrow_date)
-                ORDER BY report_date ASC
+                WHERE ${whereClause}
+                GROUP BY YEAR(borrow_date), MONTH(borrow_date)
+                ORDER BY report_year ASC, report_month ASC
             `;
-            params = [currentYear, currentMonth];
+            params = [...baseParams];
             const [resRows] = await pool.query(sql, params);
             rows = resRows;
         } 
         else if (type === 'yearly') {
-            const currentYear = year || new Date().getFullYear();
-            sql = `
-                SELECT 
-                    MONTH(borrow_date) as report_month,
-                    COUNT(id) as total_borrows,
-                    SUM(CASE WHEN status = 'returned' THEN 1 ELSE 0 END) as total_returned
-                FROM borrowed
-                WHERE YEAR(borrow_date) = ?
-                GROUP BY MONTH(borrow_date)
-                ORDER BY report_month ASC
-            `;
-            params = [currentYear];
-            const [resRows] = await pool.query(sql, params);
-            rows = resRows;
-        }
-        else if (type === 'fiscal_year') {
-            // Fiscal Year in Thailand: Oct 1 of (Year-1) to Sep 30 of (Year)
-            // e.g. FY2026 = Oct 1, 2025 to Sep 30, 2026
-            const fyYear = parseInt(year) || new Date().getFullYear();
-            const startStr = `${fyYear - 1}-10-01 00:00:00`;
-            const endStr = `${fyYear}-09-30 23:59:59`;
-            
-            sql = `
-                SELECT 
-                    MONTH(borrow_date) as report_month,
-                    YEAR(borrow_date) as report_year,
-                    COUNT(id) as total_borrows
-                FROM borrowed
-                WHERE borrow_date >= ? AND borrow_date <= ?
-                GROUP BY YEAR(borrow_date), MONTH(borrow_date)
-                ORDER BY report_year ASC, report_month ASC
-            `;
-            params = [startStr, endStr];
-            const [resRows] = await pool.query(sql, params);
-            rows = resRows;
-        }
-        else if (type === 'year_range') {
-            const start = req.query.startYear || (new Date().getFullYear() - 5);
-            const end = req.query.endYear || new Date().getFullYear();
             sql = `
                 SELECT 
                     YEAR(borrow_date) as report_year,
                     COUNT(id) as total_borrows,
-                    SUM(CASE WHEN status = 'returned' THEN 1 ELSE 0 END) as total_returned
+                    SUM(CASE WHEN status = 'returned' THEN 1 ELSE 0 END) as total_returned,
+                    SUM(CASE WHEN status = 'overdue' THEN 1 ELSE 0 END) as total_overdue
                 FROM borrowed
-                WHERE YEAR(borrow_date) BETWEEN ? AND ?
+                WHERE ${whereClause}
                 GROUP BY YEAR(borrow_date)
                 ORDER BY report_year ASC
             `;
-            params = [start, end];
+            params = [...baseParams];
             const [resRows] = await pool.query(sql, params);
             rows = resRows;
         }
         else if (type === 'equipment_stats') {
             const sort = req.query.sort === 'asc' ? 'ASC' : 'DESC';
-            const start = req.query.startYear || (new Date().getFullYear() - 5);
-            const end = req.query.endYear || new Date().getFullYear();
             sql = `
                 SELECT 
                     e.name,
                     COUNT(b.id) as total_borrows
                 FROM borrowed b
                 JOIN equipments e ON b.equipment_id = e.equipment_id
-                WHERE YEAR(b.borrow_date) BETWEEN ? AND ?
+                WHERE DATE(b.borrow_date) >= ? AND DATE(b.borrow_date) <= ?
                 GROUP BY b.equipment_id
                 ORDER BY total_borrows ${sort}
                 LIMIT 20
             `;
-            params = [start, end];
+            params = [...baseParams];
             const [resRows] = await pool.query(sql, params);
             rows = resRows;
         }
@@ -1000,33 +1038,9 @@ router.get('/reports', async (req, res) => {
 // ============================================================
 router.get('/reports/equipment-breakdown', async (req, res) => {
     try {
-        const { year, month, type, startYear, endYear } = req.query;
-        const currentYear = year || new Date().getFullYear();
-        const currentMonth = month || (new Date().getMonth() + 1);
-
-        let whereClauses = ['1=1'];
-        let params = [];
-
-        if (type === 'monthly') {
-            whereClauses.push('YEAR(b.borrow_date) = ?');
-            params.push(currentYear);
-            whereClauses.push('MONTH(b.borrow_date) = ?');
-            params.push(currentMonth);
-        } else if (type === 'yearly') {
-            whereClauses.push('YEAR(b.borrow_date) = ?');
-            params.push(currentYear);
-        } else if (type === 'fiscal_year') {
-            const fyYear = parseInt(currentYear) || new Date().getFullYear();
-            const startStr = `${fyYear - 1}-10-01 00:00:00`;
-            const endStr = `${fyYear}-09-30 23:59:59`;
-            whereClauses.push('b.borrow_date >= ? AND b.borrow_date <= ?');
-            params.push(startStr, endStr);
-        } else if (type === 'year_range' || type === 'equipment_stats') {
-            const start = startYear || (new Date().getFullYear() - 5);
-            const end = endYear || new Date().getFullYear();
-            whereClauses.push('YEAR(b.borrow_date) BETWEEN ? AND ?');
-            params.push(start, end);
-        }
+        const { startDate, endDate } = req.query;
+        let whereClauses = ['DATE(b.borrow_date) >= ?', 'DATE(b.borrow_date) <= ?'];
+        let params = [startDate, endDate];
 
         const sql = `
             SELECT 
@@ -1056,33 +1070,9 @@ router.get('/reports/equipment-breakdown', async (req, res) => {
 // ============================================================
 router.get('/reports/student-breakdown', async (req, res) => {
     try {
-        const { year, month, type, startYear, endYear } = req.query;
-        const currentYear = year || new Date().getFullYear();
-        const currentMonth = month || (new Date().getMonth() + 1);
-
-        let whereClauses = ['1=1'];
-        let params = [];
-
-        if (type === 'monthly') {
-            whereClauses.push('YEAR(b.borrow_date) = ?');
-            params.push(currentYear);
-            whereClauses.push('MONTH(b.borrow_date) = ?');
-            params.push(currentMonth);
-        } else if (type === 'yearly') {
-            whereClauses.push('YEAR(b.borrow_date) = ?');
-            params.push(currentYear);
-        } else if (type === 'fiscal_year') {
-            const fyYear = parseInt(currentYear) || new Date().getFullYear();
-            const startStr = `${fyYear - 1}-10-01 00:00:00`;
-            const endStr = `${fyYear}-09-30 23:59:59`;
-            whereClauses.push('b.borrow_date >= ? AND b.borrow_date <= ?');
-            params.push(startStr, endStr);
-        } else if (type === 'year_range' || type === 'equipment_stats') {
-            const start = startYear || (new Date().getFullYear() - 5);
-            const end = endYear || new Date().getFullYear();
-            whereClauses.push('YEAR(b.borrow_date) BETWEEN ? AND ?');
-            params.push(start, end);
-        }
+        const { startDate, endDate } = req.query;
+        let whereClauses = ['DATE(b.borrow_date) >= ?', 'DATE(b.borrow_date) <= ?'];
+        let params = [startDate, endDate];
 
         const sql = `
             SELECT 

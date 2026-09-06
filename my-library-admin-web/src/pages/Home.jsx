@@ -173,14 +173,10 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                     inversionAttempts: "dontInvert",
                 });
                 if (code) {
-                    if (targetField === 'queue') {
-                        setScanQueueId(code.data);
-                        if (code.data.trim().length > 6) setTimeout(() => setIsScanningQueue(false), 200);
-                        showToast("อ่าน QR Code สำเร็จ", "success");
-                    } else if (targetField === 'barcode') {
-                        setScanBarcode(code.data);
-                        showToast("อ่าน QR Code อุปกรณ์สำเร็จ กำลังยืนยัน...", "success");
-                        setTimeout(() => handlePickupQueue(null, code.data), 300);
+                    if (targetField === 'unified') {
+                        setScanInput(code.data);
+                        showToast("อ่านรหัสสำเร็จ กำลังดำเนินการ...", "success");
+                        setTimeout(() => handleUnifiedScan(null, code.data), 300);
                     }
                 } else {
                     showToast("ไม่พบ QR Code ในรูปภาพ", "error");
@@ -193,10 +189,12 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
     };
     /* --- Report Feature States & Functions --- */
     const [reportType, setReportType] = useState('monthly');
-    const [reportYear, setReportYear] = useState(new Date().getFullYear());
-    const [reportStartYear, setReportStartYear] = useState(new Date().getFullYear() - 5);
-    const [reportEndYear, setReportEndYear] = useState(new Date().getFullYear());
-    const [reportMonth, setReportMonth] = useState(new Date().getMonth() + 1);
+    const [reportStartDate, setReportStartDate] = useState(() => {
+        const d = new Date();
+        d.setDate(1); // 1st day of current month
+        return d.toISOString().split('T')[0];
+    });
+    const [reportEndDate, setReportEndDate] = useState(new Date().toISOString().split('T')[0]);
     const [reportData, setReportData] = useState([]);
     const [equipmentBreakdownData, setEquipmentBreakdownData] = useState([]);
     const [studentBreakdownData, setStudentBreakdownData] = useState([]);
@@ -210,15 +208,16 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
     const [activeTab, setActiveTab] = useState('overview'); // overview, students, equipments
     const [showExportDropdown, setShowExportDropdown] = useState(false);
 
-    const REPORT_LABEL = { monthly: 'รายเดือน', yearly: 'รายปี', fiscal_year: 'ปีงบประมาณ', equipment_stats: 'สถิติอุปกรณ์ยอดนิยม' };
-    const THAI_MONTHS = ['', 'มกราคม', 'ฟุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+    const REPORT_LABEL = { monthly: 'รายเดือน', yearly: 'รายปี', equipment_stats: 'สถิติอุปกรณ์ยอดนิยม' };
+    const THAI_MONTHS = ['', 'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 
     const getReportTitle = () => {
         const label = REPORT_LABEL[reportType] || reportType;
-        if (reportType === 'monthly') return `รายงาน${label} - ${THAI_MONTHS[parseInt(reportMonth)]} ${parseInt(reportYear) + 543}`;
-        if (reportType === 'yearly') return `รายงาน${label} - ปี ${parseInt(reportYear) + 543}`;
-        if (reportType === 'fiscal_year') return `รายงาน${label} - ปีงบประมาณ ${parseInt(reportYear) + 543}`;
-        return `รายงาน${label}`;
+        const d1 = new Date(reportStartDate);
+        const d2 = new Date(reportEndDate);
+        const startStr = `${d1.getDate()} ${THAI_MONTHS[d1.getMonth() + 1]} ${d1.getFullYear() + 543}`;
+        const endStr = `${d2.getDate()} ${THAI_MONTHS[d2.getMonth() + 1]} ${d2.getFullYear() + 543}`;
+        return `รายงาน${label} (ตั้งแต่ ${startStr} - ${endStr})`;
     };
 
     const getReportSummary = () => {
@@ -232,12 +231,13 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
     const generateReport = async () => {
         setIsReportLoading(true);
         try {
-            const data = await authFetch(`/api/admin/reports?type=${reportType}&year=${reportYear}&month=${reportMonth}&sort=${equipSortOrder}&startYear=${reportStartYear}&endYear=${reportEndYear}`);
+            const data = await authFetch(`/api/admin/reports?type=${reportType}&startDate=${reportStartDate}&endDate=${reportEndDate}&sort=${equipSortOrder}`);
             if (data.success) {
                 const formattedData = (data.data || []).map(item => {
-                    if (item.report_date) {
-                        const d = new Date(item.report_date);
-                        item.report_date = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear() + 543}`;
+                    if (item.report_month && item.report_year) {
+                        item.report_date = `${THAI_MONTHS[item.report_month]} ${item.report_year + 543}`;
+                    } else if (item.report_year) {
+                        item.report_date = `ปี ${item.report_year + 543}`;
                     }
                     return item;
                 });
@@ -257,7 +257,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
     const fetchEquipmentBreakdown = async () => {
         setIsEquipBreakdownLoading(true);
         try {
-            const data = await authFetch(`/api/admin/reports/equipment-breakdown?year=${reportYear}&month=${reportMonth}&type=${reportType}&startYear=${reportStartYear}&endYear=${reportEndYear}`);
+            const data = await authFetch(`/api/admin/reports/equipment-breakdown?startDate=${reportStartDate}&endDate=${reportEndDate}`);
             if (data.success) {
                 setEquipmentBreakdownData(data.data);
             }
@@ -272,7 +272,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
     const fetchStudentBreakdown = async () => {
         setIsStudentBreakdownLoading(true);
         try {
-            const data = await authFetch(`/api/admin/reports/student-breakdown?year=${reportYear}&month=${reportMonth}&type=${reportType}&startYear=${reportStartYear}&endYear=${reportEndYear}`);
+            const data = await authFetch(`/api/admin/reports/student-breakdown?startDate=${reportStartDate}&endDate=${reportEndDate}`);
             if (data.success) {
                 setStudentBreakdownData(data.data);
             }
@@ -289,7 +289,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
         if (currentPage === "report") {
             generateReport();
         }
-    }, [currentPage, reportType, reportYear, reportMonth]);
+    }, [currentPage, reportType, reportStartDate, reportEndDate]);
 
     /* --- Export Functions (Data-Driven) --- */
     const exportToExcel = () => {
@@ -382,7 +382,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                 backgroundColor: '#ffffff',
             });
             const link = document.createElement('a');
-            link.download = `report_${reportType}_${reportYear}.png`;
+            link.download = `report_${reportType}_${Date.now()}.png`;
             link.href = dataUrl;
             document.body.appendChild(link);
             link.click();
@@ -513,44 +513,62 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
         }
     };
 
-    const [isScanModalOpen, setIsScanModalOpen] = useState(false);
-    const [scanQueueId, setScanQueueId] = useState("");
-    const [scanBarcode, setScanBarcode] = useState("");
-    const [isSubmittingQueue, setIsSubmittingQueue] = useState(false);
+    const [isUnifiedScannerOpen, setIsUnifiedScannerOpen] = useState(false);
+    const [scanInput, setScanInput] = useState("");
+    const [isSubmittingScan, setIsSubmittingScan] = useState(false);
 
-    const handlePickupQueue = async (e, scannedCode = null) => {
+    const handleUnifiedScan = async (e, scannedCode = null) => {
         if (e) e.preventDefault();
-        if (isSubmittingQueue) return;
-        setIsSubmittingQueue(true);
+        if (isSubmittingScan) return;
+        
+        const inputToUse = (scannedCode || scanInput).trim();
+        if (!inputToUse) return showToast('กรุณากรอกรหัสคิว หรือ รหัสครุภัณฑ์', 'warning');
+
+        setIsSubmittingScan(true);
+
+        const isQueueScan = inputToUse.toUpperCase().startsWith('QUEUE-') || inputToUse.toUpperCase().startsWith('LB');
+
         try {
-            const queueToUse = scannedCode || scanQueueId;
-            const qIdClean = queueToUse.toUpperCase().replace('QUEUE-', '');
-            if (!qIdClean) return showToast('กรุณากรอกรหัสคิว', 'warning');
-            
-            // Automatically assign barcode via backend
-            const data = await authFetch('/api/admin/pickup_queue.php', {
-                method: 'POST',
-                body: JSON.stringify({
-                    queue_id: qIdClean,
-                    barcode: 'AUTO'
-                })
-            });
-            if (data.success) {
-                showToast('จ่ายอุปกรณ์ให้คิวสำเร็จ', 'success');
-                setIsScanModalOpen(false);
-                setScanQueueId("");
-                setScanBarcode("");
-                setIsScanningQueue(true);
-                fetchDashboard();
-                fetchRequests();
+            if (isQueueScan) {
+                const qIdClean = inputToUse.toUpperCase().replace('QUEUE-', '');
+                const data = await authFetch('/api/admin/pickup_queue.php', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        queue_id: qIdClean,
+                        barcode: 'AUTO'
+                    })
+                });
+                if (data.success) {
+                    showToast('จ่ายอุปกรณ์ให้คิวสำเร็จ', 'success');
+                    setIsUnifiedScannerOpen(false);
+                    setScanInput("");
+                    fetchDashboard();
+                    fetchRequests();
+                } else {
+                    showToast(data.message || 'เกิดข้อผิดพลาดในการจ่ายคิว', 'error');
+                }
             } else {
-                showToast(data.message || 'เกิดข้อผิดพลาด', 'error');
+                const data = await authFetch('/api/admin/return_by_barcode.php', {
+                    method: 'POST',
+                    body: JSON.stringify({ barcode: inputToUse })
+                });
+                
+                if (data.success) {
+                    showToast(data.message || 'รับคืนอุปกรณ์สำเร็จ', 'success');
+                    setIsUnifiedScannerOpen(false);
+                    setScanInput("");
+                    fetchDashboard();
+                    fetchRequests();
+                    fetchEquipments();
+                } else {
+                    showToast(data.message || 'เกิดข้อผิดพลาดในการรับคืน', 'error');
+                }
             }
         } catch (err) {
             console.error(err);
             showToast('เชื่อมต่อเซิร์ฟเวอร์ล้มเหลว', 'error');
         } finally {
-            setIsSubmittingQueue(false);
+            setIsSubmittingScan(false);
         }
     };
 
@@ -876,9 +894,9 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                     })}
                 </div>
 
-                <button onClick={() => setIsScanModalOpen(true)} className="flex items-center gap-3 px-3 py-3 rounded-xl text-[13.5px] font-medium transition bg-green-500/20 text-green-300 hover:bg-green-500/30 mb-4 justify-center shadow-sm">
+                <button onClick={() => setIsUnifiedScannerOpen(true)} className="flex items-center gap-3 px-3 py-3 rounded-xl text-[13.5px] font-medium transition bg-green-500/20 text-green-300 hover:bg-green-500/30 mb-4 justify-center shadow-sm">
                     <QrCode size={18} />
-                    สแกนจ่ายคิว
+                    สแกน QR / บาร์โค้ด
                 </button>
 
                 <div className="border-t border-white/10 pt-3.5 flex items-center gap-2.5">
@@ -1759,71 +1777,22 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                         <label className="block text-[13px] font-bold text-slate-500 mb-2">ประเภทรายงาน</label>
                                         <div className="relative">
                                             <select value={reportType} onChange={e => setReportType(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56] appearance-none cursor-pointer">
-                                                <option value="monthly">รายเดือน</option>
-                                                <option value="yearly">รายปี</option>
-                                                <option value="year_range">ช่วงปี (เปรียบเทียบแต่ละปี)</option>
-                                                <option value="fiscal_year">ปีงบประมาณ</option>
+                                                <option value="monthly">รายเดือน (สรุปเป็นเดือน)</option>
+                                                <option value="yearly">รายปี (สรุปเป็นปี)</option>
                                                 <option value="equipment_stats">สถิติอุปกรณ์ยอดนิยม</option>
                                             </select>
                                             <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                                         </div>
                                     </div>
                                     
-                                    {['monthly', 'yearly', 'fiscal_year'].includes(reportType) && (
-                                        <div className="flex-1 min-w-[180px]">
-                                            <label className="block text-[13px] font-bold text-slate-500 mb-2">ปี (ค.ศ.)</label>
-                                            <div className="relative">
-                                                <select value={reportYear} onChange={e => setReportYear(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56] appearance-none cursor-pointer">
-                                                    {Array.from({length: new Date().getFullYear() - 2020 + 1}).map((_, i) => {
-                                                        const year = new Date().getFullYear() - i;
-                                                        return <option key={year} value={year}>{year}</option>;
-                                                    })}
-                                                </select>
-                                                <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                                            </div>
-                                        </div>
-                                    )}
-                                    
-                                    {['year_range', 'equipment_stats'].includes(reportType) && (
-                                        <>
-                                            <div className="flex-1 min-w-[120px]">
-                                                <label className="block text-[13px] font-bold text-slate-500 mb-2">ตั้งแต่ปี (ค.ศ.)</label>
-                                                <div className="relative">
-                                                    <select value={reportStartYear} onChange={e => setReportStartYear(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56] appearance-none cursor-pointer">
-                                                        {Array.from({length: new Date().getFullYear() - 2020 + 1}).map((_, i) => {
-                                                            const year = new Date().getFullYear() - i;
-                                                            return <option key={year} value={year}>{year}</option>;
-                                                        })}
-                                                    </select>
-                                                    <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                                                </div>
-                                            </div>
-                                            <div className="flex-1 min-w-[120px]">
-                                                <label className="block text-[13px] font-bold text-slate-500 mb-2">ถึงปี (ค.ศ.)</label>
-                                                <div className="relative">
-                                                    <select value={reportEndYear} onChange={e => setReportEndYear(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56] appearance-none cursor-pointer">
-                                                        {Array.from({length: new Date().getFullYear() - 2020 + 1}).map((_, i) => {
-                                                            const year = new Date().getFullYear() - i;
-                                                            return <option key={year} value={year}>{year}</option>;
-                                                        })}
-                                                    </select>
-                                                    <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
-
-                                    {reportType === 'monthly' && (
-                                        <div className="flex-1 min-w-[180px]">
-                                            <label className="block text-[13px] font-bold text-slate-500 mb-2">เดือน</label>
-                                            <div className="relative">
-                                                <select value={reportMonth} onChange={e => setReportMonth(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56] appearance-none cursor-pointer">
-                                                    {Array.from({length: 12}).map((_, i) => <option key={i+1} value={i+1}>{THAI_MONTHS[i+1]}</option>)}
-                                                </select>
-                                                <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                                            </div>
-                                        </div>
-                                    )}
+                                    <div className="flex-1 min-w-[150px]">
+                                        <label className="block text-[13px] font-bold text-slate-500 mb-2">ตั้งแต่วันที่</label>
+                                        <input type="date" value={reportStartDate} onChange={e => setReportStartDate(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56]" />
+                                    </div>
+                                    <div className="flex-1 min-w-[150px]">
+                                        <label className="block text-[13px] font-bold text-slate-500 mb-2">ถึงวันที่</label>
+                                        <input type="date" value={reportEndDate} onChange={e => setReportEndDate(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56]" />
+                                    </div>
 
                                     {reportType === 'equipment_stats' && (
                                         <div className="flex-1 min-w-[180px]">
@@ -1952,7 +1921,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                                                 <ResponsiveContainer width="100%" height="100%">
                                                                     <BarChart data={reportData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                                                        <XAxis dataKey={reportType === 'monthly' ? 'report_date' : reportType === 'yearly' ? 'report_month' : 'report_year'} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                                                                        <XAxis dataKey={['monthly', 'daily'].includes(reportType) ? 'report_date' : reportType === 'yearly' ? 'report_month' : 'report_year'} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
                                                                         <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
                                                                         <RechartsTooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }} />
                                                                         <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingBottom: '10px' }} verticalAlign="top" />
@@ -2109,37 +2078,38 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                 )}
             </div>
             {/* ================= MODALS ================= */}
-            {isScanModalOpen && (
+            {isUnifiedScannerOpen && (
                 <div className="fixed inset-0 bg-[#3D2B56]/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
                     <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-[slideIn_0.3s_ease]">
                         <div className="px-6 py-5 border-b border-purple-100 flex items-center justify-between bg-purple-50">
-                            <h2 className="text-[17px] font-bold text-slate-800">สแกนจ่ายคิว (Queue)</h2>
-                            <button onClick={() => setIsScanModalOpen(false)} className="w-8 h-8 rounded-full hover:bg-white flex items-center justify-center text-slate-500 hover:text-slate-800 transition">
+                            <h2 className="text-[17px] font-bold text-slate-800">สแกน QR / บาร์โค้ด</h2>
+                            <button onClick={() => setIsUnifiedScannerOpen(false)} className="w-8 h-8 rounded-full hover:bg-white flex items-center justify-center text-slate-500 hover:text-slate-800 transition">
                                 <X size={20} />
                             </button>
                         </div>
-                        <form onSubmit={handlePickupQueue} className="p-6">
+                        <form onSubmit={handleUnifiedScan} className="p-6">
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-[13px] font-bold text-slate-700 mb-2">สแกนรหัสคิว / ใบเสร็จ (QR Code)</label>
+                                    <label className="block text-[13px] font-bold text-slate-700 mb-2">สแกนรหัสคิว / รหัสครุภัณฑ์</label>
                                     <div className="flex gap-2">
-                                        <input autoFocus type="text" value={scanQueueId} onChange={e => {
-                                            setScanQueueId(e.target.value);
+                                        <input autoFocus type="text" value={scanInput} onChange={e => {
+                                            setScanInput(e.target.value);
+                                            if (window.scanTimeout) clearTimeout(window.scanTimeout);
                                             if (e.target.value.trim().length > 6) {
-                                                setTimeout(() => handlePickupQueue(null, e.target.value), 300);
+                                                window.scanTimeout = setTimeout(() => handleUnifiedScan(null, e.target.value), 500);
                                             }
-                                        }} placeholder="เช่น LB123456" className="flex-1 bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400" />
-                                        <label className="bg-purple-100 text-purple-700 rounded-xl px-4 flex items-center justify-center cursor-pointer hover:bg-purple-200 transition" title="อัพโหลดรูป QR Code">
+                                        }} placeholder="เช่น LB123456 หรือ 310510..." className="flex-1 bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400" />
+                                        <label className="bg-purple-100 text-purple-700 rounded-xl px-4 flex items-center justify-center cursor-pointer hover:bg-purple-200 transition" title="อัพโหลดรูป QR/Barcode">
                                             <Upload size={20} />
-                                            <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, 'queue')} />
+                                            <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, 'unified')} />
                                         </label>
                                     </div>
-                                    <p className="text-xs text-slate-500 mt-2">* ระบบจะทำการสุ่มหยิบอุปกรณ์ในสต๊อก 1 เครื่อง และตัดยอดให้อัตโนมัติ</p>
+                                    <p className="text-xs text-slate-500 mt-2">* ระบบจะตรวจสอบประเภทบาร์โค้ดและดำเนินการ จ่ายคิว หรือ รับคืน อัตโนมัติ</p>
                                 </div>
                             </div>
                             <div className="flex gap-3 mt-6">
-                                <button type="button" onClick={() => { setIsScanModalOpen(false); setScanQueueId(""); }} className="flex-1 px-4 py-2.5 rounded-xl text-[13.5px] font-bold border border-slate-200 text-slate-600 hover:bg-slate-50 transition" disabled={isSubmittingQueue}>ยกเลิก</button>
-                                <button type="submit" disabled={!scanQueueId || isSubmittingQueue} className="flex-1 px-4 py-2.5 rounded-xl text-[13.5px] font-bold bg-[#3D2B56] text-white hover:bg-[#2A1D3C] transition disabled:opacity-50">{isSubmittingQueue ? 'กำลังดำเนินการ...' : 'ยืนยัน'}</button>
+                                <button type="button" onClick={() => { setIsUnifiedScannerOpen(false); setScanInput(""); }} className="flex-1 px-4 py-2.5 rounded-xl text-[13.5px] font-bold border border-slate-200 text-slate-600 hover:bg-slate-50 transition" disabled={isSubmittingScan}>ยกเลิก</button>
+                                <button type="submit" disabled={!scanInput || isSubmittingScan} className="flex-1 px-4 py-2.5 rounded-xl text-[13.5px] font-bold bg-[#3D2B56] text-white hover:bg-[#2A1D3C] transition disabled:opacity-50">{isSubmittingScan ? 'กำลังดำเนินการ...' : 'ยืนยัน'}</button>
                             </div>
                         </form>
                     </div>

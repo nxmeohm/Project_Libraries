@@ -205,166 +205,6 @@ async function authFetch(url, options = {}) {
 }
 
 /* ============================================================
-   Calendar View Component
-   ============================================================ */
-function CalendarView() {
-    const [currentMonthDate, setCurrentMonthDate] = useState(new Date(2026, 6, 1));
-    const [selectedDateObj, setSelectedDateObj] = useState(new Date(2026, 6, 17));
-
-    const events = {
-        '2026-07-27': 'exam', '2026-07-31': 'exam',
-        '2026-07-28': 'holiday', '2026-07-29': 'holiday', '2026-07-30': 'holiday',
-        '2026-08-03': 'exam', '2026-08-04': 'exam', '2026-08-05': 'exam', '2026-08-06': 'exam', '2026-08-07': 'exam',
-        '2026-08-12': 'holiday',
-        '2026-09-07': 'exam', '2026-09-08': 'exam', '2026-09-09': 'exam', '2026-09-10': 'exam', '2026-09-11': 'exam',
-        '2026-09-14': 'exam', '2026-09-15': 'exam', '2026-09-16': 'exam', '2026-09-17': 'exam', '2026-09-18': 'exam',
-        '2026-10-13': 'holiday', '2026-10-23': 'holiday'
-    };
-
-    const getDayInfo = (dateObj) => {
-        const y = dateObj.getFullYear();
-        const m = String(dateObj.getMonth() + 1).padStart(2, '0');
-        const d = String(dateObj.getDate()).padStart(2, '0');
-        const dateStr = `${y}-${m}-${d}`;
-        const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
-        const eventType = events[dateStr] || (isWeekend ? 'weekend' : 'normal');
-
-        let bg = 'transparent', dot = 'transparent';
-        if (eventType === 'weekend') { bg = '#F5F3FA'; dot = '#6A5ACD'; }
-        else if (eventType === 'holiday') { bg = '#FDEAEA'; dot = '#E57373'; }
-        else if (eventType === 'exam') { bg = '#FEF3C7'; dot = '#F59E0B'; }
-        
-        return { type: eventType, bg, dot };
-    };
-
-    const getTimeDetail = (dateObj) => {
-        const type = getDayInfo(dateObj).type;
-        if (type === 'weekend') return { hours: '09:00 - 17:00 น.', desc: 'เวลาทำการวันเสาร์-อาทิตย์' };
-        if (type === 'holiday') return { hours: '09:00 - 17:00 น.', desc: 'เวลาทำการวันหยุดนักขัตฤกษ์' };
-        if (type === 'exam') return { hours: '08:30 - 00:00 น.', desc: 'เวลาทำการวันจันทร์-ศุกร์ (ช่วง 2 สัปดาห์ก่อนสอบ)' };
-        return { hours: '08:30 - 20:00 น.', desc: 'เวลาทำการวันจันทร์-ศุกร์ (ปกติ)' };
-    };
-
-    const generateCalendar = (date) => {
-        const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
-        const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-        const startDate = new Date(firstDay);
-        startDate.setDate(startDate.getDate() - startDate.getDay());
-        const endDate = new Date(lastDay);
-        if (endDate.getDay() !== 6) endDate.setDate(endDate.getDate() + (6 - endDate.getDay()));
-
-        const weeks = [];
-        let current = new Date(startDate);
-        while (current <= endDate) {
-            const week = [];
-            for (let i = 0; i < 7; i++) {
-                week.push(new Date(current));
-                current.setDate(current.getDate() + 1);
-            }
-            weeks.push(week);
-        }
-        return weeks;
-    };
-
-    const formatThaiDate = (d) => {
-        const days = ['วันอาทิตย์', 'วันจันทร์', 'วันอังคาร', 'วันพุธ', 'วันพฤหัสบดี', 'วันศุกร์', 'วันเสาร์'];
-        const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
-        return `${days[d.getDay()]}ที่ ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543}`;
-    };
-
-    const formatMonthYear = (d) => {
-        const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
-        return `${months[d.getMonth()]} ${d.getFullYear() + 543}`;
-    };
-
-    const changeMonth = (offset) => {
-        const newMonth = new Date(currentMonthDate);
-        newMonth.setMonth(newMonth.getMonth() + offset);
-        setCurrentMonthDate(newMonth);
-    };
-
-    const isSameDate = (d1, d2) => d1.getDate() === d2.getDate() && d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
-
-    const calendarWeeks = generateCalendar(currentMonthDate);
-
-    return (
-        <div>
-            <div className="flex justify-between items-center mb-5 px-2">
-                <button onClick={() => changeMonth(-1)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition">
-                    <ChevronLeft size={20} className="text-slate-600" />
-                </button>
-                <h4 className="font-bold text-[16px] text-[#3D2B56]">{formatMonthYear(currentMonthDate)}</h4>
-                <button onClick={() => changeMonth(1)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition">
-                    <ChevronRight size={20} className="text-slate-600" />
-                </button>
-            </div>
-            
-            <div className="mb-5">
-                <div className="grid grid-cols-7 gap-1 mb-2">
-                    {['อา','จ','อ','พ','พฤ','ศ','ส'].map((d, i) => (
-                        <div key={i} className="text-center text-[12px] font-semibold text-slate-400">{d}</div>
-                    ))}
-                </div>
-                {calendarWeeks.map((week, rowIndex) => (
-                    <div key={rowIndex} className="grid grid-cols-7 gap-1 mb-1">
-                        {week.map((dayObj, colIndex) => {
-                            const isSelected = isSameDate(dayObj, selectedDateObj);
-                            const isCurrentMonth = dayObj.getMonth() === currentMonthDate.getMonth();
-                            const { bg, dot } = getDayInfo(dayObj);
-                            
-                            return (
-                                <button 
-                                    key={colIndex}
-                                    onClick={() => setSelectedDateObj(dayObj)}
-                                    className={`w-9 h-9 mx-auto rounded-xl flex flex-col items-center justify-center transition-all ${!isCurrentMonth ? 'opacity-40' : ''}`}
-                                    style={{ 
-                                        backgroundColor: isSelected ? '#3D2B56' : bg,
-                                        transform: isSelected ? 'scale(1.05)' : 'scale(1)',
-                                        boxShadow: isSelected ? '0 4px 10px rgba(61, 43, 86, 0.2)' : 'none'
-                                    }}
-                                >
-                                    <span className={`text-[13px] font-bold ${isSelected ? 'text-white' : (isCurrentMonth ? 'text-slate-700' : 'text-slate-400')}`}>
-                                        {dayObj.getDate()}
-                                    </span>
-                                    {!isSelected && dot !== 'transparent' && (
-                                        <div className="w-1 h-1 rounded-full mt-0.5" style={{ backgroundColor: dot }}></div>
-                                    )}
-                                </button>
-                            );
-                        })}
-                    </div>
-                ))}
-            </div>
-
-            <div className="bg-slate-50 p-4 rounded-2xl mb-5 border border-slate-100">
-                <p className="text-[13px] text-slate-500 mb-1">{formatThaiDate(selectedDateObj)}</p>
-                <h3 className="text-[18px] font-bold text-[#3D2B56] leading-tight mb-1">{getTimeDetail(selectedDateObj).hours}</h3>
-                <p className="text-[13px] text-slate-600">{getTimeDetail(selectedDateObj).desc}</p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-y-3 px-2">
-                <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full border border-slate-200"></div>
-                    <span className="text-[12px] text-slate-600">วันธรรมดา</span>
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-[#F5F3FA]"></div>
-                    <span className="text-[12px] text-slate-600">เสาร์-อาทิตย์</span>
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-[#FDEAEA]"></div>
-                    <span className="text-[12px] text-slate-600">วันหยุดขัตฤกษ์</span>
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-[#FEF3C7]"></div>
-                    <span className="text-[12px] text-slate-600">ช่วงใกล้สอบ</span>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-/* ============================================================
    Notifications Helper Functions
    ============================================================ */
 const formatTimeAgo = (date) => {
@@ -827,7 +667,7 @@ export default function UserApp({ studentId, onLogout }) {
                     txId: txId,
                     borrowDate: new Date(),
                     status: 'pending',
-                    items: [equipment]
+                    items: [{ ...equipment, id: data.borrow_id, status: 'pending' }]
                 });
                 
                 // Update lists in background
@@ -1843,23 +1683,6 @@ export default function UserApp({ studentId, onLogout }) {
                                 </div>
                             </div>
 
-                            {/* Section 2: ข้อมูลห้องสมุด */}
-                            <div>
-                                <h3 className="text-[15px] font-bold text-slate-800 mb-3 ml-2">ข้อมูลห้องสมุด</h3>
-                                <div className="bg-white border border-purple-100 rounded-3xl overflow-hidden shadow-sm">
-                                    <button onClick={() => setSettingsModal('calendar')} className="w-full flex items-center gap-4 p-4 hover:bg-slate-50 transition text-left">
-                                        <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center shrink-0">
-                                            <Calendar size={18} className="text-[#3D2B56]" />
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="text-[14px] font-bold text-slate-800">ปฏิทินและเวลาทำการ</div>
-                                            <div className="text-[12px] text-slate-500 mt-0.5">ดูวันเปิด-ปิดของห้องสมุด</div>
-                                        </div>
-                                        <ChevronRight size={18} className="text-slate-300" />
-                                    </button>
-                                </div>
-                            </div>
-                            
                             {/* Section 3: การแจ้งเตือน */}
                             <div>
                                 <h3 className="text-[15px] font-bold text-slate-800 mb-3 ml-2">การแจ้งเตือน</h3>
@@ -2071,22 +1894,6 @@ export default function UserApp({ studentId, onLogout }) {
                 </div>
             )}
 
-            {settingsModal === 'calendar' && (
-                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden">
-                        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white">
-                            <h3 className="text-[16px] font-bold text-slate-800 flex items-center gap-2"><Calendar size={18} className="text-[#3D2B56]" /> ปฏิทินและเวลาเปิด-ปิด</h3>
-                            <button onClick={() => setSettingsModal(null)} className="p-1.5 hover:bg-slate-100 rounded-full transition text-slate-500">
-                                <X size={18} />
-                            </button>
-                        </div>
-                        <div className="p-6">
-                            <CalendarView />
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {settingsModal === 'history' && (
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
@@ -2204,27 +2011,32 @@ export default function UserApp({ studentId, onLogout }) {
                                     <span className="font-bold text-[14px] text-slate-800">{student?.name_th}</span>
                                 </div>
                             </div>
-                            <div className="bg-white p-4 rounded-2xl shadow-sm space-y-3 mb-6">
+                            <div className="bg-white p-4 rounded-2xl shadow-sm space-y-4 mb-6">
                                 {selectedReceipt.items.map((it, i) => (
-                                    <div key={i} className="flex gap-3">
-                                        <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center shrink-0 border border-slate-100 overflow-hidden">
-                                            {it.equipment_img || it.image_url ? (
-                                                <img src={`${IMG_BASE}${(it.equipment_img || it.image_url)}`} alt="" className="w-full h-full object-contain" />
-                                            ) : (
-                                                <Package size={16} className="text-slate-300" />
-                                            )}
+                                    <div key={i} className="flex flex-col border-b border-slate-100 pb-4 mb-2 last:border-0 last:pb-0 last:mb-0">
+                                        <div className="flex gap-3 mb-4 items-center">
+                                            <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center shrink-0 border border-slate-100 overflow-hidden">
+                                                {it.equipment_img || it.image_url ? (
+                                                    <img src={`${IMG_BASE}${(it.equipment_img || it.image_url)}`} alt="" className="w-full h-full object-contain" />
+                                                ) : (
+                                                    <Package size={20} className="text-slate-300" />
+                                                )}
+                                            </div>
+                                            <div>
+                                                <p className="text-[14px] font-bold text-slate-800 leading-tight">{it.name}</p>
+                                                <p className="text-[12px] text-slate-500 mt-1">รหัส: {it.equipment_id}</p>
+                                                <p className="text-[12px] font-bold text-[#3D2B56] mt-0.5">Ref: LB{it.id}</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="text-[13px] font-bold text-slate-800 leading-tight">{it.name}</p>
-                                            <p className="text-[11px] text-slate-500 mt-0.5">รหัส: {it.equipment_id}</p>
-                                        </div>
+                                        {['pending', 'borrowed', 'overdue'].includes(it.status) && (
+                                            <div className="flex justify-center w-full">
+                                                <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-200 inline-block">
+                                                    <QRCode value={`LB${it.id}`} size={140} />
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
-                            </div>
-                            <div className="flex justify-center pb-2">
-                                <div className="bg-white p-3 rounded-2xl shadow-sm inline-block border border-slate-100">
-                                    <QRCode value={selectedReceipt.txId} size={120} />
-                                </div>
                             </div>
                             {selectedReceipt.status === 'pending' && (
                                 <p className="text-center text-[13px] font-bold text-orange-600 mt-4 bg-orange-50 py-1.5 rounded-lg border border-orange-100">
