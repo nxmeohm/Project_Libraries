@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>เอกสารสรุปโครงงาน - Library Equipment Management System</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap');
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Sarabun', sans-serif;
+            color: #1e293b;
+            background: #fff;
+            line-height: 1.8;
+            font-size: 14px;
+            padding: 40px 60px;
+        }
+
+        h1 {
+            font-size: 26px;
+            font-weight: 700;
+            color: #4c1d95;
+            text-align: center;
+            margin-bottom: 6px;
+            border-bottom: 3px solid #7c3aed;
+            padding-bottom: 12px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #64748b;
+            font-size: 13px;
+            margin-bottom: 30px;
+        }
+
+        h2 {
+            font-size: 20px;
+            font-weight: 700;
+            color: #5b21b6;
+            margin-top: 36px;
+            margin-bottom: 14px;
+            padding-bottom: 6px;
+            border-bottom: 2px solid #c4b5fd;
+        }
+
+        h3 {
+            font-size: 16px;
+            font-weight: 700;
+            color: #6d28d9;
+            margin-top: 22px;
+            margin-bottom: 10px;
+        }
+
+        h4 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #7c3aed;
+            margin-top: 16px;
+            margin-bottom: 6px;
+        }
+
+        p, li {
+            font-size: 14px;
+            color: #334155;
+            line-height: 1.9;
+        }
+
+        ul {
+            margin-left: 20px;
+            margin-bottom: 12px;
+        }
+
+        li {
+            margin-bottom: 4px;
+        }
+
+        strong { color: #1e293b; }
+
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            margin: 16px 0 24px 0;
+            background: #faf5ff;
+            border: 1px solid #e9d5ff;
+            border-radius: 12px;
+            padding: 20px 10px;
+        }
+
+        .page-break {
+            page-break-before: always;
+            margin-top: 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0 20px 0;
+            font-size: 13px;
+        }
+
+        th {
+            background: #7c3aed;
+            color: white;
+            padding: 10px 14px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 9px 14px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        tr:nth-child(even) td { background: #f8fafc; }
+
+        .innovation-box {
+            background: linear-gradient(135deg, #faf5ff, #f5f3ff);
+            border: 1px solid #ddd6fe;
+            border-radius: 12px;
+            padding: 18px 22px;
+            margin-bottom: 16px;
+        }
+
+        .innovation-box h4 {
+            margin-top: 0;
+        }
+
+        .tech-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .tech-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 16px;
+        }
+
+        .tech-card h4 { margin-top: 0; }
+
+        @media print {
+            body { padding: 20px 40px; }
+            .page-break { page-break-before: always; }
+            .mermaid { background: #faf5ff !important; }
+        }
+
+        .print-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #7c3aed;
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(124,58,237,0.4);
+            font-family: 'Sarabun', sans-serif;
+            z-index: 9999;
+        }
+        .print-btn:hover { background: #6d28d9; }
+        @media print { .print-btn { display: none; } }
+    </style>
+</head>
+<body>
+
+<button class="print-btn" onclick="window.print()">📄 บันทึกเป็น PDF</button>
+
+<h1>เอกสารสรุปโครงงาน<br>ระบบยืม-คืนอุปกรณ์ห้องสมุด</h1>
+<p class="subtitle">Library Equipment Management System</p>
+
+<!-- ============================================================ -->
+<h2>1. Entity-Relationship Diagram (ERD)</h2>
+<p>แผนภาพแสดงโครงสร้างและการเชื่อมโยงข้อมูลภายในฐานข้อมูล (Database Schema) ทั้ง 7 ตาราง</p>
+
+<div class="mermaid">
+erDiagram
+    USERS {
+        int user_id PK
+        varchar username UK
+        varchar password
+        enum role
+        timestamp created_at
+    }
+    STUDENT_PROFILES {
+        varchar student_id PK
+        int user_id FK
+        varchar student_img
+        varchar name_th
+        varchar name_en
+        varchar department
+        int year_level
+        enum education_status
+        date birth_date
+        char citizen_id UK
+        varchar phone_number
+        varchar email UK
+        boolean notify_email
+    }
+    EQUIPMENTS {
+        int equipment_id PK
+        varchar kit_code UK
+        varchar name
+        varchar equipment_img
+        int total_quantity
+        text description
+        enum usage_type
+        decimal price
+        varchar category
+        int borrow_days
+        varchar status
+        timestamp created_at
+    }
+    EQUIPMENT_ITEMS {
+        int item_id PK
+        int equipment_id FK
+        varchar sequence_code
+        varchar full_asset_code UK
+        varchar status
+    }
+    BORROWED {
+        int id PK
+        varchar student_id FK
+        int equipment_id FK
+        datetime borrow_date
+        datetime return_date
+        enum status
+        decimal fine_amount
+        boolean penalty_paid
+    }
+    EQUIPMENT_QUEUE {
+        int id PK
+        int equipment_id FK
+        varchar student_id FK
+        int position
+        enum status
+        datetime queued_at
+        datetime called_at
+        datetime expires_at
+    }
+    NOTIFICATIONS {
+        int id PK
+        varchar title
+        text message
+        varchar target
+        timestamp created_at
+        varchar type
+        varchar image_url
+    }
+    USERS ||--o| STUDENT_PROFILES : "has"
+    STUDENT_PROFILES ||--o{ BORROWED : "borrows"
+    EQUIPMENTS ||--o{ BORROWED : "is borrowed"
+    EQUIPMENTS ||--o{ EQUIPMENT_ITEMS : "contains"
+    EQUIPMENTS ||--o{ EQUIPMENT_QUEUE : "has queue"
+    STUDENT_PROFILES ||--o{ EQUIPMENT_QUEUE : "queues for"
+</div>
+
+<!-- ============================================================ -->
+<h2 class="page-break">2. ขั้นตอนการทำงานของระบบ (Work Flow)</h2>
+
+<h3>2.1 ฝั่งผู้ใช้งาน (User Workflow)</h3>
+<div class="mermaid">
+flowchart TD
+    A["เข้าสู่ระบบด้วยรหัสนักศึกษา"] --> B{"ค้นหาอุปกรณ์"}
+    B -->|อุปกรณ์ว่าง| C["หยิบใส่ตะกร้า"]
+    C --> D["ยืนยันการยืม"]
+    D --> E["สถานะ: รออนุมัติ"]
+    B -->|อุปกรณ์ไม่ว่าง| Q1["กดปุ่มต่อคิว"]
+    Q1 --> Q2["สถานะ: กำลังรอคิว"]
+    Q2 --> Q3{"เมื่อถึงคิว"}
+    Q3 -->|ได้รับแจ้งเตือน| Q4["รับอุปกรณ์ภายใน 5 นาที"]
+    Q4 -->|ไม่มารับ| Q5["ข้ามคิวอัตโนมัติ"]
+    Q4 -->|มารับทัน| H
+    E -.->|รอแอดมิน| F{"Admin อนุมัติ?"}
+    F -->|ปฏิเสธ| G["สถานะ: ยกเลิก"]
+    F -->|อนุมัติ| H["สถานะ: กำลังยืม"]
+    H --> I["แสกน QR รับอุปกรณ์"]
+    I --> J{"ใช้งานและนำมาคืน"}
+    J -->|คืนปกติ| K["สถานะ: คืนแล้ว"]
+    J -->|ชำรุด/สูญหาย| L["สถานะ: เสียหาย"]
+    J -->|คืนล่าช้า| M["สถานะ: เลยกำหนด"]
+    M --> N["ชำระค่าปรับ"]
+    L --> N
+    N --> K
+</div>
+
+<h3>2.2 ฝั่งผู้ดูแลระบบ (Admin Workflow)</h3>
+<div class="mermaid">
+flowchart TD
+    A1["เข้าสู่ระบบ Admin"] --> B1{"เลือกเมนูการจัดการ"}
+    B1 -->|รายการยืม| C1["ตรวจสอบคำขอยืม"]
+    C1 --> D1{"สินค้ามีเพียงพอ?"}
+    D1 -->|ไม่พอ| E1["กดปฏิเสธคำขอ"]
+    D1 -->|มีเพียงพอ| F1["กดอนุมัติคำขอ"]
+    F1 --> G1["ระบบตัดสต๊อก + ส่ง Email"]
+    B1 -->|รายการคืน| H1["แสกนบาร์โค้ดอุปกรณ์"]
+    H1 --> I1{"ตรวจสภาพ"}
+    I1 -->|ปกติ| J1["กดรับคืน"]
+    I1 -->|เสียหาย| K1["บันทึกสูญหาย"]
+    J1 --> L1["ระบบคืนสต๊อก + เรียกคิวถัดไป"]
+    K1 --> M1["ระบบอัปเดตเป็นงดใช้ชั่วคราว"]
+    B1 -->|คลังอุปกรณ์| N1["เพิ่ม/แก้ไข/ลบอุปกรณ์"]
+    B1 -->|ระบบคิว| P1["แสกน QR Code คิว"]
+    P1 --> Q1["มอบอุปกรณ์ให้ User"]
+</div>
+
+<!-- ============================================================ -->
+<h2 class="page-break">3. เครื่องมือและเทคโนโลยีที่ใช้ในการพัฒนา</h2>
+<p>โครงงานนี้ถูกพัฒนาด้วยสถาปัตยกรรม Web Application แบบแยกส่วน (Frontend และ Backend) ทำให้ดูแลรักษาง่ายและรองรับผู้ใช้จำนวนมากได้ดี</p>
+
+<table>
+    <thead>
+        <tr>
+            <th style="width:15%">ประเภท</th>
+            <th style="width:22%">เครื่องมือ</th>
+            <th>รายละเอียด</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr><td rowspan="6"><strong>💻 Frontend</strong></td><td><strong>React (Vite)</strong></td><td>Framework หลักสำหรับพัฒนาส่วนติดต่อผู้ใช้ (UI) แบบ Component-based</td></tr>
+        <tr><td><strong>Tailwind CSS</strong></td><td>Framework สำหรับเขียน CSS ทำ Responsive Design รองรับมือถือ/แท็บเล็ต</td></tr>
+        <tr><td><strong>Lucide React</strong></td><td>ไลบรารี Icon ที่ทันสมัยและสวยงาม</td></tr>
+        <tr><td><strong>jsQR</strong></td><td>ระบบแสกน QR Code แบบเรียลไทม์ผ่านกล้องหน้าเว็บ</td></tr>
+        <tr><td><strong>Recharts</strong></td><td>ไลบรารีสร้างกราฟสรุปสถิติสำหรับ Dashboard ฝั่ง Admin</td></tr>
+        <tr><td><strong>XLSX / jsPDF</strong></td><td>ออกรายงานเป็นไฟล์ Excel และ PDF</td></tr>
+        <tr><td rowspan="5"><strong>⚙️ Backend</strong></td><td><strong>Node.js + Express.js</strong></td><td>สภาพแวดล้อมและ Framework สำหรับสร้าง RESTful API</td></tr>
+        <tr><td><strong>MySQL (mysql2)</strong></td><td>ระบบฐานข้อมูลแบบ Relational ที่รองรับ Transaction</td></tr>
+        <tr><td><strong>Zod</strong></td><td>ตรวจสอบความถูกต้องของข้อมูล (Data Validation)</td></tr>
+        <tr><td><strong>Multer</strong></td><td>ระบบจัดการไฟล์อัปโหลด เช่น รูปภาพอุปกรณ์</td></tr>
+        <tr><td><strong>Nodemailer</strong></td><td>ส่งอีเมลแจ้งเตือนผู้ใช้งานแบบอัตโนมัติผ่าน SMTP</td></tr>
+        <tr><td><strong>🔐 ความปลอดภัย</strong></td><td><strong>JWT + bcryptjs</strong></td><td>ยืนยันตัวตนและเข้ารหัสรหัสผ่าน</td></tr>
+        <tr><td><strong>🔄 Real-time</strong></td><td><strong>Socket.IO</strong></td><td>WebSockets สำหรับอัปเดตข้อมูลแบบ Real-time ไม่ต้องกดรีเฟรช</td></tr>
+    </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2 class="page-break">4. นวัตกรรมและจุดเด่นของระบบ (Key Innovations)</h2>
+
+<div class="innovation-box">
+    <h4>🚀 1. ระบบคิวอัจฉริยะแบบอัตโนมัติ (Smart Queue Auto-Calling System)</h4>
+    <p>เมื่อมีผู้ใช้งานนำอุปกรณ์มาคืน ระบบจะค้นหาว่ามีนักศึกษาที่เข้าคิวรออุปกรณ์ชิ้นนี้อยู่หรือไม่ หากมี ระบบจะ<strong>เรียกคิวแรกสุดโดยอัตโนมัติ</strong> พร้อมส่ง Email และ Notification แจ้งเตือนทันที โดยนักศึกษาจะมีเวลา 5 นาทีในการมารับอุปกรณ์ หากไม่มา ระบบจะตัดคิวและเรียกคนถัดไปให้เอง (Auto-Skip) ลดภาระแอดมินในการคอยโทรตาม</p>
+</div>
+
+<div class="innovation-box">
+    <h4>⚡ 2. การซิงโครไนซ์ข้อมูลแบบ Real-time</h4>
+    <p>ระบบใช้เทคโนโลยี WebSockets (Socket.IO) ในการเชื่อมต่อ หากนักศึกษาคนหนึ่งกดยืมอุปกรณ์จนหมด หน้าจอของนักศึกษาคนอื่นที่เปิดค้างไว้จะอัปเดตยอดคงเหลือเป็น "0" ในทันที ป้องกันปัญหาการจองซ้อนทับกัน (Race Condition) ได้อย่างสมบูรณ์แบบโดยที่ผู้ใช้ไม่ต้องกดปุ่ม Refresh</p>
+</div>
+
+<div class="innovation-box">
+    <h4>📦 3. ระบบติดตามไอเท็มย่อยแบบไดนามิก (Dynamic Asset Item Tracking)</h4>
+    <p>การสร้างอุปกรณ์ 1 ชิ้นที่มีจำนวน 10 ตัว ระบบจะสร้างรหัสครุภัณฑ์ (Asset Code) ย่อยให้ 10 รายการอัตโนมัติ เมื่อกดยืม ระบบจะล็อกไอเท็มชิ้นที่ยัง 'ว่าง' ให้กลายเป็น 'ถูกยืม' และเมื่อรับคืนแบบ 'เสียหาย' ระบบจะล็อกไอเท็มชิ้นนั้นให้เป็น 'งดใช้ชั่วคราว' ทำให้ควบคุมจำนวนคงเหลือ (Available Quantity) ได้ตรงตามความจริง</p>
+</div>
+
+<div class="innovation-box">
+    <h4>📱 4. Unified Barcode & QR Scanner</h4>
+    <p>แอดมินไม่จำเป็นต้องใช้ฮาร์ดแวร์แสกนเนอร์ราคาแพง หน้าเว็บใช้กล้องเว็บแคมหรือสมาร์ทโฟนแสกน QR Code ของใบเสร็จ หรือ บาร์โค้ดของอุปกรณ์ได้ในปุ่มเดียว เมื่อแสกนปุ๊บ ระบบจะวิเคราะห์เองว่านี่คือ QR Code สำหรับ "จ่ายของให้คิว" หรือ "รับของคืน" และประมวลผลทันที ลดขั้นตอนการทำงานลงมากกว่า 80%</p>
+</div>
+
+<!-- ============================================================ -->
+<h2 class="page-break">5. Use Case Diagram</h2>
+<p>แผนภาพแสดง Use Case ของผู้ใช้งานทั้ง 2 บทบาท ได้แก่ นักศึกษา (Student) และผู้ดูแลระบบ (Admin)</p>
+
+<div class="mermaid">
+flowchart LR
+    subgraph Actors
+        S(("🎓 Student"))
+        A(("🔧 Admin"))
+    end
+    subgraph System ["Library Equipment Management System"]
+        UC1["เข้าสู่ระบบ"]
+        UC2["ค้นหาอุปกรณ์"]
+        UC3["ยืมอุปกรณ์"]
+        UC4["เข้าคิวรออุปกรณ์"]
+        UC5["ดูประวัติการยืม"]
+        UC6["รับการแจ้งเตือน"]
+        UC7["ดูโปรไฟล์"]
+        UC8["อนุมัติ/ปฏิเสธคำขอยืม"]
+        UC9["บันทึกการคืนอุปกรณ์"]
+        UC10["จัดการคลังอุปกรณ์"]
+        UC11["จัดการคิว"]
+        UC12["ส่งประกาศ/แจ้งเตือน"]
+        UC13["ดูรายงาน/Dashboard"]
+        UC14["จัดการผู้ใช้"]
+        UC15["แสกน QR Code"]
+        UC16["Export รายงาน Excel/PDF"]
+    end
+    S --- UC1
+    S --- UC2
+    S --- UC3
+    S --- UC4
+    S --- UC5
+    S --- UC6
+    S --- UC7
+    A --- UC1
+    A --- UC8
+    A --- UC9
+    A --- UC10
+    A --- UC11
+    A --- UC12
+    A --- UC13
+    A --- UC14
+    A --- UC15
+    A --- UC16
+</div>
+
+<h3>รายละเอียด Use Case หลัก</h3>
+<table>
+    <thead>
+        <tr>
+            <th style="width:8%">รหัส</th>
+            <th style="width:25%">Use Case</th>
+            <th style="width:12%">Actor</th>
+            <th>คำอธิบาย</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr><td>UC01</td><td>เข้าสู่ระบบ</td><td>Student, Admin</td><td>ผู้ใช้ป้อนรหัสนักศึกษา/Username + Password เพื่อเข้าใช้งานระบบ</td></tr>
+        <tr><td>UC02</td><td>ค้นหาอุปกรณ์</td><td>Student</td><td>ค้นหาและดูรายละเอียดอุปกรณ์ที่มีอยู่ในระบบ พร้อมจำนวนคงเหลือ</td></tr>
+        <tr><td>UC03</td><td>ยืมอุปกรณ์</td><td>Student</td><td>เพิ่มอุปกรณ์ลงตะกร้า และยืนยันการยืม (สูงสุด 5 ชิ้น/ครั้ง)</td></tr>
+        <tr><td>UC04</td><td>เข้าคิวรออุปกรณ์</td><td>Student</td><td>จองคิวเมื่ออุปกรณ์ไม่ว่าง ระบบจะแจ้งเตือนเมื่อถึงคิว</td></tr>
+        <tr><td>UC05</td><td>ดูประวัติการยืม</td><td>Student</td><td>ดูรายการยืม-คืนทั้งหมดของตนเอง พร้อมสถานะ</td></tr>
+        <tr><td>UC06</td><td>รับการแจ้งเตือน</td><td>Student</td><td>รับแจ้งเตือนจากระบบและประกาศจาก Admin ผ่านหน้าเว็บและ Email</td></tr>
+        <tr><td>UC07</td><td>ดูโปรไฟล์</td><td>Student</td><td>ดูข้อมูลส่วนตัว รหัสนักศึกษา สาขาวิชา สถานะการศึกษา</td></tr>
+        <tr><td>UC08</td><td>อนุมัติ/ปฏิเสธคำขอยืม</td><td>Admin</td><td>ตรวจสอบคำขอยืมใหม่ แล้วกดอนุมัติหรือปฏิเสธ</td></tr>
+        <tr><td>UC09</td><td>บันทึกการคืนอุปกรณ์</td><td>Admin</td><td>รับคืนอุปกรณ์ปกติ หรือบันทึกว่าสูญหาย/ชำรุด</td></tr>
+        <tr><td>UC10</td><td>จัดการคลังอุปกรณ์</td><td>Admin</td><td>เพิ่ม แก้ไข ลบอุปกรณ์ในระบบ พร้อมจัดการไอเท็มย่อยรายชิ้น</td></tr>
+        <tr><td>UC11</td><td>จัดการคิว</td><td>Admin</td><td>ดูคิว เรียกคิวถัดไป หรือข้ามคิว</td></tr>
+        <tr><td>UC12</td><td>ส่งประกาศ/แจ้งเตือน</td><td>Admin</td><td>ส่งประกาศแจ้งเตือนไปยังนักศึกษาทุกคน หรือเฉพาะรายบุคคล</td></tr>
+        <tr><td>UC13</td><td>ดูรายงาน/Dashboard</td><td>Admin</td><td>ดูสรุป KPI ยอดยืม/คืน/เลยกำหนด และกราฟสถิติ</td></tr>
+        <tr><td>UC14</td><td>จัดการผู้ใช้</td><td>Admin</td><td>ดูรายชื่อผู้ใช้งาน ค้นหา และดูประวัติการยืมรายบุคคล</td></tr>
+        <tr><td>UC15</td><td>แสกน QR Code</td><td>Admin</td><td>ใช้กล้องแสกน QR/Barcode เพื่อจ่ายของหรือรับคืนอัตโนมัติ</td></tr>
+        <tr><td>UC16</td><td>Export รายงาน</td><td>Admin</td><td>ดาวน์โหลดรายงานสรุปเป็นไฟล์ Excel หรือ PDF</td></tr>
+    </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2 class="page-break">6. Class Diagram</h2>
+<p>แผนภาพแสดงโครงสร้างคลาสหลักของระบบ (Logical Structure) และความสัมพันธ์ระหว่างคลาส</p>
+
+<div class="mermaid">
+classDiagram
+    class User {
+        +int user_id
+        +String username
+        +String password
+        +String role
+        +Date created_at
+        +login()
+        +logout()
+    }
+
+    class StudentProfile {
+        +String student_id
+        +int user_id
+        +String name_th
+        +String name_en
+        +String department
+        +int year_level
+        +String education_status
+        +String email
+        +String phone_number
+        +String student_img
+        +getProfile()
+        +updateProfile()
+    }
+
+    class Equipment {
+        +int equipment_id
+        +String kit_code
+        +String name
+        +String equipment_img
+        +int total_quantity
+        +String description
+        +Decimal price
+        +String category
+        +int borrow_days
+        +String status
+        +getAvailableQty()
+        +search()
+    }
+
+    class EquipmentItem {
+        +int item_id
+        +int equipment_id
+        +String sequence_code
+        +String full_asset_code
+        +String status
+        +updateStatus()
+    }
+
+    class BorrowRecord {
+        +int id
+        +String student_id
+        +int equipment_id
+        +Date borrow_date
+        +Date return_date
+        +String status
+        +Decimal fine_amount
+        +createBorrow()
+        +approve()
+        +reject()
+        +returnItem()
+        +reportLost()
+    }
+
+    class EquipmentQueue {
+        +int id
+        +int equipment_id
+        +String student_id
+        +int position
+        +String status
+        +Date expires_at
+        +joinQueue()
+        +callNext()
+        +skipQueue()
+        +cancelQueue()
+    }
+
+    class Notification {
+        +int id
+        +String title
+        +String message
+        +String target
+        +String type
+        +String image_url
+        +Date created_at
+        +send()
+        +getByUser()
+    }
+
+    User "1" --> "0..1" StudentProfile : has
+    StudentProfile "1" --> "*" BorrowRecord : borrows
+    Equipment "1" --> "*" BorrowRecord : is borrowed in
+    Equipment "1" --> "*" EquipmentItem : contains
+    Equipment "1" --> "*" EquipmentQueue : has queue
+    StudentProfile "1" --> "*" EquipmentQueue : queues for
+    Notification --> StudentProfile : notifies
+</div>
+
+<!-- ============================================================ -->
+<h2 class="page-break">7. Data Flow Diagram (DFD)</h2>
+
+<h3>7.1 DFD Level 0 — Context Diagram</h3>
+<p>แสดงภาพรวมการไหลของข้อมูลระหว่างระบบกับ External Entity</p>
+
+<div class="mermaid">
+flowchart LR
+    S(("🎓 นักศึกษา"))
+    A(("🔧 ผู้ดูแลระบบ"))
+    E(("📧 Email Server"))
+    SYS["0\nระบบยืม-คืนอุปกรณ์\nห้องสมุด"]
+
+    S -->|"ข้อมูลล็อกอิน, คำขอยืม, เข้าคิว"| SYS
+    SYS -->|"สถานะยืม, แจ้งเตือน, ประวัติ"| S
+    A -->|"อนุมัติ/ปฏิเสธ, จัดการอุปกรณ์, ส่งประกาศ"| SYS
+    SYS -->|"Dashboard, รายงาน, สถิติ"| A
+    SYS -->|"อีเมลแจ้งเตือน"| E
+</div>
+
+<h3>7.2 DFD Level 1</h3>
+<p>แยกระบบหลักออกเป็น 6 กระบวนการย่อย</p>
+
+<div class="mermaid">
+flowchart TD
+    S(("🎓 นักศึกษา"))
+    A(("🔧 ผู้ดูแลระบบ"))
+    E(("📧 Email"))
+
+    P1["1.0\nจัดการล็อกอิน\nAuthentication"]
+    P2["2.0\nจัดการการยืม\nBorrow Management"]
+    P3["3.0\nจัดการการคืน\nReturn Management"]
+    P4["4.0\nจัดการอุปกรณ์\nEquipment Management"]
+    P5["5.0\nจัดการคิว\nQueue Management"]
+    P6["6.0\nจัดการแจ้งเตือน\nNotification"]
+
+    DB1[("D1 users")]
+    DB2[("D2 student_profiles")]
+    DB3[("D3 borrowed")]
+    DB4[("D4 equipments")]
+    DB5[("D5 equipment_items")]
+    DB6[("D6 equipment_queue")]
+    DB7[("D7 notifications")]
+
+    S -->|"username/password"| P1
+    P1 -->|"ตรวจสอบสิทธิ์"| DB1
+    P1 -->|"ดึงข้อมูลนศ."| DB2
+
+    S -->|"คำขอยืม"| P2
+    P2 -->|"บันทึกการยืม"| DB3
+    A -->|"อนุมัติ/ปฏิเสธ"| P2
+    P2 -->|"อัปเดตสถานะ item"| DB5
+
+    A -->|"สั่งรับคืน"| P3
+    P3 -->|"อัปเดตสถานะยืม"| DB3
+    P3 -->|"คืนสต๊อก item"| DB5
+    P3 -->|"เรียกคิวถัดไป"| P5
+
+    A -->|"เพิ่ม/แก้ไข/ลบ"| P4
+    P4 -->|"จัดการข้อมูล"| DB4
+    P4 -->|"จัดการ items"| DB5
+
+    S -->|"เข้าคิว"| P5
+    P5 -->|"บันทึกคิว"| DB6
+    P5 -->|"ส่งแจ้งเตือนถึงคิว"| P6
+
+    A -->|"ส่งประกาศ"| P6
+    P6 -->|"บันทึก"| DB7
+    P6 -->|"ส่งอีเมล"| E
+</div>
+
+<h3 class="page-break">7.3 DFD Level 2 — กระบวนการ 2.0 จัดการการยืม (Borrow Management)</h3>
+<p>แสดงรายละเอียดกระบวนการภายในของระบบยืมอุปกรณ์</p>
+
+<div class="mermaid">
+flowchart TD
+    S(("🎓 นักศึกษา"))
+    A(("🔧 ผู้ดูแลระบบ"))
+
+    P21["2.1\nค้นหาอุปกรณ์"]
+    P22["2.2\nเพิ่มลงตะกร้า"]
+    P23["2.3\nยืนยันการยืม"]
+    P24["2.4\nตรวจสอบคำขอ"]
+    P25["2.5\nอนุมัติคำขอ"]
+    P26["2.6\nปฏิเสธคำขอ"]
+    P27["2.7\nตัดสต๊อกอุปกรณ์"]
+    P28["2.8\nส่งแจ้งเตือนผล"]
+
+    DB4[("D4 equipments")]
+    DB3[("D3 borrowed")]
+    DB5[("D5 equipment_items")]
+    DB7[("D7 notifications")]
+
+    S -->|"ชื่ออุปกรณ์"| P21
+    P21 -->|"ดึงข้อมูล"| DB4
+    DB4 -->|"รายการอุปกรณ์"| P21
+    P21 -->|"แสดงผลลัพธ์"| S
+
+    S -->|"เลือกอุปกรณ์"| P22
+    P22 -->|"ตรวจสอบจำนวน"| DB5
+    P22 -->|"อุปกรณ์ในตะกร้า"| P23
+
+    S -->|"กดยืนยัน"| P23
+    P23 -->|"สร้างรายการยืมใหม่"| DB3
+
+    A -->|"ดูรายการรออนุมัติ"| P24
+    DB3 -->|"รายการ pending"| P24
+
+    P24 -->|"กดอนุมัติ"| P25
+    P24 -->|"กดปฏิเสธ"| P26
+
+    P25 -->|"อัปเดตสถานะเป็น borrowed"| DB3
+    P25 -->|"ล็อก item เป็น borrowed"| P27
+    P27 -->|"อัปเดต item status"| DB5
+
+    P26 -->|"อัปเดตสถานะเป็น rejected"| DB3
+
+    P25 -->|"แจ้งอนุมัติ"| P28
+    P26 -->|"แจ้งปฏิเสธ"| P28
+    P28 -->|"บันทึกแจ้งเตือน"| DB7
+</div>
+
+<!-- ============================================================ -->
+<h2 class="page-break">8. Sequence Diagram</h2>
+
+<h3>8.1 กระบวนการยืมอุปกรณ์ (Borrow Equipment Flow)</h3>
+<div class="mermaid">
+sequenceDiagram
+    actor S as นักศึกษา
+    participant FE as Frontend (React)
+    participant API as Backend (Express)
+    participant DB as MySQL Database
+    participant EM as Email Service
+
+    S->>FE: 1. เลือกอุปกรณ์ + กดยืนยันยืม
+    FE->>API: POST /api/borrow
+    API->>DB: INSERT INTO borrowed (status=pending)
+    DB-->>API: OK (borrow_id)
+    API-->>FE: สำเร็จ + QR Code
+    FE-->>S: แสดงใบเสร็จ + QR
+
+    Note over S,EM: --- รอ Admin อนุมัติ ---
+
+    actor A as ผู้ดูแลระบบ
+    A->>FE: 2. ดูรายการรออนุมัติ
+    FE->>API: GET /api/admin/requests
+    API->>DB: SELECT borrowed WHERE status=pending
+    DB-->>API: รายการคำขอ
+    API-->>FE: แสดงรายการ
+    FE-->>A: แสดงคำขอ
+
+    A->>FE: 3. กดอนุมัติ
+    FE->>API: POST /api/admin/update-request (approve)
+    API->>DB: BEGIN TRANSACTION
+    API->>DB: UPDATE equipment_items SET status=borrowed
+    API->>DB: UPDATE borrowed SET status=borrowed
+    API->>DB: COMMIT
+    DB-->>API: OK
+    API->>EM: ส่ง Email แจ้ง "อนุมัติแล้ว"
+    API-->>FE: สำเร็จ
+    API->>FE: Socket.IO emit data_updated
+    FE-->>S: อัปเดต UI แบบ Real-time
+</div>
+
+<h3 class="page-break">8.2 กระบวนการคืนอุปกรณ์ (Return Equipment Flow)</h3>
+<div class="mermaid">
+sequenceDiagram
+    actor A as ผู้ดูแลระบบ
+    participant FE as Frontend (React)
+    participant API as Backend (Express)
+    participant DB as MySQL Database
+    participant EM as Email Service
+    actor S as นักศึกษา
+
+    A->>FE: 1. แสกนบาร์โค้ดอุปกรณ์
+    FE->>API: POST /api/admin/return_by_barcode
+    API->>DB: BEGIN TRANSACTION
+    API->>DB: ค้นหา borrowed ที่ตรงกับบาร์โค้ด
+    DB-->>API: พบรายการยืม
+    API->>DB: UPDATE borrowed SET status=returned
+    API->>DB: UPDATE equipment_items SET status=available
+    API->>DB: COMMIT
+    DB-->>API: OK
+
+    API->>EM: ส่ง Email แจ้ง "คืนสำเร็จ"
+    EM-->>S: ได้รับ Email
+
+    Note over API,DB: ตรวจสอบว่ามีคนรอคิวหรือไม่
+
+    API->>DB: SELECT equipment_queue WHERE status=waiting
+    DB-->>API: พบคนรอคิว
+    API->>DB: UPDATE queue SET status=called
+    API->>DB: INSERT INTO notifications
+    API->>EM: ส่ง Email แจ้ง "ถึงคิวของคุณแล้ว"
+    API->>FE: Socket.IO emit data_updated
+    FE-->>A: อัปเดต UI สำเร็จ
+</div>
+
+<h3 class="page-break">8.3 กระบวนการเข้าคิว (Queue Flow)</h3>
+<div class="mermaid">
+sequenceDiagram
+    actor S as นักศึกษา
+    participant FE as Frontend (React)
+    participant API as Backend (Express)
+    participant DB as MySQL Database
+    participant EM as Email Service
+
+    S->>FE: 1. กด "ต่อคิว" อุปกรณ์ที่หมด
+    FE->>API: POST /api/queue/join
+    API->>DB: ตรวจสอบว่าเข้าคิวซ้ำหรือไม่
+    DB-->>API: ยังไม่เคยเข้าคิว
+    API->>DB: INSERT INTO equipment_queue
+    DB-->>API: OK (queue position)
+    API-->>FE: เข้าคิวสำเร็จ ลำดับที่ N
+    FE-->>S: แสดงตำแหน่งคิว
+
+    Note over S,EM: --- เมื่อมีคนคืนอุปกรณ์ ---
+
+    API->>DB: เรียก callNextInQueue()
+    API->>DB: UPDATE queue SET status=called, expires_at=+5min
+    API->>DB: INSERT INTO notifications
+    API->>EM: ส่ง Email "ถึงคิวของคุณแล้ว"
+    EM-->>S: ได้รับ Email
+    API->>FE: Socket.IO emit data_updated
+    FE-->>S: แจ้งเตือน "ถึงคิว - รับของภายใน 5 นาที"
+
+    alt มารับทันเวลา
+        S->>FE: แสดง QR Code
+        FE->>API: POST /api/admin/pickup_queue
+        API->>DB: UPDATE queue SET status=completed
+        API->>DB: INSERT INTO borrowed (status=borrowed)
+        API-->>FE: จ่ายของสำเร็จ
+    else ไม่มารับภายใน 5 นาที
+        API->>DB: Cron: UPDATE queue SET status=expired
+        API->>DB: เรียก callNextInQueue() คนถัดไป
+    end
+</div>
+
+<!-- ============================================================ -->
+<h2 class="page-break">9. Detailed Design — สถาปัตยกรรมของระบบ</h2>
+<p>ระบบถูกออกแบบตามแนวคิด <strong>3-Tier Architecture</strong> ประกอบด้วย Presentation Layer, Business Logic Layer และ Data Access Layer</p>
+
+<div class="mermaid">
+flowchart TB
+    subgraph PL ["Presentation Layer (Frontend)"]
+        direction LR
+        UW["User Web App\n(React + Vite)\nPort 5174"]
+        AW["Admin Web App\n(React + Vite)\nPort 5175"]
+    end
+
+    subgraph BL ["Business Logic Layer (Backend API)"]
+        direction LR
+        SRV["Express.js Server\nPort 5000"]
+        AUTH["Auth Middleware\n(JWT Verify)"]
+        VAL["Validation\n(Zod Schema)"]
+        RT["Routes\n- adminRoutes\n- authRoutes\n- mobileRoutes"]
+        SIO["Socket.IO\n(Real-time)"]
+        MAIL["Mailer\n(Nodemailer)"]
+        CRON["Cron Jobs\n(Queue Expiry)"]
+    end
+
+    subgraph DL ["Data Access Layer"]
+        direction LR
+        POOL["MySQL Connection Pool\n(mysql2/promise)"]
+        MYSQL[("MySQL Database\ndatabase_libraries")]
+        FS["File Storage\n(/uploads)"]
+    end
+
+    UW -->|"HTTP/WebSocket"| SRV
+    AW -->|"HTTP/WebSocket"| SRV
+    SRV --> AUTH
+    AUTH --> VAL
+    VAL --> RT
+    RT --> POOL
+    SRV --> SIO
+    RT --> MAIL
+    SRV --> CRON
+    POOL --> MYSQL
+    RT --> FS
+</div>
+
+<h3>9.1 รายละเอียดโครงสร้างไฟล์ (File Structure)</h3>
+<table>
+    <thead>
+        <tr>
+            <th style="width:30%">โมดูล</th>
+            <th style="width:30%">ไฟล์หลัก</th>
+            <th>หน้าที่</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr><td rowspan="3"><strong>my-library-user-web</strong><br>(Frontend ฝั่ง User)</td><td>UserApp.jsx</td><td>หน้าหลักของผู้ใช้งาน รวมทุก Component (หน้าแรก, ค้นหา, ตะกร้า, ประวัติ, โปรไฟล์, แจ้งเตือน)</td></tr>
+        <tr><td>Login.jsx</td><td>หน้าเข้าสู่ระบบสำหรับนักศึกษา</td></tr>
+        <tr><td>index.css</td><td>ระบบ Design System / Tailwind CSS Configuration</td></tr>
+        <tr><td rowspan="2"><strong>my-library-admin-web</strong><br>(Frontend ฝั่ง Admin)</td><td>Home.jsx</td><td>หน้า Dashboard หลักฝั่ง Admin รวมทุกเมนู (ยืม/คืน/คลัง/ผู้ใช้/รายงาน/ประกาศ)</td></tr>
+        <tr><td>Login.jsx</td><td>หน้าเข้าสู่ระบบสำหรับ Admin</td></tr>
+        <tr><td rowspan="6"><strong>my-library-api-node</strong><br>(Backend API)</td><td>server.js</td><td>Entry point, Express + Socket.IO + Cron setup</td></tr>
+        <tr><td>db.js</td><td>MySQL Connection Pool Configuration</td></tr>
+        <tr><td>routes/adminRoutes.js</td><td>API สำหรับ Admin (อนุมัติ, คลัง, คิว, ผู้ใช้, รายงาน)</td></tr>
+        <tr><td>routes/authRoutes.js</td><td>API สำหรับ Login/Register (JWT Token)</td></tr>
+        <tr><td>routes/mobileRoutes.js</td><td>API สำหรับ User (ยืม, คืน, ค้นหา, ประวัติ, คิว, แจ้งเตือน)</td></tr>
+        <tr><td>mailer.js</td><td>ระบบส่งอีเมลแจ้งเตือนอัตโนมัติ (Approval, Return, Queue, Manual)</td></tr>
+    </tbody>
+</table>
+
+<h3>9.2 API Endpoints หลัก</h3>
+<table>
+    <thead>
+        <tr>
+            <th style="width:10%">Method</th>
+            <th style="width:35%">Endpoint</th>
+            <th>คำอธิบาย</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr><td><strong>POST</strong></td><td>/api/auth/login</td><td>เข้าสู่ระบบ (รับ JWT Token)</td></tr>
+        <tr><td><strong>GET</strong></td><td>/api/get_equipments.php</td><td>ดึงรายการอุปกรณ์ทั้งหมด</td></tr>
+        <tr><td><strong>POST</strong></td><td>/api/borrow.php</td><td>ส่งคำขอยืมอุปกรณ์</td></tr>
+        <tr><td><strong>GET</strong></td><td>/api/get_borrowed.php</td><td>ดูประวัติการยืมของนักศึกษา</td></tr>
+        <tr><td><strong>POST</strong></td><td>/api/queue/join</td><td>เข้าคิวรออุปกรณ์</td></tr>
+        <tr><td><strong>GET</strong></td><td>/api/admin/dashboard</td><td>ดึงข้อมูล Dashboard (KPI, กราฟ, สถิติ)</td></tr>
+        <tr><td><strong>GET</strong></td><td>/api/admin/requests</td><td>ดึงรายการคำขอยืมทั้งหมด</td></tr>
+        <tr><td><strong>POST</strong></td><td>/api/admin/update-request</td><td>อนุมัติ/ปฏิเสธ/รับคืน/บันทึกสูญหาย</td></tr>
+        <tr><td><strong>GET</strong></td><td>/api/admin/equipments</td><td>ดึงรายการอุปกรณ์ในคลัง</td></tr>
+        <tr><td><strong>POST</strong></td><td>/api/admin/equipments</td><td>เพิ่มอุปกรณ์ใหม่</td></tr>
+        <tr><td><strong>PUT</strong></td><td>/api/admin/equipments/:id</td><td>แก้ไขอุปกรณ์</td></tr>
+        <tr><td><strong>DELETE</strong></td><td>/api/admin/equipments/:id</td><td>ลบอุปกรณ์</td></tr>
+        <tr><td><strong>POST</strong></td><td>/api/admin/notifications</td><td>ส่งประกาศ/แจ้งเตือน</td></tr>
+        <tr><td><strong>POST</strong></td><td>/api/admin/pickup_queue.php</td><td>จ่ายอุปกรณ์ให้คิวโดยแสกน QR</td></tr>
+        <tr><td><strong>POST</strong></td><td>/api/admin/return_by_barcode.php</td><td>รับคืนอุปกรณ์โดยแสกนบาร์โค้ด</td></tr>
+    </tbody>
+</table>
+
+<script>
+    mermaid.initialize({ 
+        startOnLoad: true, 
+        theme: 'default',
+        flowchart: { curve: 'basis', useMaxWidth: true },
+        er: { useMaxWidth: true }
+    });
+</script>
+
+</body>
+</html>

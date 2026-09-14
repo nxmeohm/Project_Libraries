@@ -549,9 +549,11 @@ router.put('/equipments/:id', upload.single('equipment_img'), async (req, res) =
         }
         
         // Count existing items
-        const [existing] = await pool.query("SELECT item_id FROM equipment_items WHERE equipment_id = ?", [parseInt(id)]);
+        const [existing] = await pool.query("SELECT item_id, status FROM equipment_items WHERE equipment_id = ?", [parseInt(id)]);
         const total = parseInt(total_quantity);
+        const reqAvailable = parseInt(available_quantity);
         
+        // Adjust total_quantity
         if (total > existing.length) {
             const diff = total - existing.length;
             for(let i=0; i < diff; i++) {
@@ -561,7 +563,26 @@ router.put('/equipments/:id', upload.single('equipment_img'), async (req, res) =
             }
         } else if (total < existing.length) {
             const diff = existing.length - total;
+            // Try to delete available items first
             await pool.query("DELETE FROM equipment_items WHERE equipment_id = ? AND status = 'available' LIMIT ?", [parseInt(id), diff]);
+            const [afterDel] = await pool.query("SELECT item_id FROM equipment_items WHERE equipment_id = ?", [parseInt(id)]);
+            if (afterDel.length > total) {
+                await pool.query("DELETE FROM equipment_items WHERE equipment_id = ? LIMIT ?", [parseInt(id), afterDel.length - total]);
+            }
+        }
+
+        // Adjust available_quantity
+        if (!isNaN(reqAvailable)) {
+             const [currentItems] = await pool.query("SELECT item_id, status FROM equipment_items WHERE equipment_id = ?", [parseInt(id)]);
+             const currentAvailable = currentItems.filter(item => item.status === 'available').length;
+             
+             if (reqAvailable > currentAvailable) {
+                 const diff = reqAvailable - currentAvailable;
+                 await pool.query("UPDATE equipment_items SET status = 'available' WHERE equipment_id = ? AND status != 'borrowed' AND status != 'available' LIMIT ?", [parseInt(id), diff]);
+             } else if (reqAvailable < currentAvailable) {
+                 const diff = currentAvailable - reqAvailable;
+                 await pool.query("UPDATE equipment_items SET status = 'damaged_lost' WHERE equipment_id = ? AND status = 'available' LIMIT ?", [parseInt(id), diff]);
+             }
         }
         
         req.app.get('io').emit('data_updated');
@@ -843,8 +864,12 @@ router.post('/pickup_queue.php', async (req, res) => {
 
         await connection.commit();
         connection.release();
-        
         req.app.get('io').emit('data_updated');
+        req.app.get('io').emit('scan_success', {
+            type: 'pickup',
+            message: `จ่ายอุปกรณ์ให้คิวสำเร็จ (รหัส ${pItem.full_asset_code})`,
+            barcode: pItem.full_asset_code
+        });
         res.json({ success: true, message: "บันทึกการรับอุปกรณ์สำเร็จ" });
     } catch (error) {
         if (connection) {
@@ -919,8 +944,12 @@ router.post('/return_by_barcode.php', async (req, res) => {
 
         await connection.commit();
         connection.release();
-        
         req.app.get('io').emit('data_updated');
+        req.app.get('io').emit('scan_success', {
+            type: 'return',
+            message: `รับคืนอุปกรณ์สำเร็จ (รหัส ${pItem.full_asset_code}) สถานะอัปเดตเป็นว่างแล้ว`,
+            barcode: pItem.full_asset_code
+        });
         res.json({ success: true, message: "รับคืนอุปกรณ์สำเร็จ" });
     } catch (error) {
         if (connection) {

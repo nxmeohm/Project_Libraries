@@ -1,0 +1,137 @@
+@import "tailwindcss";
+
+/* ========================================
+   QR Scanner Mobile App - Custom Styles
+   ======================================== */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  background: #f8fafc;
+  color: #1e293b;
+}
+
+/* Hide scrollbar */
+::-webkit-scrollbar { display: none; }
+
+/* Scanner video container */
+#qr-reader {
+  border: none !important;
+  background: transparent !important;
+}
+
+#qr-reader video {
+  border-radius: 16px !important;
+  object-fit: cover !important;
+}
+
+#qr-reader img[alt="Info icon"],
+#qr-reader img[alt="Camera based scan"],
+#qr-reader span,
+#qr-reader select,
+#qr-reader button,
+#qr-reader br,
+#html5-qrcode-anchor-scan-type-change,
+#html5-qrcode-button-camera-permission,
+#html5-qrcode-button-camera-stop,
+#html5-qrcode-button-camera-start,
+#qr-reader__dashboard,
+#qr-reader__dashboard_section,
+#qr-reader__dashboard_section_csr,
+#qr-reader__dashboard_section_swaplink {
+  display: none !important;
+}
+
+#qr-reader__scan_region {
+  min-height: unset !important;
+}
+
+/* Pulse animation for scan frame */
+@keyframes pulse-border {
+  0%, 100% { border-color: rgba(168, 85, 247, 0.5); box-shadow: 0 0 20px rgba(168, 85, 247, 0.2); }
+  50% { border-color: rgba(168, 85, 247, 1); box-shadow: 0 0 40px rgba(168, 85, 247, 0.5); }
+}
+
+.scan-frame {
+  animation: pulse-border 2s ease-in-out infinite;
+}
+
+/* Success flash */
+@keyframes flash-success {
+  0% { background: rgba(16, 185, 129, 0.4); }
+  100% { background: transparent; }
+}
+
+.flash-success {
+  animation: flash-success 0.5s ease-out;
+}
+
+/* Error flash */
+@keyframes flash-error {
+  0% { background: rgba(239, 68, 68, 0.4); }
+  100% { background: transparent; }
+}
+
+.flash-error {
+  animation: flash-error 0.5s ease-out;
+}
+
+/* Toast slide in */
+@keyframes slide-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.toast-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+/* Scan line animation */
+@keyframes scan-line {
+  0% { top: 0; }
+  50% { top: calc(100% - 3px); }
+  100% { top: 0; }
+}
+
+.scan-line {
+  animation: scan-line 2.5s ease-in-out infinite;
+}
+
+/* History list scrollable */
+.history-scroll {
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.history-scroll::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 4px;
+}
+
+/* Scanner Layout Fixes for Mobile */
+#qr-reader {
+  width: 100% !important;
+  height: 100% !important;
+  border: none !important;
+  display: flex !important;
+  flex-direction: column;
+}
+#qr-reader__dashboard_section_csr {
+  display: none !important; /* Hide built-in html5-qrcode controls */
+}
+#qr-reader video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 0 !important;
+}

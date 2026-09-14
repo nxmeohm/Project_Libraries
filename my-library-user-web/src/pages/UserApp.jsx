@@ -41,6 +41,11 @@ const STATUS_MAP = {
 /* ============================================================
    Helpers
    ============================================================ */
+const formatEquipmentName = (name) => {
+    if (!name) return '';
+    return name.replace(/\s*\[.*?\]\s*:\s*/g, ' ').replace(/\s*\[.*?\]/g, '').trim();
+};
+
 const formatThaiDate = (dateString) => {
     if (!dateString) return "-";
     const d = new Date(dateString);
@@ -319,6 +324,9 @@ function NotificationsView({ title, notifications, isLoading, onNotificationClic
    ============================================================ */
 export default function UserApp({ studentId, onLogout }) {
     const [currentPage, setCurrentPage] = useState("dashboard");
+    const [hasUnreadNotifications, setHasUnreadNotifications] = useState(() => {
+        return localStorage.getItem('has_unread_notifs') !== 'false';
+    });
 
     // Data states
     const [student, setStudent] = useState(null);
@@ -439,6 +447,8 @@ export default function UserApp({ studentId, onLogout }) {
         }
         if (currentPage === "notifications") {
             fetchNotificationsData('alert');
+            setHasUnreadNotifications(false);
+            localStorage.setItem('has_unread_notifs', 'false');
         }
         if (currentPage === "announcements") {
             fetchNotificationsData('announcement');
@@ -450,6 +460,8 @@ export default function UserApp({ studentId, onLogout }) {
         const socket = io(IMG_BASE);
         socket.on('data_updated', () => {
             console.log("Real-time update received!");
+            setHasUnreadNotifications(true);
+            localStorage.setItem('has_unread_notifs', 'true');
             if (currentPage === "dashboard" || currentPage === "search") {
                 fetch(`${API_BASE}/get_equipments.php`).then(r => r.json()).then(setEquipments).catch(console.error);
             }
@@ -985,7 +997,7 @@ export default function UserApp({ studentId, onLogout }) {
                     </button>
                     <button onClick={() => setCurrentPage("notifications")} className="p-1.5 text-purple-200 hover:text-white rounded-lg hover:bg-white/10 transition relative">
                         <Bell size={16} />
-                        <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full"></span>
+                        {hasUnreadNotifications && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full"></span>}
                     </button>
                     <div className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center overflow-hidden shrink-0 ml-1">
                         {student?.student_img ? (
@@ -1089,7 +1101,7 @@ export default function UserApp({ studentId, onLogout }) {
                     </button>
                     <button onClick={() => setCurrentPage("notifications")} className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-500 hover:text-[#3D2B56] hover:bg-purple-50 transition relative border border-slate-100">
                         <Bell size={18} />
-                        <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full"></span>
+                        {hasUnreadNotifications && <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full"></span>}
                     </button>
                 </div>
 
@@ -1195,7 +1207,7 @@ export default function UserApp({ studentId, onLogout }) {
                                                     <Package size={24} className="text-purple-400" />
                                                 )}
                                             </div>
-                                            <p className="text-[13px] font-bold text-slate-700 line-clamp-2 h-[40px]">{item.name}</p>
+                                            <p className="text-[13px] font-bold text-slate-700 line-clamp-2 h-[40px]">{formatEquipmentName(item.name)}</p>
                                             <p className="text-[12px] font-bold text-green-600 mt-2">เหลือ {item.available_quantity ?? item.total_quantity} ชิ้น</p>
                                         </button>
                                     ))}
@@ -1219,7 +1231,7 @@ export default function UserApp({ studentId, onLogout }) {
                                                             <Package size={24} className="text-amber-400" />
                                                         )}
                                                     </div>
-                                                    <p className="text-[13px] font-bold text-slate-700 line-clamp-2 h-[40px]">{item.name}</p>
+                                                    <p className="text-[13px] font-bold text-slate-700 line-clamp-2 h-[40px]">{formatEquipmentName(item.name)}</p>
                                                     <p className="text-[12px] font-bold text-slate-600 mt-2 mb-3">เหลือ <span className="text-green-600">{item.available_quantity ?? item.total_quantity}</span> ชิ้น</p>
                                                 </button>
                                                 <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setQuickBorrowTarget(item); setIsQuickBorrowConfirmOpen(true); }} 
@@ -1254,7 +1266,7 @@ export default function UserApp({ studentId, onLogout }) {
                                                         )}
                                                     </div>
                                                     <div className="flex-1 min-w-0">
-                                                        <p className="text-[14px] font-bold text-slate-800 truncate">{item.name || `อุปกรณ์ #${item.equipment_id}`}</p>
+                                                        <p className="text-[14px] font-bold text-slate-800 truncate">{item.name ? formatEquipmentName(item.name) : `อุปกรณ์ #${item.equipment_id}`}</p>
                                                         {item.status === 'pending' ? (
                                                             <p className="text-[12px] text-amber-600">นัดรับ {new Date(item.pickup_time || item.borrow_date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</p>
                                                         ) : (
@@ -1313,7 +1325,7 @@ export default function UserApp({ studentId, onLogout }) {
                                             )}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-[15px] font-bold text-slate-800">{item.name}</p>
+                                            <p className="text-[15px] font-bold text-slate-800">{formatEquipmentName(item.name)}</p>
                                             <p className="text-[12px] text-slate-400 mt-0.5">{item.usage_type || 'ทั่วไป'} · รหัส {item.kit_code || '-'} · เหลือ {item.available_quantity ?? item.total_quantity}/{item.total_quantity} ชิ้น</p>
                                             <div className="flex items-center gap-2 mt-1.5">
                                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${item.status === 'ใช้งานได้' ? 'bg-green-100 text-green-700' : item.status === 'กำลังซ่อมแซม' ? 'bg-orange-100 text-orange-700' : item.status === 'งดใช้ชั่วคราว' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'}`}>{item.status || 'ใช้งานได้'}</span>
@@ -1360,7 +1372,7 @@ export default function UserApp({ studentId, onLogout }) {
                                                         )}
                                                     </div>
                                                     <div className="flex-1 min-w-0">
-                                                        <p className="text-[14px] font-bold text-slate-700 truncate">{item.name}</p>
+                                                        <p className="text-[14px] font-bold text-slate-700 truncate">{formatEquipmentName(item.name)}</p>
                                                         <p className="text-[12px] text-slate-400">รหัส {item.kit_code || '-'} · ราคา {item.price} ฿</p>
                                                     </div>
                                                     <button onClick={() => removeFromCart(item.equipment_id)} className="w-8 h-8 rounded-lg border border-red-200 text-red-500 flex items-center justify-center hover:bg-red-50 transition">
@@ -1976,12 +1988,26 @@ export default function UserApp({ studentId, onLogout }) {
                                 <X size={18} />
                             </button>
                         </div>
-                        <div className="p-6 overflow-y-auto space-y-4 text-[14px] text-slate-600 leading-relaxed">
-                            <h4 className="font-bold text-slate-800 text-[15px]">1. การยืมอุปกรณ์</h4>
-                            <p>ไปที่เมนู <strong className="text-[#3D2B56]">"ค้นหา"</strong> เลือกอุปกรณ์ที่ต้องการแล้วกด <strong className="text-[#3D2B56]">"ยืมอุปกรณ์นี้"</strong> จากนั้นอุปกรณ์จะไปอยู่ในตะกร้า ให้ไปที่หน้าตะกร้าเพื่อกดยืนยันการทำรายการ</p>
+                        <div className="p-6 overflow-y-auto space-y-5 text-[14px] text-slate-600 leading-relaxed">
+                            <div>
+                                <h4 className="font-bold text-slate-800 text-[15px] mb-1">1. การค้นหาและยืมอุปกรณ์</h4>
+                                <p>สามารถค้นหาอุปกรณ์จากหน้า <strong className="text-[#3D2B56]">"หน้าหลัก"</strong> หรือ <strong className="text-[#3D2B56]">"ค้นหา"</strong> เลือกอุปกรณ์ที่ต้องการแล้วกดเพิ่มลงตะกร้า (ยืมได้สูงสุด 5 ชิ้นต่อครั้ง)</p>
+                            </div>
                             
-                            <h4 className="font-bold text-slate-800 text-[15px] mt-4">2. การคืนอุปกรณ์</h4>
-                            <p>นำอุปกรณ์มาคืนที่เจ้าหน้าที่ห้องสมุด โดยสามารถโชว์ <strong>QR Code ในหน้าใบเสร็จ</strong> หรือบอกรหัสนักศึกษา เพื่อให้เจ้าหน้าที่ทำรายการคืนให้ในระบบ</p>
+                            <div>
+                                <h4 className="font-bold text-slate-800 text-[15px] mb-1">2. การยืนยันการทำรายการ</h4>
+                                <p>ไปที่เมนู <strong className="text-[#3D2B56]">"ตะกร้า"</strong> ตรวจสอบความถูกต้องและกด <strong className="text-[#3D2B56]">"ยืนยันยืมอุปกรณ์"</strong> ระบบจะสร้างใบเสร็จพร้อม QR Code ให้โดยอัตโนมัติ</p>
+                            </div>
+
+                            <div>
+                                <h4 className="font-bold text-slate-800 text-[15px] mb-1">3. การรับและคืนอุปกรณ์</h4>
+                                <p>แสดง <strong>QR Code</strong> ในหน้าใบเสร็จให้เจ้าหน้าที่ห้องสมุดเพื่อรับอุปกรณ์ <span className="text-orange-600 font-medium">กรุณามารับภายใน 15 นาที</span> มิฉะนั้นคำขอจะถูกยกเลิก เมื่อต้องการคืนให้นำอุปกรณ์และโชว์ QR Code เพื่อให้เจ้าหน้าที่ทำรายการคืน</p>
+                            </div>
+
+                            <div>
+                                <h4 className="font-bold text-slate-800 text-[15px] mb-1">4. การต่อคิวอุปกรณ์</h4>
+                                <p>หากอุปกรณ์ชิ้นไหนว่างไม่เพียงพอ สามารถกด <strong className="text-[#3D2B56]">"ต่อคิวอุปกรณ์"</strong> ไว้ได้ โดยระบบจะแจ้งเตือนให้มารับเมื่อถึงคิวของคุณ</p>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import jsQR from "jsqr";
 import { useState, useEffect } from "react";
+import Swal from "sweetalert2";
 import { io } from "socket.io-client";
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import * as XLSX from 'xlsx';
@@ -38,6 +39,14 @@ class ReportErrorBoundary extends React.Component {
     }
 }
 
+
+/* ============================================================
+   Helpers
+   ============================================================ */
+const formatEquipmentName = (name) => {
+    if (!name) return '';
+    return name.replace(/\s*\[.*?\]\s*:\s*/g, ' ').replace(/\s*\[.*?\]/g, '').trim();
+};
 
 /* ============================================================
    Mock data — ตรงกับข้อมูลตัวอย่างในภาพ
@@ -238,7 +247,13 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                         item.report_date = `${THAI_MONTHS[item.report_month]} ${item.report_year + 543}`;
                     } else if (item.report_year) {
                         item.report_date = `ปี ${item.report_year + 543}`;
+                    } else if (item.name) {
+                        item.report_date = formatEquipmentName(item.name);
                     }
+                    // Convert string numbers to actual numbers for chart rendering
+                    item.total_borrows = parseInt(item.total_borrows) || 0;
+                    item.total_returned = parseInt(item.total_returned) || 0;
+                    item.total_overdue = parseInt(item.total_overdue) || 0;
                     return item;
                 });
                 setReportData(formattedData);
@@ -310,7 +325,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
             XLSX.utils.book_append_sheet(workbook, ws1, "รายงาน");
         }
         // Sheet 2: Equipment breakdown
-        if (showReportEquipment && equipmentBreakdownData && equipmentBreakdownData.length > 0) {
+        if (equipmentBreakdownData && equipmentBreakdownData.length > 0) {
             const eqData = equipmentBreakdownData.map((eq, i) => ({
                 'ลำดับ': i + 1,
                 'ชื่ออุปกรณ์': eq.equipment_name,
@@ -798,8 +813,22 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
             }
         });
 
+        socket.on('scan_success', (data) => {
+            Swal.fire({
+                icon: 'success',
+                title: data.type === 'pickup' ? 'จ่ายอุปกรณ์สำเร็จ' : 'รับคืนสำเร็จ',
+                text: data.message,
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 4000,
+                timerProgressBar: true,
+            });
+        });
+
         return () => {
             socket.off('data_updated');
+            socket.off('scan_success');
             socket.disconnect();
         };
     }, [currentPage]);
@@ -1048,21 +1077,25 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                         ))}
                                     </div>
                                     <div className="ml-auto flex items-center gap-2">
-                                        <label className="text-[13px] font-semibold text-slate-500 whitespace-nowrap">ระบุวันที่:</label>
-                                        <input
-                                            type="date"
-                                            value={requestFilterDate}
-                                            onChange={(e) => setRequestFilterDate(e.target.value)}
-                                            className="border border-purple-100 rounded-lg px-3 py-1.5 text-[13px] text-slate-700 focus:outline-none focus:border-purple-300 focus:ring-1 focus:ring-purple-300"
-                                        />
-                                        {requestFilterDate && (
-                                            <button 
-                                                onClick={() => setRequestFilterDate("")}
-                                                className="text-[12px] text-red-500 hover:text-red-700 font-semibold ml-1 whitespace-nowrap"
-                                            >
-                                                ล้างค่า
-                                            </button>
-                                        )}
+                                        <div className={`flex items-center gap-2 bg-purple-50/80 border ${requestFilterDate ? 'border-purple-400 ring-2 ring-purple-100' : 'border-purple-100'} rounded-xl px-3.5 py-2 transition-all hover:border-purple-300 hover:shadow-sm group`}>
+                                            <Clock size={15} className={`${requestFilterDate ? 'text-purple-600' : 'text-purple-300'} group-hover:text-purple-500 transition`} />
+                                            <input
+                                                type="date"
+                                                value={requestFilterDate}
+                                                onChange={(e) => setRequestFilterDate(e.target.value)}
+                                                className="bg-transparent text-[13px] font-semibold text-slate-700 outline-none cursor-pointer min-w-[130px]"
+                                                style={{ colorScheme: 'light' }}
+                                            />
+                                            {requestFilterDate && (
+                                                <button 
+                                                    onClick={() => setRequestFilterDate("")}
+                                                    className="w-5 h-5 rounded-full bg-red-100 text-red-500 flex items-center justify-center hover:bg-red-200 hover:text-red-700 transition ml-0.5"
+                                                    title="ล้างค่า"
+                                                >
+                                                    <X size={12} />
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
 
@@ -1086,7 +1119,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                                     <td className="py-4 px-4 first:pl-2 text-[13px] font-medium">{r.student_id}</td>
                                                     <td className="py-4 px-4 text-[13px] font-semibold">{r.student_name}</td>
                                                     <td className="py-4 px-4">
-                                                        <div className="text-[13px] font-medium">{r.equipment_name}</div>
+                                                        <div className="text-[13px] font-medium">{formatEquipmentName(r.equipment_name)}</div>
                                                         <div className="text-[11px] text-slate-400">Kit {String(r.equipment_code).replace(/^Kit\s*/i, '')}</div>
                                                     </td>
                                                     <td className="py-4 px-4 text-[13px] text-slate-600">{formatThaiDate(r.borrow_date)}</td>
@@ -1188,7 +1221,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                                                     <Package size={20} />
                                                                 )}
                                                             </div>
-                                                            <div className="text-[13px] font-semibold text-slate-700">{eq.name}</div>
+                                                            <div className="text-[13px] font-semibold text-slate-700">{formatEquipmentName(eq.name)}</div>
                                                         </div>
                                                     </td>
                                                     <td className="py-4 px-4 text-[13px] text-slate-600">{eq.kit_code || '-'}</td>
@@ -1333,7 +1366,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                             <table className="w-full border-collapse">
                                                 <thead>
                                                     <tr>
-                                                        {["ลำดับ (Sequence)", "รหัสครุภัณฑ์ (Asset Code)", "สถานะ"].map((h) => (
+                                                        {["ลำดับ (Sequence)", "เลข QR Code", "สถานะ"].map((h) => (
                                                             <th key={h} className="text-left text-[12px] uppercase tracking-wide text-slate-400 font-bold pb-4 border-b-2 border-purple-100 px-4 first:pl-2">
                                                                 {h}
                                                             </th>
@@ -1921,7 +1954,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                                                 <ResponsiveContainer width="100%" height="100%">
                                                                     <BarChart data={reportData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                                                        <XAxis dataKey={['monthly', 'daily'].includes(reportType) ? 'report_date' : reportType === 'yearly' ? 'report_month' : 'report_year'} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                                                                        <XAxis dataKey="report_date" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
                                                                         <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
                                                                         <RechartsTooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }} />
                                                                         <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingBottom: '10px' }} verticalAlign="top" />
