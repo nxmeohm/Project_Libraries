@@ -923,11 +923,6 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                     })}
                 </div>
 
-                <button onClick={() => setIsUnifiedScannerOpen(true)} className="flex items-center gap-3 px-3 py-3 rounded-xl text-[13.5px] font-medium transition bg-green-500/20 text-green-300 hover:bg-green-500/30 mb-4 justify-center shadow-sm">
-                    <QrCode size={18} />
-                    สแกน QR / บาร์โค้ด
-                </button>
-
                 <div className="border-t border-white/10 pt-3.5 flex items-center gap-2.5">
                     <div className="w-8.5 h-8.5 w-[34px] h-[34px] rounded-full bg-white/15 flex items-center justify-center font-bold text-[13px] shrink-0">A</div>
                     <div className="text-[12.5px] leading-tight">
@@ -2110,44 +2105,6 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                     </div>
                 )}
             </div>
-            {/* ================= MODALS ================= */}
-            {isUnifiedScannerOpen && (
-                <div className="fixed inset-0 bg-[#3D2B56]/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-[slideIn_0.3s_ease]">
-                        <div className="px-6 py-5 border-b border-purple-100 flex items-center justify-between bg-purple-50">
-                            <h2 className="text-[17px] font-bold text-slate-800">สแกน QR / บาร์โค้ด</h2>
-                            <button onClick={() => setIsUnifiedScannerOpen(false)} className="w-8 h-8 rounded-full hover:bg-white flex items-center justify-center text-slate-500 hover:text-slate-800 transition">
-                                <X size={20} />
-                            </button>
-                        </div>
-                        <form onSubmit={handleUnifiedScan} className="p-6">
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-[13px] font-bold text-slate-700 mb-2">สแกนรหัสคิว / รหัสครุภัณฑ์</label>
-                                    <div className="flex gap-2">
-                                        <input autoFocus type="text" value={scanInput} onChange={e => {
-                                            setScanInput(e.target.value);
-                                            if (window.scanTimeout) clearTimeout(window.scanTimeout);
-                                            if (e.target.value.trim().length > 6) {
-                                                window.scanTimeout = setTimeout(() => handleUnifiedScan(null, e.target.value), 500);
-                                            }
-                                        }} placeholder="เช่น LB123456 หรือ 310510..." className="flex-1 bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400" />
-                                        <label className="bg-purple-100 text-purple-700 rounded-xl px-4 flex items-center justify-center cursor-pointer hover:bg-purple-200 transition" title="อัพโหลดรูป QR/Barcode">
-                                            <Upload size={20} />
-                                            <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, 'unified')} />
-                                        </label>
-                                    </div>
-                                    <p className="text-xs text-slate-500 mt-2">* ระบบจะตรวจสอบประเภทบาร์โค้ดและดำเนินการ จ่ายคิว หรือ รับคืน อัตโนมัติ</p>
-                                </div>
-                            </div>
-                            <div className="flex gap-3 mt-6">
-                                <button type="button" onClick={() => { setIsUnifiedScannerOpen(false); setScanInput(""); }} className="flex-1 px-4 py-2.5 rounded-xl text-[13.5px] font-bold border border-slate-200 text-slate-600 hover:bg-slate-50 transition" disabled={isSubmittingScan}>ยกเลิก</button>
-                                <button type="submit" disabled={!scanInput || isSubmittingScan} className="flex-1 px-4 py-2.5 rounded-xl text-[13.5px] font-bold bg-[#3D2B56] text-white hover:bg-[#2A1D3C] transition disabled:opacity-50">{isSubmittingScan ? 'กำลังดำเนินการ...' : 'ยืนยัน'}</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
