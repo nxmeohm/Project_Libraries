@@ -786,16 +786,30 @@ router.get('/queue_details.php', async (req, res) => {
             const bReq = borrowItem[0];
             
             // Get all items in the group
-            const [groupItems] = await pool.query(
-                `SELECT b.id as borrow_id, b.status as borrow_status, e.name as equipment_name, e.category 
-                 FROM borrowed b
-                 JOIN equipments e ON b.equipment_id = e.equipment_id
-                 WHERE b.student_id = ? AND b.status IN ('pending', 'borrowed') 
-                 AND b.borrow_date >= DATE_SUB(?, INTERVAL 5 MINUTE)
-                 AND b.borrow_date <= DATE_ADD(?, INTERVAL 5 MINUTE)
-                 ORDER BY b.id ASC`,
-                [bReq.student_id, bReq.borrow_date, bReq.borrow_date]
-            );
+            // Use reservation_expires_at as group key (most reliable)
+            let groupItems;
+            if (bReq.reservation_expires_at) {
+                [groupItems] = await pool.query(
+                    `SELECT b.id as borrow_id, b.status as borrow_status, e.name as equipment_name, e.category 
+                     FROM borrowed b
+                     JOIN equipments e ON b.equipment_id = e.equipment_id
+                     WHERE b.student_id = ? AND b.status IN ('pending', 'borrowed') 
+                     AND b.reservation_expires_at = ?
+                     ORDER BY b.id ASC`,
+                    [bReq.student_id, bReq.reservation_expires_at]
+                );
+            } else {
+                [groupItems] = await pool.query(
+                    `SELECT b.id as borrow_id, b.status as borrow_status, e.name as equipment_name, e.category 
+                     FROM borrowed b
+                     JOIN equipments e ON b.equipment_id = e.equipment_id
+                     WHERE b.student_id = ? AND b.status IN ('pending', 'borrowed') 
+                     AND b.borrow_date >= DATE_SUB(?, INTERVAL 5 MINUTE)
+                     AND b.borrow_date <= DATE_ADD(?, INTERVAL 5 MINUTE)
+                     ORDER BY b.id ASC`,
+                    [bReq.student_id, bReq.borrow_date, bReq.borrow_date]
+                );
+            }
 
             const dateStr = new Date(bReq.borrow_date).toLocaleString('th-TH', { 
                 day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' 
@@ -893,15 +907,27 @@ router.post('/pickup_queue.php', async (req, res) => {
             const bReq = borrowItem[0];
 
             if (barcode === 'AUTO') {
-                // Find all items in the same group (same student, same minute)
-                const [groupItems] = await connection.query(
-                    `SELECT * FROM borrowed 
-                     WHERE student_id = ? AND status = 'pending' 
-                     AND borrow_date >= DATE_SUB(?, INTERVAL 5 MINUTE)
-                     AND borrow_date <= DATE_ADD(?, INTERVAL 5 MINUTE)
-                     FOR UPDATE`,
-                    [bReq.student_id, bReq.borrow_date, bReq.borrow_date]
-                );
+                // Find all items in the same group
+                // Use reservation_expires_at as group key (all items in a batch share the same value)
+                let groupItems;
+                if (bReq.reservation_expires_at) {
+                    [groupItems] = await connection.query(
+                        `SELECT * FROM borrowed 
+                         WHERE student_id = ? AND status = 'pending' 
+                         AND reservation_expires_at = ?
+                         FOR UPDATE`,
+                        [bReq.student_id, bReq.reservation_expires_at]
+                    );
+                } else {
+                    [groupItems] = await connection.query(
+                        `SELECT * FROM borrowed 
+                         WHERE student_id = ? AND status = 'pending' 
+                         AND borrow_date >= DATE_SUB(?, INTERVAL 5 MINUTE)
+                         AND borrow_date <= DATE_ADD(?, INTERVAL 5 MINUTE)
+                         FOR UPDATE`,
+                        [bReq.student_id, bReq.borrow_date, bReq.borrow_date]
+                    );
+                }
 
                 let processedCount = 0;
                 let barcodesAssigned = [];
@@ -915,7 +941,7 @@ router.post('/pickup_queue.php', async (req, res) => {
                     if (autoItems.length > 0) {
                         const pItem = autoItems[0];
                         await connection.query("UPDATE equipment_items SET status = 'borrowed' WHERE item_id = ?", [pItem.item_id]);
-                        await connection.query("UPDATE borrowed SET status = 'borrowed', borrow_date = NOW() WHERE id = ?", [item.id]);
+                        await connection.query("UPDATE borrowed SET status = 'borrowed', pickup_time = NOW() WHERE id = ?", [item.id]);
                         barcodesAssigned.push(pItem.full_asset_code);
                         processedCount++;
                     }
@@ -950,15 +976,28 @@ router.post('/pickup_queue.php', async (req, res) => {
                 
                 const pItem = physicalItem[0];
                 
-                // Find one pending request in the group that needs this equipment type
-                const [groupItems] = await connection.query(
-                    `SELECT * FROM borrowed 
-                     WHERE student_id = ? AND status = 'pending' 
-                     AND DATE_FORMAT(borrow_date, '%Y-%m-%d %H:%i') = DATE_FORMAT(?, '%Y-%m-%d %H:%i') 
-                     AND equipment_id = ?
-                     LIMIT 1 FOR UPDATE`,
-                    [bReq.student_id, bReq.borrow_date, pItem.equipment_id]
-                );
+                // Find one pending request for this student + equipment type
+                // Use reservation_expires_at as group key (all items in a batch share the same value)
+                // Fallback: match by student_id + equipment_id if reservation_expires_at is not available
+                let groupItems;
+                if (bReq.reservation_expires_at) {
+                    [groupItems] = await connection.query(
+                        `SELECT * FROM borrowed 
+                         WHERE student_id = ? AND status = 'pending' 
+                         AND reservation_expires_at = ?
+                         AND equipment_id = ?
+                         LIMIT 1 FOR UPDATE`,
+                        [bReq.student_id, bReq.reservation_expires_at, pItem.equipment_id]
+                    );
+                } else {
+                    [groupItems] = await connection.query(
+                        `SELECT * FROM borrowed 
+                         WHERE student_id = ? AND status = 'pending' 
+                         AND equipment_id = ?
+                         LIMIT 1 FOR UPDATE`,
+                        [bReq.student_id, pItem.equipment_id]
+                    );
+                }
 
                 if (groupItems.length === 0) {
                     await connection.rollback();
@@ -969,15 +1008,26 @@ router.post('/pickup_queue.php', async (req, res) => {
                 const targetReq = groupItems[0];
 
                 await connection.query("UPDATE equipment_items SET status = 'borrowed' WHERE item_id = ?", [pItem.item_id]);
-                await connection.query("UPDATE borrowed SET status = 'borrowed', borrow_date = NOW() WHERE id = ?", [targetReq.id]);
+                await connection.query("UPDATE borrowed SET status = 'borrowed', pickup_time = NOW() WHERE id = ?", [targetReq.id]);
 
                 // Count remaining pending items in the group
-                const [remainingPending] = await connection.query(
-                    `SELECT COUNT(*) as count FROM borrowed 
-                     WHERE student_id = ? AND status = 'pending' 
-                     AND DATE_FORMAT(borrow_date, '%Y-%m-%d %H:%i') = DATE_FORMAT(?, '%Y-%m-%d %H:%i')`,
-                    [bReq.student_id, bReq.borrow_date]
-                );
+                let remainingPending;
+                if (bReq.reservation_expires_at) {
+                    [remainingPending] = await connection.query(
+                        `SELECT COUNT(*) as count FROM borrowed 
+                         WHERE student_id = ? AND status = 'pending' 
+                         AND reservation_expires_at = ?`,
+                        [bReq.student_id, bReq.reservation_expires_at]
+                    );
+                } else {
+                    [remainingPending] = await connection.query(
+                        `SELECT COUNT(*) as count FROM borrowed 
+                         WHERE student_id = ? AND status = 'pending' 
+                         AND borrow_date >= DATE_SUB(?, INTERVAL 5 MINUTE)
+                         AND borrow_date <= DATE_ADD(?, INTERVAL 5 MINUTE)`,
+                        [bReq.student_id, bReq.borrow_date, bReq.borrow_date]
+                    );
+                }
                 
                 const remaining = remainingPending[0].count;
 
