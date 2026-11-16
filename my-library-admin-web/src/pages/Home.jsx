@@ -18,9 +18,6 @@ import { useState, useEffect } from "react";
 import Swal from "sweetalert2";
 import { io } from "socket.io-client";
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
-import * as XLSX from 'xlsx';
-import * as htmlToImage from 'html-to-image';
-import jsPDF from 'jspdf';
 import React from 'react';
 
 class ReportErrorBoundary extends React.Component {
@@ -307,7 +304,8 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
     }, [currentPage, reportType, reportStartDate, reportEndDate]);
 
     /* --- Export Functions (Data-Driven) --- */
-    const exportToExcel = () => {
+    const exportToExcel = async () => {
+        const XLSX = await import('xlsx');
         const workbook = XLSX.utils.book_new();
         // Sheet 1: Report summary
         if (reportData && reportData.length > 0) {
@@ -362,6 +360,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
         if (!element) return showToast('ไม่พบข้อมูลที่จะส่งออก', 'warning');
         showToast('กำลังสร้างไฟล์ PDF...', 'info');
         try {
+            const htmlToImage = await import('html-to-image');
             const dataUrl = await htmlToImage.toPng(element, {
                 quality: 1,
                 pixelRatio: 2,
@@ -391,6 +390,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
         if (!element) return showToast('ไม่พบข้อมูลที่จะส่งออก', 'warning');
         showToast('กำลังสร้างรูปภาพ...', 'info');
         try {
+            const htmlToImage = await import('html-to-image');
             const dataUrl = await htmlToImage.toPng(element, {
                 quality: 1,
                 pixelRatio: 2,

@@ -230,15 +230,30 @@ router.post('/checkout.php', validate(checkoutSchema), async (req, res) => {
             return res.json({ success: false, message: "ระบบจำกัดการยืมอุปกรณ์สูงสุด 5 ชิ้นต่อวัน" });
         }
 
-        // Check stock — only count truly available items
-        const [stockCheck] = await connection.query(
-            `SELECT COUNT(*) as available FROM equipment_items WHERE equipment_id = ? AND status = 'available'`,
+        // Check stock & lock available items row using FOR UPDATE to prevent race condition
+        const [availableItems] = await connection.query(
+            `SELECT id FROM equipment_items 
+             WHERE equipment_id = ? AND status = 'available' 
+             LIMIT 1 FOR UPDATE`,
             [equipment_id]
         );
-        if (stockCheck[0].available <= 0) {
+        if (availableItems.length === 0) {
             await connection.rollback();
             connection.release();
             return res.json({ success: false, message: "อุปกรณ์ชิ้นนี้ไม่มีให้ยืมในขณะนี้ กรุณาจองคิวแทน" });
+        }
+
+        // Lock queue check to ensure queue fairness
+        const [activeQueues] = await connection.query(
+            `SELECT id, student_id FROM equipment_queue 
+             WHERE equipment_id = ? AND status = 'called' 
+             ORDER BY position ASC LIMIT 1 FOR UPDATE`,
+            [equipment_id]
+        );
+        if (activeQueues.length > 0 && activeQueues[0].student_id !== student_id) {
+            await connection.rollback();
+            connection.release();
+            return res.json({ success: false, message: "อุปกรณ์นี้มีคิวที่ถูกเรียกมารับอยู่แล้ว กรุณารอสักครู่" });
         }
 
         const [insertResult] = await connection.query(

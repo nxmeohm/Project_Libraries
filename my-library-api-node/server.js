@@ -1,6 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const pool = require('./db');
 const http = require('http');
 const path = require('path');
@@ -27,7 +29,7 @@ const corsOptions = {
         if (CORS_ORIGINS.includes('*') || CORS_ORIGINS.includes(origin)) {
             callback(null, true);
         } else {
-            callback(null, true); // In development, allow all. Tighten in production.
+            callback(new Error(`Origin ${origin} is not allowed by CORS`));
         }
     },
     methods: ["GET", "POST", "PUT", "DELETE"],
@@ -41,7 +43,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: "*",
+        origin: CORS_ORIGINS,
         methods: ["GET", "POST"]
     }
 });
@@ -68,10 +70,27 @@ app.use((req, res, next) => {
     next();
 });
 
+// Security Headers Middleware
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+
+// Rate Limiting — จำกัดการยิง API Login ไม่เกิน 15 ครั้งต่อ 15 นาที
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 15,
+    message: {
+        success: false,
+        message: 'ลองเข้าสู่ระบบบ่อยเกินไป กรุณารอ 15 นาทีแล้วลองใหม่อีกครั้ง'
+    },
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
 // ============================================================
 // Mount Routes
 // ============================================================
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', loginLimiter, authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api', mobileRoutes);
 

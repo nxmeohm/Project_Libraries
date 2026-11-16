@@ -5,7 +5,12 @@ const pool = require('../db');
 const validate = require('../middleware/validate');
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'project-libraries-secret-key-2026';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+    console.error('❌ FATAL: JWT_SECRET is not defined in environment variables.');
+    process.exit(1);
+}
 const TOKEN_EXPIRY = '8h';
 
 // ============================================================
