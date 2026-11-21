@@ -1,0 +1,2693 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Use Case & Flow — ระบบยืม-คืนอุปกรณ์ห้องสมุด (Project Libraries)</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --bg-card: #1e293b;
+            --bg-content: #0f172a;
+            --border: #334155;
+            --border-card: #475569;
+            --text: #e2e8f0;
+            --text-muted: #94a3b8;
+            --primary: #3b82f6;
+            --primary-light: rgba(59,130,246,0.15);
+            --success: #22c55e;
+            --success-light: rgba(34,197,94,0.15);
+            --warning: #f59e0b;
+            --warning-light: rgba(245,158,11,0.15);
+            --error: #ef4444;
+            --error-light: rgba(239,68,68,0.15);
+            --info: #06b6d4;
+            --info-light: rgba(6,182,212,0.15);
+            --purple: #a855f7;
+            --purple-light: rgba(168,85,247,0.15);
+        }
+        [data-theme="light"] {
+            --bg: #f8fafc;
+            --bg-card: #ffffff;
+            --bg-content: #f1f5f9;
+            --border: #e2e8f0;
+            --border-card: #cbd5e1;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --primary: #2563eb;
+            --primary-light: rgba(37,99,235,0.1);
+            --success: #16a34a;
+            --success-light: rgba(22,163,74,0.1);
+            --warning: #d97706;
+            --warning-light: rgba(217,119,6,0.1);
+            --error: #dc2626;
+            --error-light: rgba(220,38,38,0.1);
+            --info: #0891b2;
+            --info-light: rgba(8,145,178,0.1);
+            --purple: #9333ea;
+            --purple-light: rgba(147,51,234,0.1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
+            border-bottom: 1px solid var(--border);
+            padding: 24px 32px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        [data-theme="light"] .header {
+            background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
+        }
+        .header h1 { font-size: 22px; color: #fff; font-weight: 700; }
+        .header p { font-size: 13px; color: #94a3b8; margin-top: 4px; }
+        .header-row { display: flex; align-items: center; justify-content: space-between; }
+        .theme-toggle {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: #fff;
+            padding: 6px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: 0.2s;
+        }
+        .theme-toggle:hover { background: rgba(255,255,255,0.25); }
+
+        /* Navigation */
+        .nav {
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            padding: 0 32px;
+            display: flex;
+            gap: 0;
+            overflow-x: auto;
+            position: sticky;
+            top: 85px;
+            z-index: 99;
+        }
+        .nav-btn {
+            padding: 12px 20px;
+            border: none;
+            background: none;
+            color: var(--text-muted);
+            font-size: 13px;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            white-space: nowrap;
+            transition: 0.2s;
+            font-weight: 500;
+        }
+        .nav-btn:hover { color: var(--primary); background: var(--primary-light); }
+        .nav-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+            font-weight: 600;
+        }
+
+        /* Content */
+        .content { max-width: 1100px; margin: 0 auto; padding: 24px 32px 60px; }
+        .tab-panel { display: none; animation: fadeIn 0.3s ease; }
+        .tab-panel.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Section */
+        .section-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .section-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
+
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+            transition: 0.2s;
+        }
+        .card:hover { border-color: var(--border-card); }
+        .card-title {
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Actor Cards */
+        .actor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+        @media (max-width: 768px) { .actor-grid { grid-template-columns: 1fr; } }
+        .actor-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            border-top: 4px solid var(--primary);
+        }
+        .actor-card.admin { border-top-color: var(--warning); }
+        .actor-card.system { border-top-color: var(--success); }
+        .actor-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+        .actor-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+        }
+        .actor-name { font-size: 16px; font-weight: 700; }
+        .actor-role { font-size: 12px; color: var(--text-muted); }
+
+        /* Use Case Items */
+        .usecase-list { list-style: none; }
+        .usecase-item {
+            padding: 8px 12px;
+            margin-bottom: 4px;
+            border-radius: 8px;
+            background: var(--bg-content);
+            border: 1px solid var(--border);
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: 0.15s;
+        }
+        .usecase-item:hover { border-color: var(--primary); background: var(--primary-light); }
+        .usecase-num {
+            width: 22px;
+            height: 22px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        /* Flow Steps */
+        .flow-container { position: relative; }
+        .flow-step {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 4px;
+            position: relative;
+            transition: 0.2s;
+        }
+        .flow-step:hover { border-color: var(--primary); transform: translateX(4px); }
+        .flow-step-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 6px;
+        }
+        .flow-step-num {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+        .flow-step-title { font-size: 14px; font-weight: 600; }
+        .flow-step-body { margin-left: 38px; font-size: 13px; color: var(--text-muted); }
+        .flow-step-body ul { margin-left: 16px; margin-top: 4px; }
+        .flow-step-body li { margin-bottom: 2px; }
+
+        .flow-arrow {
+            text-align: center;
+            padding: 2px 0;
+            color: var(--text-muted);
+            font-size: 18px;
+        }
+        .flow-arrow-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-align: center;
+            margin-top: -2px;
+            margin-bottom: 2px;
+        }
+
+        /* Actor Badge */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .badge-student { background: var(--primary-light); color: var(--primary); }
+        .badge-admin { background: var(--warning-light); color: var(--warning); }
+        .badge-system { background: var(--success-light); color: var(--success); }
+
+        /* Status Badge */
+        .status {
+            display: inline-block;
+            padding: 1px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .status-pending { background: var(--warning-light); color: var(--warning); }
+        .status-borrowed { background: var(--success-light); color: var(--success); }
+        .status-returned { background: var(--info-light); color: var(--info); }
+        .status-rejected { background: var(--error-light); color: var(--error); }
+        .status-overdue { background: var(--error-light); color: var(--error); }
+        .status-lost { background: var(--warning-light); color: var(--warning); }
+        .status-waiting { background: var(--warning-light); color: var(--warning); }
+        .status-called { background: var(--error-light); color: var(--error); }
+        .status-completed { background: var(--success-light); color: var(--success); }
+        .status-expired { background: rgba(148,163,184,0.2); color: var(--text-muted); }
+        .status-cancelled { background: rgba(148,163,184,0.2); color: var(--text-muted); }
+        .status-available { background: var(--success-light); color: var(--success); }
+
+        /* Validation Box */
+        .validation-box {
+            background: var(--bg-content);
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--warning);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin: 8px 0;
+        }
+        .validation-box .title { font-size: 13px; font-weight: 600; color: var(--warning); margin-bottom: 6px; }
+        .validation-box ul { margin-left: 16px; font-size: 12px; color: var(--text-muted); }
+        .validation-box li { margin-bottom: 3px; }
+
+        /* Branch Box */
+        .branch-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+        @media (max-width: 768px) { .branch-grid { grid-template-columns: 1fr; } }
+        .branch-box {
+            background: var(--bg-content);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px;
+        }
+        .branch-title { font-size: 13px; font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+        .branch-body { font-size: 12px; color: var(--text-muted); }
+        .branch-body ol { margin-left: 16px; }
+        .branch-body li { margin-bottom: 3px; }
+
+        /* Notification Table */
+        .notif-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .notif-table th { background: var(--bg-content); padding: 10px 12px; text-align: left; border-bottom: 2px solid var(--border); font-weight: 600; font-size: 12px; }
+        .notif-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+        .notif-table tr:hover td { background: var(--primary-light); }
+        .channel-badge {
+            display: inline-block;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            margin-right: 2px;
+        }
+        .channel-email { background: var(--info-light); color: var(--info); }
+        .channel-inapp { background: var(--purple-light); color: var(--purple); }
+        .channel-socket { background: var(--success-light); color: var(--success); }
+
+        /* Status Lifecycle */
+        .lifecycle-row {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .lifecycle-row:last-child { border-bottom: none; }
+        .lifecycle-arrow { color: var(--text-muted); font-size: 16px; }
+        .lifecycle-label { font-size: 11px; color: var(--text-muted); font-style: italic; }
+
+        /* Cron Grid */
+        .cron-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        @media (max-width: 768px) { .cron-grid { grid-template-columns: 1fr; } }
+        .cron-item {
+            background: var(--bg-content);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px;
+        }
+        .cron-time { font-size: 14px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+        .cron-desc { font-size: 12px; color: var(--text-muted); }
+        .cron-actions { margin-top: 6px; font-size: 12px; }
+        .cron-actions li { margin-bottom: 2px; color: var(--text); }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 20px;
+            font-size: 12px;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border);
+        }
+
+        /* Print */
+        @media print {
+            .header, .nav { position: static; }
+            .tab-panel { display: block !important; page-break-inside: avoid; margin-bottom: 32px; }
+            .tab-panel::before { content: attr(data-title); font-size: 20px; font-weight: 700; display: block; margin-bottom: 12px; border-bottom: 2px solid #333; padding-bottom: 8px; }
+            .nav, .theme-toggle { display: none; }
+            body { background: #fff; color: #000; }
+            .card, .actor-card, .flow-step { border-color: #ccc; }
+        }
+
+        /* UML Diagram Styles */
+        .uml-wrapper {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            overflow-x: auto;
+        }
+        .uml-svg {
+            display: block;
+            margin: 0 auto;
+            max-width: 100%;
+            height: auto;
+        }
+        .uml-legend {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 16px;
+            padding: 12px 16px;
+            background: var(--bg-content);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 16px;
+        }
+        .uml-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+        .mermaid-code-box {
+            background: var(--bg-content);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 12px;
+            color: var(--text);
+            overflow-x: auto;
+            white-space: pre;
+            margin-top: 12px;
+        }
+    </style>
+</head>
+<body>
+    <!-- ===== HEADER ===== -->
+    <div class="header">
+        <div class="header-row">
+            <div>
+                <h1>📋 Use Case & Flow — ระบบยืม-คืนอุปกรณ์ห้องสมุด</h1>
+                <p>Project Libraries — เอกสารประกอบการออกแบบระบบ | สร้างจากโค้ดจริง</p>
+            </div>
+            <button class="theme-toggle" onclick="toggleTheme()">🌓 สลับธีม</button>
+        </div>
+    </div>
+
+    <!-- ===== NAVIGATION ===== -->
+    <div class="nav" id="nav">
+        <button class="nav-btn active" data-tab="overview">📌 ภาพรวมระบบ</button>
+        <button class="nav-btn" data-tab="student">🎓 บทบาท: นักศึกษา</button>
+        <button class="nav-btn" data-tab="admin">🛡️ บทบาท: บรรณารักษ์</button>
+        <button class="nav-btn" data-tab="system">⚙️ บทบาท: ระบบอัตโนมัติ</button>
+        <button class="nav-btn" data-tab="uc-borrow">📋 Use Case: ยืมอุปกรณ์</button>
+        <button class="nav-btn" data-tab="uc-queue">📋 Use Case: จองคิว</button>
+        <button class="nav-btn" data-tab="journal-flow">📑 ผังงานระบบ (สไตล์วารสารวิชาการ)</button>
+        <button class="nav-btn" data-tab="flow-borrow">📦 Flow: ยืมอุปกรณ์</button>
+        <button class="nav-btn" data-tab="flow-queue">🔢 Flow: จองคิว</button>
+        <button class="nav-btn" data-tab="flow-approve">✅ Flow: อนุมัติ</button>
+        <button class="nav-btn" data-tab="flow-return">🔄 Flow: คืนอุปกรณ์</button>
+        <button class="nav-btn" data-tab="flow-notify">🔔 Flow: แจ้งเตือน</button>
+        <button class="nav-btn" data-tab="lifecycle">📊 Status Lifecycle</button>
+        <button class="nav-btn" data-tab="erd">🗂️ ERD Diagram</button>
+        <button class="nav-btn" data-tab="dfd">📊 DFD Level 0 - 2</button>
+    </div>
+
+    <!-- ===== CONTENT ===== -->
+    <div class="content">
+
+        <!-- ===================== TAB: OVERVIEW ===================== -->
+        <div class="tab-panel active" id="overview" data-title="ภาพรวมระบบ">
+            <div class="section-title">📌 ภาพรวมระบบ — Use Case Diagram</div>
+            <div class="section-desc">แสดง Actor 3 กลุ่มหลัก และ Use Case ทั้งหมดในระบบยืม-คืนอุปกรณ์ห้องสมุด</div>
+
+            <div class="actor-grid">
+                <!-- Student -->
+                <div class="actor-card">
+                    <div class="actor-header">
+                        <div class="actor-icon" style="background: var(--primary-light);">🎓</div>
+                        <div>
+                            <div class="actor-name" style="color: var(--primary);">นักศึกษา (Student)</div>
+                            <div class="actor-role">ผู้ใช้งานหลัก — ยืม/คืน/จองคิว ผ่าน Mobile App</div>
+                        </div>
+                    </div>
+                    <ul class="usecase-list">
+                        <li class="usecase-item"><span class="usecase-num" style="background:var(--primary-light); color:var(--primary);">1</span> เข้าสู่ระบบ (Login)</li>
+                        <li class="usecase-item"><span class="usecase-num" style="background:var(--primary-light); color:var(--primary);">2</span> ดูรายการอุปกรณ์ทั้งหมด</li>
+                        <li class="usecase-item"><span class="usecase-num" style="background:var(--primary-light); color:var(--primary);">3</span> ยืมอุปกรณ์ (Checkout)</li>
+                        <li class="usecase-item"><span class="usecase-num" style="background:var(--primary-light); color:var(--primary);">4</span> จองคิว (Join Queue)</li>
+                        <li class="usecase-item"><span class="usecase-num" style="background:var(--primary-light); color:var(--primary);">5</span> ยกเลิกคำขอยืม</li>
+                        <li class="usecase-item"><span class="usecase-num" style="background:var(--primary-light); color:var(--primary);">6</span> ยกเลิกคิว</li>
+                        <li class="usecase-item"><span class="usecase-num" style="background:var(--primary-light); color:var(--primary);">7</span> แจ้งอุปกรณ์สูญหาย/ชำรุด</li>
+                        <li class="usecase-item"><span class="usecase-num" style="background:var(--primary-light); color:var(--primary);">8</span> ดูประวัติการยืม</li>
+                        <li class="usecase-item"><span class="usecase-num" style="background:var(--primary-light); color:var(--primary);">9</span> ดูการแจ้งเตือน</li>
+                        <li class="usecase-item"><span class="usecase-num" style="background:var(--primary-light); color:var(--primary);">10</span> แก้ไขโปรไฟล์ / เปลี่ยนรหัสผ่าน</li>
+                    </ul>
+                </div>
+
+                <!-- Admin -->
+                <div class="actor-card admin">
+                    <div class="actor-header">
+                        <div class="actor-icon" style="background: var(--warning-light);">🛡️</div>
+                        <div>
+                            <div class="actor-name" style="color: var(--warning);">บรรณารักษ์ (Admin)</div>
+                            <div class="actor-role">ผู้ดูแลระบบ — จัดการอุปกรณ์/คำขอ ผ่าน Admin Web</div>
+                        </div>
+                    </div>
+                    <ul class="usecase-list">
+                        <li class="usecase-item"><span class="usecase-num" style="background:var(--warning-light); color:var(--warning);">1</span> ดู Dashboard (KPI / กราฟ)</li>
+                        <li class="usecase-item"><span class="usecase-num" style="background:var(--warning-light); color:var(--warning);">2</span> ดูรายการคำขอยืมทั้งหมด</li>
+                        <li class="usecase-item"><span class="usecase-num" style="background:var(--warning-light); color:var(--warning);">3</span> อนุมัติ / ปฏิเสธ คำขอยืม</li>
+                        <li class="usecase-item"><span class="usecase-num" style="background:var(--warning-light); color:var(--warning);">4</span> บันทึกการคืนอุปกรณ์</li>
+                        <li class="usecase-item"><span class="usecase-num" style="background:var(--warning-light); color:var(--warning);">5</span> สแกน QR/Barcode จ่ายอุปกรณ์</li>
+                        <li class="usecase-item"><span class="usecase-num" style="background:var(--warning-light); color:var(--warning);">6</span> สแกน Barcode รับคืนอุปกรณ์</li>
+                        <li class="usecase-item"><span class="usecase-num" style="background:var(--warning-light); color:var(--warning);">7</span> จัดการอุปกรณ์ (เพิ่ม/แก้ไข/ลบ)</li>
+                        <li class="usecase-item"><span class="usecase-num" style="background:var(--warning-light); color:var(--warning);">8</span> จัดการคิว / ข้ามคิว</li>
+                        <li class="usecase-item"><span class="usecase-num" style="background:var(--warning-light); color:var(--warning);">9</span> ส่งประกาศ / แจ้งเตือนผู้ใช้</li>
+                        <li class="usecase-item"><span class="usecase-num" style="background:var(--warning-light); color:var(--warning);">10</span> ดูรายงานสถิติ / Export</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- System -->
+            <div class="actor-card system" style="border-top-color: var(--success);">
+                <div class="actor-header">
+                    <div class="actor-icon" style="background: var(--success-light);">⚙️</div>
+                    <div>
+                        <div class="actor-name" style="color: var(--success);">ระบบอัตโนมัติ (Cron Jobs / Socket.io)</div>
+                        <div class="actor-role">ประมวลผลเบื้องหลัง — ตรวจสอบ Overdue, Expired, แจ้งเตือนอัตโนมัติ</div>
+                    </div>
+                </div>
+                <div class="cron-grid">
+                    <div class="cron-item">
+                        <div class="cron-time">🕛 00:00 ทุกวัน (เที่ยงคืน)</div>
+                        <div class="cron-desc">รีเซ็ตระบบประจำวัน</div>
+                        <ul class="cron-actions">
+                            <li>ยกเลิก pending ทั้งหมดที่ค้างสิ้นวัน</li>
+                            <li>ยกเลิกคิว waiting/called ทั้งหมด</li>
+                            <li>ตรวจสอบรายการ overdue → อัพเดตสถานะ + ส่ง Email</li>
+                        </ul>
+                    </div>
+                    <div class="cron-item">
+                        <div class="cron-time">🕗 08:00 ทุกวัน (เช้า)</div>
+                        <div class="cron-desc">แจ้งเตือนใกล้ครบกำหนด</div>
+                        <ul class="cron-actions">
+                            <li>ตรวจรายการที่เหลือ 1-3 วันจะครบกำหนด</li>
+                            <li>ส่ง Email + In-App แจ้งเตือนนักศึกษา</li>
+                        </ul>
+                    </div>
+                    <div class="cron-item">
+                        <div class="cron-time">🕐 16:00 ทุกวัน (บ่าย)</div>
+                        <div class="cron-desc">แจ้งเตือนด่วน</div>
+                        <ul class="cron-actions">
+                            <li>ตรวจรายการที่ครบกำหนดคืนวันนี้</li>
+                            <li>ส่ง Email + In-App "ครบกำหนดคืนวันนี้!"</li>
+                        </ul>
+                    </div>
+                    <div class="cron-item">
+                        <div class="cron-time">⏱️ ทุก 1 นาที</div>
+                        <div class="cron-desc">ตรวจสอบ Expired</div>
+                        <ul class="cron-actions">
+                            <li>ตรวจคิว called ที่เกิน 5 นาที → expired → เรียกคิวถัดไป</li>
+                            <li>ตรวจ pending ที่เกิน 15 นาที → rejected อัตโนมัติ</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================== TAB: STUDENT ===================== -->
+        <div class="tab-panel" id="student" data-title="บทบาท: นักศึกษา">
+            <div class="section-title"><span style="color:var(--primary);">🎓</span> บทบาท: นักศึกษา (Student)</div>
+            <div class="section-desc">ใช้งานผ่าน Mobile App — มี JWT Authentication — เข้าถึง API ผ่าน <code>/api/*</code></div>
+
+            <div class="card">
+                <div class="card-title">🔐 1. เข้าสู่ระบบ (Login)</div>
+                <div class="flow-step-body">
+                    <strong>Endpoint:</strong> <code>POST /api/login.php</code><br>
+                    <strong>Input:</strong> รหัสนักศึกษา (studentId) + เลขบัตรประชาชน (citizenId)<br>
+                    <strong>Output:</strong> JWT Token (อายุ 8 ชั่วโมง, role: student)<br>
+                    <strong>Rate Limit:</strong> สูงสุด 15 ครั้ง / 15 นาที
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">🔍 2. ดูรายการอุปกรณ์</div>
+                <div class="flow-step-body">
+                    <strong>Endpoint:</strong> <code>GET /api/get_equipments.php</code> (ไม่ต้อง Login)<br>
+                    <strong>ข้อมูลที่เห็น:</strong> ชื่ออุปกรณ์, จำนวนที่เหลือ (available_quantity), จำนวนคิว (queue_count)<br>
+                    <strong>รายละเอียด:</strong> <code>GET /api/get_detail.php?id=X</code>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">📦 3. ยืมอุปกรณ์ (Checkout)</div>
+                <div class="flow-step-body">
+                    <strong>Endpoint:</strong> <code>POST /api/checkout.php</code> (ต้อง Login)<br>
+                    <strong>เงื่อนไข:</strong>
+                    <ul>
+                        <li>ยืมอุปกรณ์เดิมซ้ำไม่ได้ (1 คน : 1 ชิ้น/รุ่น)</li>
+                        <li>ห้ามอยู่ในคิวของอุปกรณ์นั้น</li>
+                        <li>ยืมสูงสุด 5 ชิ้น/วัน</li>
+                        <li>ต้องมี stock เหลือ (ถ้าหมดให้จองคิว)</li>
+                        <li>ห้ามยืมถ้ามีคิวที่ถูกเรียกอยู่ (คนอื่น)</li>
+                    </ul>
+                    <strong>ผลลัพธ์:</strong> สร้าง record สถานะ <span class="status status-pending">pending</span> หมดอายุใน 15 นาที
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">🔢 4. จองคิว (Join Queue)</div>
+                <div class="flow-step-body">
+                    <strong>Endpoint:</strong> <code>POST /api/join_queue.php</code> (ต้อง Login)<br>
+                    <strong>เงื่อนไข:</strong> ห้ามยืมชิ้นนั้นอยู่, ห้ามอยู่ในคิวซ้ำ, คิวเต็ม 10 คน<br>
+                    <strong>ผลลัพธ์:</strong> สถานะ <span class="status status-waiting">waiting</span> ตำแหน่งลำดับที่ N
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">❌ 5. ยกเลิกคำขอยืม</div>
+                <div class="flow-step-body">
+                    <strong>Endpoint:</strong> <code>POST /api/cancel_request.php</code><br>
+                    <strong>ผลลัพธ์:</strong> สถานะเปลี่ยนเป็น <span class="status status-rejected">rejected</span> ถ้าสถานะเดิมเป็น borrowed จะคืน item กลับ stock
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">❌ 6. ยกเลิกคิว</div>
+                <div class="flow-step-body">
+                    <strong>Endpoint:</strong> <code>POST /api/cancel_queue.php</code><br>
+                    <strong>ผลลัพธ์:</strong> สถานะเปลี่ยนเป็น <span class="status status-cancelled">cancelled</span> + เรียงลำดับคิวใหม่
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">⚠️ 7. แจ้งอุปกรณ์สูญหาย/ชำรุด</div>
+                <div class="flow-step-body">
+                    <strong>Endpoint:</strong> <code>POST /api/report_lost.php</code><br>
+                    <strong>เงื่อนไข:</strong> สถานะต้องเป็น <span class="status status-borrowed">borrowed</span> หรือ <span class="status status-overdue">overdue</span> เท่านั้น<br>
+                    <strong>Input:</strong> วันที่สูญหาย + หมายเหตุ<br>
+                    <strong>ผลลัพธ์:</strong> สถานะเปลี่ยนเป็น <span class="status status-lost">damaged_lost</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">📄 8-10. ดูประวัติ / แจ้งเตือน / แก้ไขโปรไฟล์</div>
+                <div class="flow-step-body">
+                    <ul>
+                        <li><code>GET /api/get_borrowed.php</code> — ดูประวัติการยืมทั้งหมด</li>
+                        <li><code>GET /api/my_queue.php</code> — ดูคิวของตัวเอง</li>
+                        <li><code>GET /api/get_notifications.php</code> — ดูการแจ้งเตือน (alert / announcement)</li>
+                        <li><code>POST /api/update_student_profile.php</code> — แก้ไขชื่อ, อีเมล, เบอร์โทร, รหัสผ่าน</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================== TAB: ADMIN ===================== -->
+        <div class="tab-panel" id="admin" data-title="บทบาท: บรรณารักษ์">
+            <div class="section-title"><span style="color:var(--warning);">🛡️</span> บทบาท: บรรณารักษ์ (Admin)</div>
+            <div class="section-desc">ใช้งานผ่าน Admin Web — ต้อง Login ด้วย JWT (role: admin) — เข้าถึง API ผ่าน <code>/api/admin/*</code></div>
+
+            <div class="card">
+                <div class="card-title">📊 1. ดู Dashboard</div>
+                <div class="flow-step-body">
+                    <strong>Endpoint:</strong> <code>GET /api/admin/dashboard</code><br>
+                    <strong>ข้อมูล KPI:</strong> ยืมวันนี้, คืนแล้ว, เลยกำหนด, รออนุมัติ<br>
+                    <strong>Chart Data:</strong> กราฟสถิติตามวันที่เลือก<br>
+                    <strong>Recent Activity:</strong> 20 รายการล่าสุด
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">✅ 2-3. ดูคำขอ + อนุมัติ/ปฏิเสธ</div>
+                <div class="flow-step-body">
+                    <strong>ดูคำขอ:</strong> <code>GET /api/admin/requests?status=pending&page=1&limit=50</code><br>
+                    <strong>ดำเนินการ:</strong> <code>POST /api/admin/update-request</code><br>
+                    <strong>Actions ที่ทำได้:</strong>
+                    <ul>
+                        <li><span class="status status-borrowed">approve</span> — อนุมัติ (ล็อค item + เปลี่ยนสถานะ borrowed)</li>
+                        <li><span class="status status-rejected">reject</span> — ปฏิเสธ (คืน item ถ้ามี)</li>
+                        <li><span class="status status-returned">return</span> — รับคืน (คืน item + เรียกคิวถัดไป)</li>
+                        <li><span class="status status-lost">lost</span> — สูญหาย (item → damaged_lost)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">📱 4-5. สแกน QR/Barcode จ่าย + รับคืน</div>
+                <div class="flow-step-body">
+                    <strong>จ่ายอุปกรณ์:</strong> <code>POST /api/admin/pickup_queue.php</code><br>
+                    &nbsp;&nbsp;• รับ queue_id (LBxxx = borrow request / ตัวเลข = queue item)<br>
+                    &nbsp;&nbsp;• รับ barcode (รหัสครุภัณฑ์ หรือ 'AUTO' เพื่อเลือกอัตโนมัติ)<br>
+                    &nbsp;&nbsp;• รองรับจ่ายทีเดียวหลายชิ้น (Group Pickup)<br><br>
+                    <strong>รับคืนอุปกรณ์:</strong> <code>POST /api/admin/return_by_barcode.php</code><br>
+                    &nbsp;&nbsp;• รับ barcode → ค้นหา item → ค้นหา borrowed record → คืน<br>
+                    &nbsp;&nbsp;• Socket emit <code>scan_success</code> สำหรับ Realtime UI
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">📦 6. จัดการอุปกรณ์ (CRUD)</div>
+                <div class="flow-step-body">
+                    <ul>
+                        <li><code>GET /api/admin/equipments</code> — ดูรายการทั้งหมด</li>
+                        <li><code>POST /api/admin/equipments</code> — เพิ่มอุปกรณ์ใหม่ (auto-category, สร้าง items อัตโนมัติ)</li>
+                        <li><code>PUT /api/admin/equipments/:id</code> — แก้ไข (ปรับ stock/items อัตโนมัติ)</li>
+                        <li><code>DELETE /api/admin/equipments/:id</code> — ลบ (ถ้าไม่มีประวัติยืม)</li>
+                        <li><code>GET /api/admin/equipments/:id/items</code> — ดูชิ้นย่อยแต่ละ item</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">🔢 7. จัดการคิว</div>
+                <div class="flow-step-body">
+                    <ul>
+                        <li><code>GET /api/admin/queue/:equipmentId</code> — ดูคิวของอุปกรณ์</li>
+                        <li><code>POST /api/admin/queue/:id/skip</code> — ข้ามคิว (expired → เรียงใหม่ → เรียกคิวถัดไป)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">📢 8. ส่งประกาศ / แจ้งเตือน</div>
+                <div class="flow-step-body">
+                    <strong>Endpoint:</strong> <code>POST /api/admin/notifications</code><br>
+                    <strong>Target:</strong> 'all' (ทุกคน) หรือ email เฉพาะคน<br>
+                    <strong>รองรับ:</strong> แนบรูปภาพ (Multer upload, 5MB max)<br>
+                    <strong>การทำงาน:</strong> บันทึก DB ทันที → ส่ง Email ในพื้นหลัง (non-blocking)
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">📈 9-10. รายงาน + ข้อมูลผู้ใช้</div>
+                <div class="flow-step-body">
+                    <ul>
+                        <li><code>GET /api/admin/reports?type=monthly</code> — สถิติรายเดือน</li>
+                        <li><code>GET /api/admin/reports?type=yearly</code> — สถิติรายปี</li>
+                        <li><code>GET /api/admin/reports?type=equipment_stats</code> — อุปกรณ์ยอดนิยม</li>
+                        <li><code>GET /api/admin/reports/equipment-breakdown</code> — สถิติแยกตามอุปกรณ์</li>
+                        <li><code>GET /api/admin/reports/student-breakdown</code> — สถิติแยกตามนักศึกษา</li>
+                        <li><code>GET /api/admin/users</code> — ดูผู้ใช้ที่มีประวัติยืม</li>
+                        <li><code>GET /api/admin/user-history/:studentId</code> — ดูประวัติรายบุคคล</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================== TAB: SYSTEM ===================== -->
+        <div class="tab-panel" id="system" data-title="บทบาท: ระบบอัตโนมัติ">
+            <div class="section-title"><span style="color:var(--success);">⚙️</span> บทบาท: ระบบอัตโนมัติ (Cron Jobs)</div>
+            <div class="section-desc">ทำงานเบื้องหลังใน server.js โดยใช้ node-cron — ไม่ต้องมีการกระทำจากผู้ใช้</div>
+
+            <!-- Cron 1: Midnight -->
+            <div class="card" style="border-left: 4px solid var(--error);">
+                <div class="card-title">🕛 Cron #1 — เที่ยงคืน (00:00) ทุกวัน</div>
+                <div class="flow-container">
+                    <div class="flow-step" style="border-color: var(--border);">
+                        <div class="flow-step-header">
+                            <div class="flow-step-num" style="background: var(--error);">1</div>
+                            <div class="flow-step-title">รีเซ็ตการจองที่ค้างสิ้นวัน</div>
+                        </div>
+                        <div class="flow-step-body">
+                            ค้นหารายการ <span class="status status-pending">pending</span> ทั้งหมด → เปลี่ยนเป็น <span class="status status-cancelled">cancelled</span><br>
+                            🔔 แจ้งเตือนนักศึกษา: "ระบบยกเลิกการจอง กรุณาทำรายการใหม่"
+                        </div>
+                    </div>
+                    <div class="flow-arrow">↓</div>
+                    <div class="flow-step" style="border-color: var(--border);">
+                        <div class="flow-step-header">
+                            <div class="flow-step-num" style="background: var(--error);">2</div>
+                            <div class="flow-step-title">รีเซ็ตคิวที่ค้างสิ้นวัน</div>
+                        </div>
+                        <div class="flow-step-body">
+                            ค้นหาคิว <span class="status status-waiting">waiting</span> / <span class="status status-called">called</span> ทั้งหมด → เปลี่ยนเป็น <span class="status status-expired">expired</span><br>
+                            🔔 แจ้งเตือนนักศึกษา: "คิวถูกยกเลิก กรุณาจองใหม่"
+                        </div>
+                    </div>
+                    <div class="flow-arrow">↓</div>
+                    <div class="flow-step" style="border-color: var(--border);">
+                        <div class="flow-step-header">
+                            <div class="flow-step-num" style="background: var(--error);">3</div>
+                            <div class="flow-step-title">ตรวจสอบรายการ Overdue</div>
+                        </div>
+                        <div class="flow-step-body">
+                            ค้นหารายการ <span class="status status-borrowed">borrowed</span> ที่เกินวัน borrow_days<br>
+                            → เปลี่ยนเป็น <span class="status status-overdue">overdue</span> + 📧 Email "แจ้งเตือนเลยกำหนดคืน" + In-App Notification
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cron 2: 8AM -->
+            <div class="card" style="border-left: 4px solid var(--warning);">
+                <div class="card-title">🕗 Cron #2 — 08:00 ทุกวัน (เช้า)</div>
+                <div class="flow-step-body">
+                    ค้นหารายการ <span class="status status-borrowed">borrowed</span> ที่เหลือ <strong>1, 2, 3 วัน</strong> จะครบกำหนด<br>
+                    → ส่ง 📧 Email + 🔔 In-App: "อุปกรณ์จะครบกำหนดคืนในอีก X วัน"
+                </div>
+            </div>
+
+            <!-- Cron 3: 4PM -->
+            <div class="card" style="border-left: 4px solid var(--warning);">
+                <div class="card-title">🕐 Cron #3 — 16:00 ทุกวัน (บ่าย)</div>
+                <div class="flow-step-body">
+                    ค้นหารายการ <span class="status status-borrowed">borrowed</span> ที่ <strong>ครบกำหนดคืนวันนี้</strong> (diffDays = 0)<br>
+                    → ส่ง 📧 Urgent Email + 🔔 In-App: "⚠️ ครบกำหนดคืนวันนี้!"
+                </div>
+            </div>
+
+            <!-- Cron 4: Every minute -->
+            <div class="card" style="border-left: 4px solid var(--info);">
+                <div class="card-title">⏱️ Cron #4 — ทุก 1 นาที</div>
+                <div class="flow-container">
+                    <div class="flow-step" style="border-color: var(--border);">
+                        <div class="flow-step-header">
+                            <div class="flow-step-num" style="background: var(--info);">A</div>
+                            <div class="flow-step-title">ตรวจคิว Expired (5 นาที)</div>
+                        </div>
+                        <div class="flow-step-body">
+                            ค้นหาคิว <span class="status status-called">called</span> ที่ NOW() > expires_at<br>
+                            → เปลี่ยนเป็น <span class="status status-expired">expired</span><br>
+                            → 🔔 แจ้ง "คิวถูกข้ามอัตโนมัติ เกินเวลา 5 นาที"<br>
+                            → เรียงลำดับคิวใหม่ → <strong>เรียกคิวถัดไปอัตโนมัติ</strong> (callNextInQueue)
+                        </div>
+                    </div>
+                    <div class="flow-arrow">+</div>
+                    <div class="flow-step" style="border-color: var(--border);">
+                        <div class="flow-step-header">
+                            <div class="flow-step-num" style="background: var(--info);">B</div>
+                            <div class="flow-step-title">ตรวจ Pending Reservation Expired (15 นาที)</div>
+                        </div>
+                        <div class="flow-step-body">
+                            ค้นหารายการ <span class="status status-pending">pending</span> ที่ NOW() > reservation_expires_at<br>
+                            → เปลี่ยนเป็น <span class="status status-rejected">rejected</span><br>
+                            → 🔔 แจ้ง "คำขอยืมถูกยกเลิกอัตโนมัติ เกินกำหนดเวลามารับ"
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Socket.io -->
+            <div class="card" style="border-left: 4px solid var(--purple);">
+                <div class="card-title">📡 Socket.io — Realtime Updates</div>
+                <div class="flow-step-body">
+                    ทุก Action ที่มีการเปลี่ยนแปลงข้อมูล จะ emit event:<br>
+                    <ul>
+                        <li><code>io.emit('data_updated')</code> — แจ้ง Client ทุกตัวให้ refresh ข้อมูล</li>
+                        <li><code>io.emit('scan_success', { type, message, barcode })</code> — แจ้งผลสแกน QR/Barcode</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================== TAB: UC BORROW ===================== -->
+        <div class="tab-panel" id="uc-borrow" data-title="Use Case: ยืมอุปกรณ์">
+            <div class="section-title">📋 Use Case Diagram — Flow การยืมอุปกรณ์ (Equipment Borrowing System)</div>
+            <div class="section-desc">แผนภาพ Use Case มาตรฐาน UML สำหรับขั้นตอนการยืมอุปกรณ์ แสดง Actor, ความสัมพันธ์ &lt;&lt;include&gt;&gt; และ &lt;&lt;extend&gt;&gt;</div>
+
+            <!-- SVG Visual UML Diagram -->
+            <div class="uml-wrapper">
+                <svg class="uml-svg" viewBox="0 0 960 620" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <marker id="arr-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                            <path d="M 0 1 L 8 5 L 0 9 z" fill="#3b82f6" />
+                        </marker>
+                        <marker id="arr-amber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                            <path d="M 0 1 L 8 5 L 0 9 z" fill="#f59e0b" />
+                        </marker>
+                        <marker id="arr-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                            <path d="M 0 1 L 8 5 L 0 9 z" fill="#22c55e" />
+                        </marker>
+                        <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+                            <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.25"/>
+                        </filter>
+                    </defs>
+
+                    <!-- System Boundary -->
+                    <rect x="200" y="30" width="560" height="560" rx="14" fill="var(--bg-content)" stroke="#475569" stroke-width="2" />
+                    <rect x="200" y="30" width="560" height="38" rx="14" fill="rgba(59,130,246,0.12)" />
+                    <text x="216" y="54" fill="#3b82f6" font-size="13" font-weight="700">📦 System Boundary: ระบบยืมอุปกรณ์ (Equipment Borrowing)</text>
+
+                    <!-- Actor: Student (Left) -->
+                    <g transform="translate(80, 260)">
+                        <circle cx="0" cy="-30" r="14" fill="none" stroke="#3b82f6" stroke-width="2.5" />
+                        <line x1="0" y1="-16" x2="0" y2="18" stroke="#3b82f6" stroke-width="2.5" />
+                        <line x1="-20" y1="-4" x2="20" y2="-4" stroke="#3b82f6" stroke-width="2.5" />
+                        <line x1="0" y1="18" x2="-14" y2="42" stroke="#3b82f6" stroke-width="2.5" />
+                        <line x1="0" y1="18" x2="14" y2="42" stroke="#3b82f6" stroke-width="2.5" />
+                        <text x="0" y="60" text-anchor="middle" fill="var(--text)" font-size="12" font-weight="700">นักศึกษา</text>
+                        <text x="0" y="74" text-anchor="middle" fill="#94a3b8" font-size="10">(Primary Actor)</text>
+                    </g>
+
+                    <!-- Actor: Admin (Right Top) -->
+                    <g transform="translate(880, 160)">
+                        <circle cx="0" cy="-30" r="14" fill="none" stroke="#f59e0b" stroke-width="2.5" />
+                        <line x1="0" y1="-16" x2="0" y2="18" stroke="#f59e0b" stroke-width="2.5" />
+                        <line x1="-20" y1="-4" x2="20" y2="-4" stroke="#f59e0b" stroke-width="2.5" />
+                        <line x1="0" y1="18" x2="-14" y2="42" stroke="#f59e0b" stroke-width="2.5" />
+                        <line x1="0" y1="18" x2="14" y2="42" stroke="#f59e0b" stroke-width="2.5" />
+                        <text x="0" y="60" text-anchor="middle" fill="var(--text)" font-size="12" font-weight="700">บรรณารักษ์</text>
+                        <text x="0" y="74" text-anchor="middle" fill="#94a3b8" font-size="10">(Admin)</text>
+                    </g>
+
+                    <!-- Actor: System / Cron (Right Bottom) -->
+                    <g transform="translate(880, 450)">
+                        <rect x="-24" y="-30" width="48" height="48" rx="8" fill="rgba(34,197,94,0.15)" stroke="#22c55e" stroke-width="2" />
+                        <text x="0" y="-4" text-anchor="middle" fill="#22c55e" font-size="20">⚙️</text>
+                        <text x="0" y="32" text-anchor="middle" fill="var(--text)" font-size="12" font-weight="700">ระบบอัตโนมัติ</text>
+                        <text x="0" y="46" text-anchor="middle" fill="#94a3b8" font-size="10">(Cron / Timer)</text>
+                    </g>
+
+                    <!-- Use Case 1: ขอยืมอุปกรณ์ (Base Use Case) -->
+                    <g id="uc-base" transform="translate(360, 270)">
+                        <ellipse cx="0" cy="0" rx="100" ry="28" fill="var(--bg-card)" stroke="#3b82f6" stroke-width="2.5" filter="url(#shadow)" />
+                        <text x="0" y="-4" text-anchor="middle" fill="var(--text)" font-size="12" font-weight="700">ขอยืมอุปกรณ์</text>
+                        <text x="0" y="11" text-anchor="middle" fill="#94a3b8" font-size="10">(Borrow Equipment)</text>
+                    </g>
+
+                    <!-- Association: Student to Base UC -->
+                    <line x1="110" y1="270" x2="260" y2="270" stroke="#3b82f6" stroke-width="2" />
+
+                    <!-- INCLUDED USE CASES -->
+                    <!-- UC 2: ตรวจสอบสิทธิ์ & โควตา -->
+                    <g transform="translate(620, 105)">
+                        <ellipse cx="0" cy="0" rx="110" ry="24" fill="var(--bg-card)" stroke="#3b82f6" stroke-width="1.8" stroke-dasharray="4,3" />
+                        <text x="0" y="-3" text-anchor="middle" fill="var(--text)" font-size="11" font-weight="600">ตรวจสอบสิทธิ์และโควตา</text>
+                        <text x="0" y="10" text-anchor="middle" fill="#94a3b8" font-size="9">(ไม่เกิน 5 ชิ้น/วัน, 1 ชิ้น/รุ่น)</text>
+                    </g>
+                    <!-- <<include>> from Base to UC2 -->
+                    <path d="M 400 244 C 440 180, 500 130, 520 118" fill="none" stroke="#3b82f6" stroke-width="1.8" stroke-dasharray="5,4" marker-end="url(#arr-blue)" />
+                    <rect x="420" y="160" width="70" height="18" rx="4" fill="var(--bg-content)" />
+                    <text x="455" y="173" text-anchor="middle" fill="#3b82f6" font-size="9" font-weight="700">&lt;&lt;include&gt;&gt;</text>
+
+                    <!-- UC 3: ตรวจสอบและล็อคสต๊อก -->
+                    <g transform="translate(620, 175)">
+                        <ellipse cx="0" cy="0" rx="110" ry="24" fill="var(--bg-card)" stroke="#3b82f6" stroke-width="1.8" stroke-dasharray="4,3" />
+                        <text x="0" y="-3" text-anchor="middle" fill="var(--text)" font-size="11" font-weight="600">ตรวจสอบ &amp; ล็อคสต๊อก</text>
+                        <text x="0" y="10" text-anchor="middle" fill="#94a3b8" font-size="9">(SELECT FOR UPDATE)</text>
+                    </g>
+                    <!-- <<include>> from Base to UC3 -->
+                    <path d="M 430 250 C 470 215, 500 195, 515 188" fill="none" stroke="#3b82f6" stroke-width="1.8" stroke-dasharray="5,4" marker-end="url(#arr-blue)" />
+                    <rect x="452" y="210" width="70" height="18" rx="4" fill="var(--bg-content)" />
+                    <text x="487" y="223" text-anchor="middle" fill="#3b82f6" font-size="9" font-weight="700">&lt;&lt;include&gt;&gt;</text>
+
+                    <!-- UC 4: สร้างคำขอ Pending 15 นาที -->
+                    <g transform="translate(620, 245)">
+                        <ellipse cx="0" cy="0" rx="110" ry="24" fill="var(--bg-card)" stroke="#3b82f6" stroke-width="1.8" stroke-dasharray="4,3" />
+                        <text x="0" y="-3" text-anchor="middle" fill="var(--text)" font-size="11" font-weight="600">สร้างคำขอสถานะ Pending</text>
+                        <text x="0" y="10" text-anchor="middle" fill="#f59e0b" font-size="9">(กำหนดหมดเวลา 15 นาที)</text>
+                    </g>
+                    <!-- <<include>> from Base to UC4 -->
+                    <path d="M 460 265 L 512 253" fill="none" stroke="#3b82f6" stroke-width="1.8" stroke-dasharray="5,4" marker-end="url(#arr-blue)" />
+                    <rect x="465" y="247" width="70" height="18" rx="4" fill="var(--bg-content)" />
+                    <text x="500" y="260" text-anchor="middle" fill="#3b82f6" font-size="9" font-weight="700">&lt;&lt;include&gt;&gt;</text>
+
+                    <!-- UC 5: ส่งการแจ้งเตือนคำขอ -->
+                    <g transform="translate(620, 315)">
+                        <ellipse cx="0" cy="0" rx="110" ry="24" fill="var(--bg-card)" stroke="#3b82f6" stroke-width="1.8" stroke-dasharray="4,3" />
+                        <text x="0" y="-3" text-anchor="middle" fill="var(--text)" font-size="11" font-weight="600">ส่งการแจ้งเตือนคำขอ</text>
+                        <text x="0" y="10" text-anchor="middle" fill="#94a3b8" font-size="9">(Email + In-App แจ้งเตือน นศ.)</text>
+                    </g>
+                    <!-- <<include>> from Base to UC5 -->
+                    <path d="M 450 285 C 475 295, 500 305, 515 310" fill="none" stroke="#3b82f6" stroke-width="1.8" stroke-dasharray="5,4" marker-end="url(#arr-blue)" />
+                    <rect x="455" y="293" width="70" height="18" rx="4" fill="var(--bg-content)" />
+                    <text x="490" y="306" text-anchor="middle" fill="#3b82f6" font-size="9" font-weight="700">&lt;&lt;include&gt;&gt;</text>
+
+                    <!-- EXTENDED USE CASES -->
+                    <!-- UC 6: ยกเลิกคำขอยืม (โดยนักศึกษา) -->
+                    <g transform="translate(360, 120)">
+                        <ellipse cx="0" cy="0" rx="100" ry="24" fill="var(--bg-card)" stroke="#ef4444" stroke-width="1.8" />
+                        <text x="0" y="-3" text-anchor="middle" fill="var(--text)" font-size="11" font-weight="600">ยกเลิกคำขอยืม</text>
+                        <text x="0" y="10" text-anchor="middle" fill="#ef4444" font-size="9">(โดย นศ. ก่อนรับอุปกรณ์)</text>
+                    </g>
+                    <!-- Extend arrow from UC6 to Base -->
+                    <path d="M 360 144 L 360 240" fill="none" stroke="#ef4444" stroke-width="1.8" stroke-dasharray="5,4" marker-end="url(#arr-amber)" />
+                    <rect x="325" y="185" width="70" height="18" rx="4" fill="var(--bg-content)" />
+                    <text x="360" y="198" text-anchor="middle" fill="#ef4444" font-size="9" font-weight="700">&lt;&lt;extend&gt;&gt;</text>
+                    <!-- Association Student to Cancel -->
+                    <path d="M 105 240 C 130 180, 200 130, 260 125" fill="none" stroke="#3b82f6" stroke-width="1.8" />
+
+                    <!-- UC 7: ยกเลิกคำขออัตโนมัติเมื่อหมดเวลา 15 นาที -->
+                    <g transform="translate(620, 395)">
+                        <ellipse cx="0" cy="0" rx="115" ry="25" fill="var(--bg-card)" stroke="#ef4444" stroke-width="1.8" />
+                        <text x="0" y="-3" text-anchor="middle" fill="var(--text)" font-size="11" font-weight="600">ตัดคำขอหมดเวลา (15 นาที)</text>
+                        <text x="0" y="10" text-anchor="middle" fill="#ef4444" font-size="9">(Auto-expire by System Cron)</text>
+                    </g>
+                    <!-- Extend arrow from UC7 to Base -->
+                    <path d="M 525 380 C 470 355, 430 325, 410 298" fill="none" stroke="#ef4444" stroke-width="1.8" stroke-dasharray="5,4" marker-end="url(#arr-amber)" />
+                    <rect x="440" y="345" width="70" height="18" rx="4" fill="var(--bg-content)" />
+                    <text x="475" y="358" text-anchor="middle" fill="#ef4444" font-size="9" font-weight="700">&lt;&lt;extend&gt;&gt;</text>
+                    <!-- Association System to UC7 -->
+                    <line x1="850" y1="440" x2="735" y2="405" stroke="#22c55e" stroke-width="2" />
+
+                    <!-- UC 8: สแกน QR & จ่ายอุปกรณ์จริง -->
+                    <g transform="translate(620, 490)">
+                        <ellipse cx="0" cy="0" rx="120" ry="27" fill="var(--bg-card)" stroke="#22c55e" stroke-width="2" filter="url(#shadow)" />
+                        <text x="0" y="-4" text-anchor="middle" fill="var(--text)" font-size="11" font-weight="700">สแกน QR &amp; จ่ายอุปกรณ์จริง</text>
+                        <text x="0" y="10" text-anchor="middle" fill="#22c55e" font-size="9">(สแกน Barcode + เปลี่ยนเป็น Borrowed)</text>
+                    </g>
+                    <!-- Extend arrow from UC8 to Base -->
+                    <path d="M 520 475 C 440 430, 390 350, 375 300" fill="none" stroke="#22c55e" stroke-width="1.8" stroke-dasharray="5,4" marker-end="url(#arr-green)" />
+                    <rect x="420" y="415" width="70" height="18" rx="4" fill="var(--bg-content)" />
+                    <text x="455" y="428" text-anchor="middle" fill="#22c55e" font-size="9" font-weight="700">&lt;&lt;extend&gt;&gt;</text>
+                    <!-- Associations to UC8: Both Admin & Student participate -->
+                    <path d="M 855 190 C 800 240, 780 400, 725 470" fill="none" stroke="#f59e0b" stroke-width="2" />
+                    <path d="M 105 285 C 130 380, 200 480, 500 495" fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="3,3" />
+
+                    <!-- UC 9: ปฏิเสธคำขอยืม -->
+                    <g transform="translate(360, 450)">
+                        <ellipse cx="0" cy="0" rx="95" ry="24" fill="var(--bg-card)" stroke="#f59e0b" stroke-width="1.8" />
+                        <text x="0" y="-3" text-anchor="middle" fill="var(--text)" font-size="11" font-weight="600">ปฏิเสธคำขอยืม</text>
+                        <text x="0" y="10" text-anchor="middle" fill="#f59e0b" font-size="9">(โดย Admin / คืน item สต๊อก)</text>
+                    </g>
+                    <!-- Extend arrow from UC9 to Base -->
+                    <path d="M 360 426 L 360 300" fill="none" stroke="#f59e0b" stroke-width="1.8" stroke-dasharray="5,4" marker-end="url(#arr-amber)" />
+                    <rect x="325" y="360" width="70" height="18" rx="4" fill="var(--bg-content)" />
+                    <text x="360" y="373" text-anchor="middle" fill="#f59e0b" font-size="9" font-weight="700">&lt;&lt;extend&gt;&gt;</text>
+                    <!-- Association Admin to UC9 -->
+                    <path d="M 855 175 C 750 170, 550 430, 455 450" fill="none" stroke="#f59e0b" stroke-width="1.8" />
+                </svg>
+
+                <div class="uml-legend">
+                    <span class="uml-legend-item"><span style="color:#3b82f6;">───</span> Association (เส้นเชื่อมต่อ Actor)</span>
+                    <span class="uml-legend-item"><span style="color:#3b82f6;">- - -►</span> &lt;&lt;include&gt;&gt; (ต้องทำเสมอใน Flow ยืม)</span>
+                    <span class="uml-legend-item"><span style="color:#f59e0b;">- - -►</span> &lt;&lt;extend&gt;&gt; (ส่วนขยายตามเงื่อนไขหรือการตัดสินใจ)</span>
+                    <span class="uml-legend-item">🔲 System Boundary (ขอบเขตระบบยืมอุปกรณ์)</span>
+                </div>
+            </div>
+
+            <!-- Use Case Specification Table -->
+            <div class="card">
+                <div class="card-title">📖 ตารางรายละเอียด Use Case: การยืมอุปกรณ์</div>
+                <div style="overflow-x: auto;">
+                    <table class="notif-table">
+                        <thead>
+                            <tr>
+                                <th>Use Case</th>
+                                <th>ประเภท</th>
+                                <th>Actor ที่เกี่ยวข้อง</th>
+                                <th>คำอธิบาย / เงื่อนไข (Conditions &amp; Flow)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>ขอยืมอุปกรณ์ (Checkout)</strong></td>
+                                <td><span class="badge badge-student">Base Use Case</span></td>
+                                <td>นักศึกษา (Primary)</td>
+                                <td>นักศึกษาเลือกอุปกรณ์ที่ต้องการยืมและกดยืนยันคำขอยืมผ่าน Mobile App</td>
+                            </tr>
+                            <tr>
+                                <td><strong>ตรวจสอบสิทธิ์และโควตา</strong></td>
+                                <td><span class="badge" style="background:var(--primary-light); color:var(--primary);">&lt;&lt;include&gt;&gt;</span></td>
+                                <td>ระบบ (อัตโนมัติ)</td>
+                                <td>ระบบตรวจ 1 คน ยืม/จองอุปกรณ์ซ้ำรุ่นเดิมไม่ได้, ไม่เกิน 5 ชิ้น/วัน, และไม่อยู่ในคิวของอุปกรณ์นั้น</td>
+                            </tr>
+                            <tr>
+                                <td><strong>ตรวจสอบและล็อคสต๊อก</strong></td>
+                                <td><span class="badge" style="background:var(--primary-light); color:var(--primary);">&lt;&lt;include&gt;&gt;</span></td>
+                                <td>ระบบ (ฐานข้อมูล)</td>
+                                <td>ใช้ <code>SELECT ... FOR UPDATE</code> ล็อค equipment_items ชิ้นที่ว่าง ป้องกัน race condition</td>
+                            </tr>
+                            <tr>
+                                <td><strong>สร้างคำขอ Pending 15 นาที</strong></td>
+                                <td><span class="badge" style="background:var(--primary-light); color:var(--primary);">&lt;&lt;include&gt;&gt;</span></td>
+                                <td>ระบบ (ฐานข้อมูล)</td>
+                                <td>บันทึกลงตาราง <code>borrowed</code> กำหนด <code>reservation_expires_at = NOW() + 15 MINUTE</code></td>
+                            </tr>
+                            <tr>
+                                <td><strong>ส่งการแจ้งเตือนคำขอ</strong></td>
+                                <td><span class="badge" style="background:var(--primary-light); color:var(--primary);">&lt;&lt;include&gt;&gt;</span></td>
+                                <td>ระบบ (Email + In-App)</td>
+                                <td>ส่งอีเมลยืนยันการรับคำขอ พร้อมบันทึก In-App Notification เพื่อให้นักศึกษานำ QR ไปรับที่ห้องสมุด</td>
+                            </tr>
+                            <tr>
+                                <td><strong>สแกน QR &amp; จ่ายอุปกรณ์จริง</strong></td>
+                                <td><span class="badge" style="background:var(--success-light); color:var(--success);">&lt;&lt;extend&gt;&gt;</span></td>
+                                <td>นักศึกษา + บรรณารักษ์</td>
+                                <td>นักศึกษาแสดง QR Code เจ้าหน้าที่สแกน Barcode อุปกรณ์ตัวจริง ระบบเปลี่ยนสถานะเป็น <code>borrowed</code> และส่งอีเมลยืนยัน</td>
+                            </tr>
+                            <tr>
+                                <td><strong>ยกเลิกคำขอยืมโดยนักศึกษา</strong></td>
+                                <td><span class="badge" style="background:var(--error-light); color:var(--error);">&lt;&lt;extend&gt;&gt;</span></td>
+                                <td>นักศึกษา</td>
+                                <td>นักศึกษากดยกเลิกคำขอยืมด้วยตนเองก่อนหมดเวลา ระบบปลดล็อค item กลับสต๊อกและเปลี่ยนสถานะเป็น <code>rejected</code></td>
+                            </tr>
+                            <tr>
+                                <td><strong>ตัดคำขอหมดเวลา (15 นาที)</strong></td>
+                                <td><span class="badge" style="background:var(--error-light); color:var(--error);">&lt;&lt;extend&gt;&gt;</span></td>
+                                <td>ระบบอัตโนมัติ (Cron)</td>
+                                <td>Cron Job ตรวจสอบทุก 1 นาที หากเกิน 15 นาทีแล้วไม่มารับ ระบบจะเปลี่ยนเป็น <code>rejected</code> อัตโนมัติ</td>
+                            </tr>
+                            <tr>
+                                <td><strong>ปฏิเสธคำขอยืม</strong></td>
+                                <td><span class="badge" style="background:var(--warning-light); color:var(--warning);">&lt;&lt;extend&gt;&gt;</span></td>
+                                <td>บรรณารักษ์ (Admin)</td>
+                                <td>เจ้าหน้าที่กดปฏิเสธคำขอจากหน้า Requests ระบบคืน item กลับคลังและแจ้งเตือนนักศึกษา</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Mermaid Syntax Accordion/Box -->
+            <div class="card">
+                <div class="card-title">💻 โค้ด Mermaid (สำหรับนำไปใส่ Markdown / Draw.io / Mermaid Live Editor)</div>
+                <div class="mermaid-code-box">flowchart LR
+    subgraph System["ระบบยืมอุปกรณ์ (Equipment Borrowing System Boundary)"]
+        UC1(["ขอยืมอุปกรณ์ (Borrow Equipment)"])
+        UC2(["ตรวจสอบสิทธิ์และโควตา (Validate Limits)"])
+        UC3(["ตรวจสอบและล็อคสต๊อก (Check & Lock Stock)"])
+        UC4(["สร้างคำขอ Pending 15 นาที (Create Pending Request)"])
+        UC5(["ส่งการแจ้งเตือนคำขอยืม (Send Notification)"])
+        UC6(["ยกเลิกคำขอยืม (Cancel by Student)"])
+        UC7(["ตัดคำขอหมดเวลา 15 นาที (Auto-expire by Cron)"])
+        UC8(["สแกน QR & จ่ายอุปกรณ์จริง (Scan QR & Dispense Item)"])
+        UC9(["ปฏิเสธคำขอยืม (Reject Request by Admin)"])
+
+        UC1 -.->|&lt;&lt;include&gt;&gt;| UC2
+        UC1 -.->|&lt;&lt;include&gt;&gt;| UC3
+        UC1 -.->|&lt;&lt;include&gt;&gt;| UC4
+        UC1 -.->|&lt;&lt;include&gt;&gt;| UC5
+
+        UC6 -.->|&lt;&lt;extend&gt;&gt;| UC1
+        UC7 -.->|&lt;&lt;extend&gt;&gt;| UC1
+        UC8 -.->|&lt;&lt;extend&gt;&gt;| UC1
+        UC9 -.->|&lt;&lt;extend&gt;&gt;| UC1
+    end
+
+    Student["นักศึกษา (Student)"] --- UC1
+    Student --- UC6
+    Student --- UC8
+
+    Admin["บรรณารักษ์ (Admin)"] --- UC8
+    Admin --- UC9
+
+    Cron["ระบบอัตโนมัติ (System / Cron)"] --- UC7</div>
+            </div>
+        </div>
+
+        <!-- ===================== TAB: UC QUEUE ===================== -->
+        <div class="tab-panel" id="uc-queue" data-title="Use Case: จองคิว">
+            <div class="section-title">📋 Use Case Diagram — Flow การจองคิวอุปกรณ์ (Equipment Queue System)</div>
+            <div class="section-desc">แผนภาพ Use Case มาตรฐาน UML สำหรับขั้นตอนการจองคิวเมื่ออุปกรณ์หมด การเรียกคิว 5 นาที และการจัดการคิวอัตโนมัติ</div>
+
+            <!-- SVG Visual UML Diagram -->
+            <div class="uml-wrapper">
+                <svg class="uml-svg" viewBox="0 0 960 620" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+                    <!-- System Boundary -->
+                    <rect x="200" y="30" width="560" height="560" rx="14" fill="var(--bg-content)" stroke="#475569" stroke-width="2" />
+                    <rect x="200" y="30" width="560" height="38" rx="14" fill="rgba(245,158,11,0.12)" />
+                    <text x="216" y="54" fill="#f59e0b" font-size="13" font-weight="700">🔢 System Boundary: ระบบจองคิวอุปกรณ์ (Equipment Queue System)</text>
+
+                    <!-- Actor: Student (Left) -->
+                    <g transform="translate(80, 240)">
+                        <circle cx="0" cy="-30" r="14" fill="none" stroke="#3b82f6" stroke-width="2.5" />
+                        <line x1="0" y1="-16" x2="0" y2="18" stroke="#3b82f6" stroke-width="2.5" />
+                        <line x1="-20" y1="-4" x2="20" y2="-4" stroke="#3b82f6" stroke-width="2.5" />
+                        <line x1="0" y1="18" x2="-14" y2="42" stroke="#3b82f6" stroke-width="2.5" />
+                        <line x1="0" y1="18" x2="14" y2="42" stroke="#3b82f6" stroke-width="2.5" />
+                        <text x="0" y="60" text-anchor="middle" fill="var(--text)" font-size="12" font-weight="700">นักศึกษา</text>
+                        <text x="0" y="74" text-anchor="middle" fill="#94a3b8" font-size="10">(Primary Actor)</text>
+                    </g>
+
+                    <!-- Actor: Admin (Right Top) -->
+                    <g transform="translate(880, 180)">
+                        <circle cx="0" cy="-30" r="14" fill="none" stroke="#f59e0b" stroke-width="2.5" />
+                        <line x1="0" y1="-16" x2="0" y2="18" stroke="#f59e0b" stroke-width="2.5" />
+                        <line x1="-20" y1="-4" x2="20" y2="-4" stroke="#f59e0b" stroke-width="2.5" />
+                        <line x1="0" y1="18" x2="-14" y2="42" stroke="#f59e0b" stroke-width="2.5" />
+                        <line x1="0" y1="18" x2="14" y2="42" stroke="#f59e0b" stroke-width="2.5" />
+                        <text x="0" y="60" text-anchor="middle" fill="var(--text)" font-size="12" font-weight="700">บรรณารักษ์</text>
+                        <text x="0" y="74" text-anchor="middle" fill="#94a3b8" font-size="10">(Admin)</text>
+                    </g>
+
+                    <!-- Actor: System / Cron (Right Bottom) -->
+                    <g transform="translate(880, 450)">
+                        <rect x="-24" y="-30" width="48" height="48" rx="8" fill="rgba(34,197,94,0.15)" stroke="#22c55e" stroke-width="2" />
+                        <text x="0" y="-4" text-anchor="middle" fill="#22c55e" font-size="20">⚙️</text>
+                        <text x="0" y="32" text-anchor="middle" fill="var(--text)" font-size="12" font-weight="700">ระบบอัตโนมัติ</text>
+                        <text x="0" y="46" text-anchor="middle" fill="#94a3b8" font-size="10">(Cron / Trigger)</text>
+                    </g>
+
+                    <!-- Base UC: จองคิวอุปกรณ์ -->
+                    <g transform="translate(360, 200)">
+                        <ellipse cx="0" cy="0" rx="100" ry="28" fill="var(--bg-card)" stroke="#f59e0b" stroke-width="2.5" filter="url(#shadow)" />
+                        <text x="0" y="-4" text-anchor="middle" fill="var(--text)" font-size="12" font-weight="700">จองคิวอุปกรณ์</text>
+                        <text x="0" y="11" text-anchor="middle" fill="#94a3b8" font-size="10">(Join Equipment Queue)</text>
+                    </g>
+
+                    <!-- Association Student to Join Queue -->
+                    <line x1="110" y1="230" x2="260" y2="205" stroke="#3b82f6" stroke-width="2" />
+
+                    <!-- INCLUDED USE CASES FOR JOIN QUEUE -->
+                    <!-- UC 2: ตรวจสอบเงื่อนไขคิว -->
+                    <g transform="translate(620, 95)">
+                        <ellipse cx="0" cy="0" rx="115" ry="24" fill="var(--bg-card)" stroke="#f59e0b" stroke-width="1.8" stroke-dasharray="4,3" />
+                        <text x="0" y="-3" text-anchor="middle" fill="var(--text)" font-size="11" font-weight="600">ตรวจสอบเงื่อนไขการเข้าคิว</text>
+                        <text x="0" y="10" text-anchor="middle" fill="#94a3b8" font-size="9">(ไม่ยืมซ้ำ, ไม่อยู่ในคิวเดิม, สูงสุด 10 คน)</text>
+                    </g>
+                    <path d="M 405 175 C 445 135, 485 110, 510 102" fill="none" stroke="#f59e0b" stroke-width="1.8" stroke-dasharray="5,4" marker-end="url(#arr-amber)" />
+                    <rect x="425" y="130" width="70" height="18" rx="4" fill="var(--bg-content)" />
+                    <text x="460" y="143" text-anchor="middle" fill="#f59e0b" font-size="9" font-weight="700">&lt;&lt;include&gt;&gt;</text>
+
+                    <!-- UC 3: บันทึกลำดับคิว -->
+                    <g transform="translate(620, 165)">
+                        <ellipse cx="0" cy="0" rx="115" ry="24" fill="var(--bg-card)" stroke="#f59e0b" stroke-width="1.8" stroke-dasharray="4,3" />
+                        <text x="0" y="-3" text-anchor="middle" fill="var(--text)" font-size="11" font-weight="600">บันทึกลำดับคิว (Position)</text>
+                        <text x="0" y="10" text-anchor="middle" fill="#94a3b8" font-size="9">(สถานะ waiting, ลำดับคิว = max+1)</text>
+                    </g>
+                    <path d="M 455 190 L 505 175" fill="none" stroke="#f59e0b" stroke-width="1.8" stroke-dasharray="5,4" marker-end="url(#arr-amber)" />
+                    <rect x="460" y="172" width="70" height="18" rx="4" fill="var(--bg-content)" />
+                    <text x="495" y="185" text-anchor="middle" fill="#f59e0b" font-size="9" font-weight="700">&lt;&lt;include&gt;&gt;</text>
+
+                    <!-- UC 4: ส่งแจ้งเตือนยืนยันคิว -->
+                    <g transform="translate(620, 235)">
+                        <ellipse cx="0" cy="0" rx="115" ry="24" fill="var(--bg-card)" stroke="#f59e0b" stroke-width="1.8" stroke-dasharray="4,3" />
+                        <text x="0" y="-3" text-anchor="middle" fill="var(--text)" font-size="11" font-weight="600">ส่งแจ้งเตือนยืนยันการจองคิว</text>
+                        <text x="0" y="10" text-anchor="middle" fill="#94a3b8" font-size="9">(Email + In-App แจ้งลำดับคิว)</text>
+                    </g>
+                    <path d="M 455 210 L 510 225" fill="none" stroke="#f59e0b" stroke-width="1.8" stroke-dasharray="5,4" marker-end="url(#arr-amber)" />
+                    <rect x="460" y="210" width="70" height="18" rx="4" fill="var(--bg-content)" />
+                    <text x="495" y="223" text-anchor="middle" fill="#f59e0b" font-size="9" font-weight="700">&lt;&lt;include&gt;&gt;</text>
+
+                    <!-- UC 5: ยกเลิกคิว (Cancel Queue) -->
+                    <g transform="translate(360, 100)">
+                        <ellipse cx="0" cy="0" rx="95" ry="23" fill="var(--bg-card)" stroke="#ef4444" stroke-width="1.8" />
+                        <text x="0" y="-3" text-anchor="middle" fill="var(--text)" font-size="11" font-weight="600">ยกเลิกคิวตนเอง</text>
+                        <text x="0" y="10" text-anchor="middle" fill="#ef4444" font-size="9">(จัดเรียงลำดับคิวใหม่)</text>
+                    </g>
+                    <path d="M 360 123 L 360 172" fill="none" stroke="#ef4444" stroke-width="1.8" stroke-dasharray="5,4" marker-end="url(#arr-amber)" />
+                    <rect x="325" y="137" width="70" height="18" rx="4" fill="var(--bg-content)" />
+                    <text x="360" y="150" text-anchor="middle" fill="#ef4444" font-size="9" font-weight="700">&lt;&lt;extend&gt;&gt;</text>
+                    <line x1="105" y1="220" x2="270" y2="115" stroke="#3b82f6" stroke-width="1.8" />
+
+                    <!-- UC 6: เรียกคิวเมื่ออุปกรณ์ว่าง (Call Next in Queue) -->
+                    <g transform="translate(480, 330)">
+                        <ellipse cx="0" cy="0" rx="115" ry="26" fill="var(--bg-card)" stroke="#22c55e" stroke-width="2.2" filter="url(#shadow)" />
+                        <text x="0" y="-4" text-anchor="middle" fill="var(--text)" font-size="12" font-weight="700">เรียกคิวเมื่ออุปกรณ์ว่าง</text>
+                        <text x="0" y="10" text-anchor="middle" fill="#22c55e" font-size="9">(เปลี่ยนเป็น called + จับเวลา 5 นาที)</text>
+                    </g>
+                    <!-- Trigger association from System & Admin to Call Next -->
+                    <line x1="850" y1="435" x2="590" y2="345" stroke="#22c55e" stroke-width="2" />
+                    <path d="M 855 200 C 760 250, 680 300, 590 325" fill="none" stroke="#f59e0b" stroke-width="1.8" />
+
+                    <!-- UC 7: รับอุปกรณ์ตามคิว -->
+                    <g transform="translate(360, 460)">
+                        <ellipse cx="0" cy="0" rx="115" ry="26" fill="var(--bg-card)" stroke="#22c55e" stroke-width="2" filter="url(#shadow)" />
+                        <text x="0" y="-4" text-anchor="middle" fill="var(--text)" font-size="11" font-weight="700">รับอุปกรณ์ตามคิว (มารับทัน 5 น.)</text>
+                        <text x="0" y="10" text-anchor="middle" fill="#22c55e" font-size="9">(สแกน Barcode จ่าย, คิว Completed)</text>
+                    </g>
+                    <!-- Extend arrow from UC7 to Call Next -->
+                    <path d="M 420 435 C 445 405, 465 375, 475 356" fill="none" stroke="#22c55e" stroke-width="1.8" stroke-dasharray="5,4" marker-end="url(#arr-green)" />
+                    <rect x="420" y="388" width="70" height="18" rx="4" fill="var(--bg-content)" />
+                    <text x="455" y="401" text-anchor="middle" fill="#22c55e" font-size="9" font-weight="700">&lt;&lt;extend&gt;&gt;</text>
+                    <!-- Associations for Pickup -->
+                    <path d="M 105 270 C 130 360, 180 440, 250 460" fill="none" stroke="#3b82f6" stroke-width="1.8" />
+                    <path d="M 855 210 C 780 320, 600 440, 475 460" fill="none" stroke="#f59e0b" stroke-width="2" />
+
+                    <!-- UC 8: ตัดคิวหมดเวลา 5 นาที (Expire) -->
+                    <g transform="translate(630, 470)">
+                        <ellipse cx="0" cy="0" rx="120" ry="26" fill="var(--bg-card)" stroke="#ef4444" stroke-width="1.8" />
+                        <text x="0" y="-4" text-anchor="middle" fill="var(--text)" font-size="11" font-weight="600">ข้ามคิวเมื่อเกิน 5 นาที (Expired)</text>
+                        <text x="0" y="10" text-anchor="middle" fill="#ef4444" font-size="9">(Cron ตรวจทุก 1 นาที → เรียกคิวถัดไป)</text>
+                    </g>
+                    <!-- Extend arrow from UC8 to Call Next -->
+                    <path d="M 575 446 C 540 415, 510 380, 495 356" fill="none" stroke="#ef4444" stroke-width="1.8" stroke-dasharray="5,4" marker-end="url(#arr-amber)" />
+                    <rect x="525" y="390" width="70" height="18" rx="4" fill="var(--bg-content)" />
+                    <text x="560" y="403" text-anchor="middle" fill="#ef4444" font-size="9" font-weight="700">&lt;&lt;extend&gt;&gt;</text>
+                    <!-- Association System to UC8 -->
+                    <line x1="850" y1="460" x2="745" y2="470" stroke="#22c55e" stroke-width="2" />
+
+                    <!-- UC 9: ข้ามคิวโดยเจ้าหน้าที่ -->
+                    <g transform="translate(365, 545)">
+                        <ellipse cx="0" cy="0" rx="105" ry="24" fill="var(--bg-card)" stroke="#f59e0b" stroke-width="1.8" />
+                        <text x="0" y="-3" text-anchor="middle" fill="var(--text)" font-size="11" font-weight="600">ข้ามคิวโดยเจ้าหน้าที่ (Manual Skip)</text>
+                        <text x="0" y="10" text-anchor="middle" fill="#f59e0b" font-size="9">(Admin กด Skip → เรียกคิวถัดไป)</text>
+                    </g>
+                    <!-- Association Admin to Manual Skip -->
+                    <path d="M 855 220 C 720 380, 560 520, 470 545" fill="none" stroke="#f59e0b" stroke-width="1.8" />
+                    <!-- Extend arrow from UC9 to Call Next -->
+                    <path d="M 400 522 C 430 470, 460 410, 475 358" fill="none" stroke="#f59e0b" stroke-width="1.8" stroke-dasharray="5,4" marker-end="url(#arr-amber)" />
+                    <rect x="420" y="465" width="70" height="18" rx="4" fill="var(--bg-content)" />
+                    <text x="455" y="478" text-anchor="middle" fill="#f59e0b" font-size="9" font-weight="700">&lt;&lt;extend&gt;&gt;</text>
+                </svg>
+
+                <div class="uml-legend">
+                    <span class="uml-legend-item"><span style="color:#3b82f6;">───</span> Association (เส้นเชื่อมต่อ Actor)</span>
+                    <span class="uml-legend-item"><span style="color:#f59e0b;">- - -►</span> &lt;&lt;include&gt;&gt; (ต้องทำเสมอใน Flow จองคิว)</span>
+                    <span class="uml-legend-item"><span style="color:#22c55e;">- - -►</span> &lt;&lt;extend&gt;&gt; (ส่วนขยายเมื่อเกิดการเรียกคิว / หมดเวลา)</span>
+                    <span class="uml-legend-item">🔲 System Boundary (ขอบเขตระบบจองคิวอุปกรณ์)</span>
+                </div>
+            </div>
+
+            <!-- Use Case Specification Table -->
+            <div class="card">
+                <div class="card-title">📖 ตารางรายละเอียด Use Case: การจองคิวอุปกรณ์</div>
+                <div style="overflow-x: auto;">
+                    <table class="notif-table">
+                        <thead>
+                            <tr>
+                                <th>Use Case</th>
+                                <th>ประเภท</th>
+                                <th>Actor ที่เกี่ยวข้อง</th>
+                                <th>คำอธิบาย / เงื่อนไข (Conditions &amp; Flow)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>จองคิวอุปกรณ์ (Join Queue)</strong></td>
+                                <td><span class="badge badge-student">Base Use Case</span></td>
+                                <td>นักศึกษา (Primary)</td>
+                                <td>เมื่ออุปกรณ์ในคลังหมด (available_quantity = 0) นักศึกษาสามารถกดยืนยันเพื่อขอรับคิวรออุปกรณ์ชิ้นนั้น</td>
+                            </tr>
+                            <tr>
+                                <td><strong>ตรวจสอบเงื่อนไขการเข้าคิว</strong></td>
+                                <td><span class="badge" style="background:var(--warning-light); color:var(--warning);">&lt;&lt;include&gt;&gt;</span></td>
+                                <td>ระบบ (อัตโนมัติ)</td>
+                                <td>ตรวจว่าไม่ได้กำลังยืมอุปกรณ์นี้อยู่, ไม่อยู่ในคิวเดิมซ้ำ, และคิวรวมไม่เกิน 10 คน</td>
+                            </tr>
+                            <tr>
+                                <td><strong>บันทึกลำดับคิว (Position)</strong></td>
+                                <td><span class="badge" style="background:var(--warning-light); color:var(--warning);">&lt;&lt;include&gt;&gt;</span></td>
+                                <td>ระบบ (ฐานข้อมูล)</td>
+                                <td>บันทึกลง <code>equipment_queue</code> สถานะ <code>waiting</code> โดยให้ลำดับ position = max(position) + 1</td>
+                            </tr>
+                            <tr>
+                                <td><strong>ส่งแจ้งเตือนยืนยันการจองคิว</strong></td>
+                                <td><span class="badge" style="background:var(--warning-light); color:var(--warning);">&lt;&lt;include&gt;&gt;</span></td>
+                                <td>ระบบ (Email + In-App)</td>
+                                <td>ส่งอีเมลยืนยัน "คุณอยู่ในคิวลำดับที่ N เมื่อถึงคิวจะมีเวลา 5 นาทีในการมารับอุปกรณ์"</td>
+                            </tr>
+                            <tr>
+                                <td><strong>ยกเลิกคิวตนเอง</strong></td>
+                                <td><span class="badge" style="background:var(--error-light); color:var(--error);">&lt;&lt;extend&gt;&gt;</span></td>
+                                <td>นักศึกษา</td>
+                                <td>นักศึกษากดยกเลิกคิวจากหน้า My Queue ระบบเปลี่ยนเป็น <code>cancelled</code> และคำนวณเรียงลำดับคิวที่เหลือใหม่</td>
+                            </tr>
+                            <tr>
+                                <td><strong>เรียกคิวเมื่ออุปกรณ์ว่าง (Call Next)</strong></td>
+                                <td><span class="badge" style="background:var(--success-light); color:var(--success);">Triggered UC</span></td>
+                                <td>ระบบอัตโนมัติ / บรรณารักษ์</td>
+                                <td>เมื่อมีผู้คืนอุปกรณ์ หรือคิวก่อนหน้าถูกข้าม ระบบจะดึงคิวแรกสถานะ waiting เปลี่ยนเป็น <code>called</code> พร้อมตั้งเวลานับถอยหลัง 5 นาที</td>
+                            </tr>
+                            <tr>
+                                <td><strong>รับอุปกรณ์ตามคิว</strong></td>
+                                <td><span class="badge" style="background:var(--success-light); color:var(--success);">&lt;&lt;extend&gt;&gt;</span></td>
+                                <td>นักศึกษา + บรรณารักษ์</td>
+                                <td>นักศึกษามารายงานตัวภายใน 5 นาที เจ้าหน้าที่สแกน Barcode จ่ายอุปกรณ์ ระบบเปลี่ยนคิวเป็น <code>completed</code> และสร้างประวัติการยืม</td>
+                            </tr>
+                            <tr>
+                                <td><strong>ข้ามคิวเมื่อเกิน 5 นาที (Expired)</strong></td>
+                                <td><span class="badge" style="background:var(--error-light); color:var(--error);">&lt;&lt;extend&gt;&gt;</span></td>
+                                <td>ระบบอัตโนมัติ (Cron)</td>
+                                <td>Cron Job ตรวจสอบทุก 1 นาที หาก <code>NOW() > expires_at</code> จะเปลี่ยนเป็น <code>expired</code> แจ้งเตือนคิวถูกข้าม และเรียกคิวถัดไปทันที</td>
+                            </tr>
+                            <tr>
+                                <td><strong>ข้ามคิวโดยเจ้าหน้าที่ (Manual Skip)</strong></td>
+                                <td><span class="badge" style="background:var(--warning-light); color:var(--warning);">&lt;&lt;extend&gt;&gt;</span></td>
+                                <td>บรรณารักษ์ (Admin)</td>
+                                <td>เจ้าหน้าที่กดปุ่ม Skip คิวจากหน้า Queue Management ระบบตัดคิวเป็น expired แจ้งเตือนผู้ใช้ และเรียกคิวถัดไป</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Mermaid Syntax Accordion/Box -->
+            <div class="card">
+                <div class="card-title">💻 โค้ด Mermaid (สำหรับนำไปใส่ Markdown / Draw.io / Mermaid Live Editor)</div>
+                <div class="mermaid-code-box">flowchart LR
+    subgraph System["ระบบจองคิวอุปกรณ์ (Equipment Queue System Boundary)"]
+        UC1(["จองคิวอุปกรณ์ (Join Queue)"])
+        UC2(["ตรวจสอบเงื่อนไขการเข้าคิว (Validate Queue Conditions)"])
+        UC3(["บันทึกลำดับคิว Position (Assign Queue Position)"])
+        UC4(["ส่งแจ้งเตือนยืนยันการจองคิว (Send Queue Confirmation)"])
+        UC5(["ยกเลิกคิวตนเอง (Cancel Queue by Student)"])
+        UC6(["เรียกคิวเมื่ออุปกรณ์ว่าง (Call Next in Queue)"])
+        UC7(["รับอุปกรณ์ตามคิว (Pickup Equipment by Queue)"])
+        UC8(["ข้ามคิวเมื่อเกิน 5 นาที (Auto-expire Unclaimed Queue)"])
+        UC9(["ข้ามคิวโดยเจ้าหน้าที่ (Manual Skip Queue by Admin)"])
+
+        UC1 -.->|&lt;&lt;include&gt;&gt;| UC2
+        UC1 -.->|&lt;&lt;include&gt;&gt;| UC3
+        UC1 -.->|&lt;&lt;include&gt;&gt;| UC4
+
+        UC5 -.->|&lt;&lt;extend&gt;&gt;| UC1
+        UC7 -.->|&lt;&lt;extend&gt;&gt;| UC6
+        UC8 -.->|&lt;&lt;extend&gt;&gt;| UC6
+        UC9 -.->|&lt;&lt;extend&gt;&gt;| UC6
+    end
+
+    Student["นักศึกษา (Student)"] --- UC1
+    Student --- UC5
+    Student --- UC7
+
+    Admin["บรรณารักษ์ (Admin)"] --- UC6
+    Admin --- UC7
+    Admin --- UC9
+
+    Cron["ระบบอัตโนมัติ (System / Cron)"] --- UC6
+    Cron --- UC8</div>
+            </div>
+        </div>
+
+        <!-- ===================== TAB: JOURNAL FLOW ===================== -->
+        <div class="tab-panel" id="journal-flow" data-title="ผังงานระบบ (สไตล์วารสารวิชาการ)">
+            <div class="section-title">📑 ผังงานการทำงานของระบบ (System Flowchart — สไตล์บทความวิจัย / วารสารวิชาการ)</div>
+            <div class="section-desc">แผนภาพ Flowchart มาตรฐาน ANSI/ISO จำแนกตามบทบาทผู้ใช้งานระบบ และผู้ดูแลระบบ ตามรูปแบบเอกสารงานวิจัย Journal of Applied Information Technology</div>
+
+            <!-- Paper Container (Journal Format) -->
+            <div style="background: #ffffff; color: #1e293b; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); padding: 32px 40px; margin-bottom: 24px;">
+                <!-- Journal Header -->
+                <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 1.5px solid #0f172a; padding-bottom: 8px; margin-bottom: 24px;">
+                    <div style="font-size: 16px; font-weight: 700; color: #1e293b; font-family: 'Times New Roman', serif; letter-spacing: 0.5px;">Journal of Applied Information Technology</div>
+                    <div style="font-size: 12px; color: #64748b; font-family: 'Times New Roman', serif;">Project Libraries System Flowchart</div>
+                </div>
+
+                <div style="text-align: center; font-size: 14px; font-weight: 700; margin-bottom: 20px; color: #0f172a;">
+                    ภาพที่ 1: ผังงานการทำงานของระบบยืม-คืนอุปกรณ์ (ผู้ใช้งานระบบ และผู้ดูแลระบบ)
+                </div>
+
+                <!-- SVG Flowchart Exactly Matching Uploaded Image -->
+                <div style="overflow-x: auto;">
+                    <svg viewBox="0 0 960 800" width="100%" height="800" xmlns="http://www.w3.org/2000/svg" style="display:block; margin: 0 auto; font-family: 'Segoe UI', Tahoma, sans-serif;">
+                        <defs>
+                            <marker id="arrow-blk" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                                <path d="M 0 1 L 8 5 L 0 9 z" fill="#0f172a" />
+                            </marker>
+                        </defs>
+
+                        <!-- ================= LEFT COLUMN: ผู้ใช้งานระบบ ================= -->
+                        <!-- 1. Start: เข้าสู่ระบบ (ผู้ใช้งานระบบ) -->
+                        <rect x="160" y="20" width="180" height="34" rx="17" fill="#ffffff" stroke="#0f172a" stroke-width="1.8"/>
+                        <text x="250" y="42" text-anchor="middle" font-size="12" font-weight="600" fill="#0f172a">เข้าสู่ระบบ (ผู้ใช้งานระบบ)</text>
+
+                        <line x1="250" y1="54" x2="250" y2="88" stroke="#0f172a" stroke-width="1.8" marker-end="url(#arrow-blk)"/>
+
+                        <!-- 2. Login เข้าสู่ระบบ (Parallelogram) -->
+                        <polygon points="175,90 335,90 315,124 155,124" fill="#ffffff" stroke="#0f172a" stroke-width="1.8"/>
+                        <text x="245" y="112" text-anchor="middle" font-size="13" font-weight="700" fill="#0f172a">Login เข้าสู่ระบบ</text>
+
+                        <line x1="245" y1="124" x2="245" y2="158" stroke="#0f172a" stroke-width="1.8" marker-end="url(#arrow-blk)"/>
+
+                        <!-- 3. ตรวจสอบข้อมูลสมาชิก (Diamond) -->
+                        <polygon points="245,160 335,185 245,210 155,185" fill="#ffffff" stroke="#0f172a" stroke-width="1.8"/>
+                        <text x="245" y="189" text-anchor="middle" font-size="11.5" font-weight="600" fill="#0f172a">ตรวจสอบข้อมูลสมาชิก</text>
+
+                        <!-- Decision: ไม่ถูกต้อง -->
+                        <line x1="335" y1="185" x2="380" y2="185" stroke="#0f172a" stroke-width="1.8" marker-end="url(#arrow-blk)"/>
+                        <text x="355" y="174" text-anchor="middle" font-size="10.5" fill="#0f172a">ไม่ถูกต้อง</text>
+
+                        <!-- แก้ไขข้อมูล (Slanted card shape) -->
+                        <polygon points="380,172 470,158 470,210 380,210" fill="#ffffff" stroke="#0f172a" stroke-width="1.8"/>
+                        <text x="425" y="194" text-anchor="middle" font-size="12" font-weight="600" fill="#0f172a">แก้ไขข้อมูล</text>
+
+                        <!-- Line from แก้ไขข้อมูล loops back to arrow before next step -->
+                        <line x1="425" y1="210" x2="425" y2="235" stroke="#0f172a" stroke-width="1.8"/>
+                        <line x1="425" y1="235" x2="245" y2="235" stroke="#0f172a" stroke-width="1.8"/>
+                        <text x="355" y="230" text-anchor="middle" font-size="10.5" fill="#0f172a">ถูกต้อง</text>
+
+                        <line x1="245" y1="210" x2="245" y2="253" stroke="#0f172a" stroke-width="1.8" marker-end="url(#arrow-blk)"/>
+
+                        <!-- 4. ตรวจสอบประวัติการยืมคืน (Diamond) -->
+                        <polygon points="245,255 340,285 245,315 150,285" fill="#ffffff" stroke="#0f172a" stroke-width="1.8"/>
+                        <text x="245" y="289" text-anchor="middle" font-size="11" font-weight="600" fill="#0f172a">ตรวจสอบประวัติการยืมคืน</text>
+
+                        <!-- Decision: ไม่ต้องการยืม -> ตรงดิ่งลงล่างเข้า ออกจากระบบ -->
+                        <line x1="150" y1="285" x2="125" y2="285" stroke="#0f172a" stroke-width="1.8"/>
+                        <line x1="125" y1="285" x2="125" y2="745" stroke="#0f172a" stroke-width="1.8"/>
+                        <line x1="125" y1="745" x2="175" y2="745" stroke="#0f172a" stroke-width="1.8" marker-end="url(#arrow-blk)"/>
+                        <text x="180" y="278" text-anchor="middle" font-size="10.5" fill="#0f172a">ไม่ต้องยืม</text>
+
+                        <!-- Decision: ต้องการยืม -->
+                        <line x1="245" y1="315" x2="245" y2="353" stroke="#0f172a" stroke-width="1.8" marker-end="url(#arrow-blk)"/>
+                        <text x="278" y="334" text-anchor="middle" font-size="10.5" fill="#0f172a">ต้องการยืม</text>
+
+                        <!-- 5. กรอกข้อมูลการยืม (Slanted card shape) -->
+                        <polygon points="175,365 315,350 315,400 175,400" fill="#ffffff" stroke="#0f172a" stroke-width="1.8"/>
+                        <text x="245" y="386" text-anchor="middle" font-size="12" font-weight="600" fill="#0f172a">กรอกข้อมูลการยืม</text>
+
+                        <line x1="245" y1="400" x2="245" y2="433" stroke="#0f172a" stroke-width="1.8" marker-end="url(#arrow-blk)"/>
+
+                        <!-- 6. ส่งคำขอยืม (Parallelogram) -->
+                        <polygon points="175,435 325,435 305,470 155,470" fill="#ffffff" stroke="#0f172a" stroke-width="1.8"/>
+                        <text x="240" y="457" text-anchor="middle" font-size="12" font-weight="600" fill="#0f172a">ส่งคำขอยืม</text>
+
+                        <line x1="240" y1="470" x2="240" y2="518" stroke="#0f172a" stroke-width="1.8" marker-end="url(#arrow-blk)"/>
+
+                        <!-- 7. รออนุมัติยืม (Diamond) -->
+                        <polygon points="240,520 315,548 240,576 165,548" fill="#ffffff" stroke="#0f172a" stroke-width="1.8"/>
+                        <text x="240" y="552" text-anchor="middle" font-size="12" font-weight="600" fill="#0f172a">รออนุมัติยืม</text>
+
+                        <!-- Decision: ไม่ผ่าน -> วนกลับไป กรอกข้อมูลการยืม -->
+                        <line x1="315" y1="548" x2="345" y2="548" stroke="#0f172a" stroke-width="1.8"/>
+                        <line x1="345" y1="548" x2="345" y2="380" stroke="#0f172a" stroke-width="1.8"/>
+                        <line x1="345" y1="380" x2="315" y2="380" stroke="#0f172a" stroke-width="1.8" marker-end="url(#arrow-blk)"/>
+                        <text x="370" y="540" text-anchor="middle" font-size="10.5" fill="#0f172a">ไม่ผ่าน</text>
+
+                        <!-- Decision: ผ่าน -->
+                        <line x1="240" y1="576" x2="240" y2="633" stroke="#0f172a" stroke-width="1.8" marker-end="url(#arrow-blk)"/>
+                        <text x="260" y="605" text-anchor="middle" font-size="10.5" fill="#0f172a">ผ่าน</text>
+
+                        <!-- 8. รับพัสดุ (Rectangle) -->
+                        <rect x="180" y="635" width="120" height="36" fill="#ffffff" stroke="#0f172a" stroke-width="1.8"/>
+                        <text x="240" y="658" text-anchor="middle" font-size="12" font-weight="600" fill="#0f172a">รับพัสดุ</text>
+
+                        <line x1="240" y1="671" x2="240" y2="728" stroke="#0f172a" stroke-width="1.8" marker-end="url(#arrow-blk)"/>
+
+                        <!-- 9. ออกจากระบบ (Capsule) -->
+                        <rect x="170" y="730" width="140" height="34" rx="17" fill="#ffffff" stroke="#0f172a" stroke-width="1.8"/>
+                        <text x="240" y="752" text-anchor="middle" font-size="12" font-weight="600" fill="#0f172a">ออกจากระบบ</text>
+
+
+                        <!-- ================= RIGHT COLUMN: ผู้ดูแลระบบ ================= -->
+                        <!-- 1. Start: เข้าสู่ระบบ (ผู้ดูแลระบบ) -->
+                        <rect x="710" y="230" width="180" height="34" rx="17" fill="#ffffff" stroke="#0f172a" stroke-width="1.8"/>
+                        <text x="800" y="252" text-anchor="middle" font-size="12" font-weight="600" fill="#0f172a">เข้าสู่ระบบ (ผู้ดูแลระบบ)</text>
+
+                        <line x1="800" y1="264" x2="800" y2="298" stroke="#0f172a" stroke-width="1.8" marker-end="url(#arrow-blk)"/>
+
+                        <!-- 2. Login เข้าสู่ระบบ (Parallelogram) -->
+                        <polygon points="725,300 885,300 865,334 705,334" fill="#ffffff" stroke="#0f172a" stroke-width="1.8"/>
+                        <text x="795" y="322" text-anchor="middle" font-size="13" font-weight="700" fill="#0f172a">Login เข้าสู่ระบบ</text>
+
+                        <line x1="795" y1="334" x2="795" y2="368" stroke="#0f172a" stroke-width="1.8" marker-end="url(#arrow-blk)"/>
+
+                        <!-- 3. ตรวจสอบข้อมูลสมาชิก (Diamond) -->
+                        <polygon points="795,370 885,395 795,420 705,395" fill="#ffffff" stroke="#0f172a" stroke-width="1.8"/>
+                        <text x="795" y="399" text-anchor="middle" font-size="11.5" font-weight="600" fill="#0f172a">ตรวจสอบข้อมูลสมาชิก</text>
+
+                        <!-- Decision: ไม่ผ่าน -> วนกลับไป Login -->
+                        <line x1="885" y1="395" x2="915" y2="395" stroke="#0f172a" stroke-width="1.8"/>
+                        <line x1="915" y1="395" x2="915" y2="317" stroke="#0f172a" stroke-width="1.8"/>
+                        <line x1="915" y1="317" x2="875" y2="317" stroke="#0f172a" stroke-width="1.8" marker-end="url(#arrow-blk)"/>
+                        <text x="940" y="355" text-anchor="middle" font-size="10.5" fill="#0f172a">ไม่ผ่าน</text>
+
+                        <!-- Decision: ผ่าน -> แยก 2 ทาง: ยืม / คืน -->
+                        <line x1="795" y1="420" x2="795" y2="455" stroke="#0f172a" stroke-width="1.8"/>
+                        <line x1="795" y1="455" x2="685" y2="455" stroke="#0f172a" stroke-width="1.8"/>
+                        <line x1="795" y1="455" x2="895" y2="455" stroke="#0f172a" stroke-width="1.8"/>
+                        <text x="812" y="440" text-anchor="middle" font-size="10.5" fill="#0f172a">ผ่าน</text>
+
+                        <line x1="685" y1="455" x2="685" y2="488" stroke="#0f172a" stroke-width="1.8" marker-end="url(#arrow-blk)"/>
+                        <line x1="895" y1="455" x2="895" y2="488" stroke="#0f172a" stroke-width="1.8" marker-end="url(#arrow-blk)"/>
+                        <text x="735" y="448" text-anchor="middle" font-size="10.5" font-weight="700" fill="#0f172a">ยืม</text>
+                        <text x="850" y="448" text-anchor="middle" font-size="10.5" font-weight="700" fill="#0f172a">คืน</text>
+
+                        <!-- ============ สาขายืม (Admin - ซ้าย) ============ -->
+                        <!-- ข้อมูลการยืม (Rectangle) -->
+                        <rect x="630" y="490" width="110" height="36" fill="#ffffff" stroke="#0f172a" stroke-width="1.8"/>
+                        <text x="685" y="513" text-anchor="middle" font-size="12" font-weight="600" fill="#0f172a">ข้อมูลการยืม</text>
+
+                        <line x1="685" y1="526" x2="685" y2="558" stroke="#0f172a" stroke-width="1.8" marker-end="url(#arrow-blk)"/>
+
+                        <!-- ตรวจเช็คจำนวนพัสดุ (Diamond) -->
+                        <polygon points="685,560 760,585 685,610 610,585" fill="#ffffff" stroke="#0f172a" stroke-width="1.8"/>
+                        <text x="685" y="589" text-anchor="middle" font-size="11" font-weight="600" fill="#0f172a">ตรวจเช็คจำนวนพัสดุ</text>
+
+                        <!-- ไม่ครบ -> เพิ่ม/ลด, แก้ไขข้อมูล -->
+                        <line x1="610" y1="585" x2="575" y2="585" stroke="#0f172a" stroke-width="1.8"/>
+                        <line x1="575" y1="585" x2="575" y2="628" stroke="#0f172a" stroke-width="1.8" marker-end="url(#arrow-blk)"/>
+                        <text x="590" y="575" text-anchor="middle" font-size="10.5" fill="#0f172a">ไม่ครบ</text>
+
+                        <polygon points="495,640 605,625 605,675 495,675" fill="#ffffff" stroke="#0f172a" stroke-width="1.8"/>
+                        <text x="550" y="658" text-anchor="middle" font-size="11" font-weight="600" fill="#0f172a">เพิ่ม/ลด, แก้ไขข้อมูล</text>
+
+                        <!-- Line from เพิ่ม/ลด, แก้ไขข้อมูล into อนุมัติการยืม -->
+                        <line x1="550" y1="675" x2="550" y2="700" stroke="#0f172a" stroke-width="1.8"/>
+                        <line x1="550" y1="700" x2="625" y2="700" stroke="#0f172a" stroke-width="1.8" marker-end="url(#arrow-blk)"/>
+
+                        <!-- ครบ -> ตรงเข้า อนุมัติการยืม -->
+                        <line x1="685" y1="610" x2="685" y2="678" stroke="#0f172a" stroke-width="1.8" marker-end="url(#arrow-blk)"/>
+                        <text x="705" y="640" text-anchor="middle" font-size="10.5" fill="#0f172a">ครบ</text>
+
+                        <!-- อนุมัติการยืม (Rectangle) -->
+                        <rect x="630" y="680" width="110" height="36" fill="#ffffff" stroke="#0f172a" stroke-width="1.8"/>
+                        <text x="685" y="703" text-anchor="middle" font-size="12" font-weight="600" fill="#0f172a">อนุมัติการยืม</text>
+
+                        <line x1="685" y1="716" x2="685" y2="745" stroke="#0f172a" stroke-width="1.8"/>
+                        <line x1="685" y1="745" x2="735" y2="745" stroke="#0f172a" stroke-width="1.8" marker-end="url(#arrow-blk)"/>
+
+                        <!-- ============ สาขาคืน (Admin - ขวา) ============ -->
+                        <!-- ข้อมูลการคืน (Rectangle) -->
+                        <rect x="840" y="490" width="110" height="36" fill="#ffffff" stroke="#0f172a" stroke-width="1.8"/>
+                        <text x="895" y="513" text-anchor="middle" font-size="12" font-weight="600" fill="#0f172a">ข้อมูลการคืน</text>
+
+                        <line x1="895" y1="526" x2="895" y2="558" stroke="#0f172a" stroke-width="1.8" marker-end="url(#arrow-blk)"/>
+
+                        <!-- ตรวจเช็คสภาพพัสดุ (Diamond) -->
+                        <polygon points="895,560 970,585 895,610 820,585" fill="#ffffff" stroke="#0f172a" stroke-width="1.8"/>
+                        <text x="895" y="589" text-anchor="middle" font-size="11" font-weight="600" fill="#0f172a">ตรวจเช็คสภาพพัสดุ</text>
+
+                        <!-- ชำรุด -> คำนวณค่าปรับ -->
+                        <line x1="820" y1="585" x2="795" y2="585" stroke="#0f172a" stroke-width="1.8"/>
+                        <line x1="795" y1="585" x2="795" y2="628" stroke="#0f172a" stroke-width="1.8" marker-end="url(#arrow-blk)"/>
+                        <text x="810" y="575" text-anchor="middle" font-size="10.5" fill="#0f172a">ชำรุด</text>
+
+                        <polygon points="745,640 845,625 845,675 745,675" fill="#ffffff" stroke="#0f172a" stroke-width="1.8"/>
+                        <text x="795" y="658" text-anchor="middle" font-size="11" font-weight="600" fill="#0f172a">คำนวณค่าปรับ</text>
+
+                        <!-- Line from คำนวณค่าปรับ into รับคืน -->
+                        <line x1="795" y1="675" x2="795" y2="700" stroke="#0f172a" stroke-width="1.8"/>
+                        <line x1="795" y1="700" x2="835" y2="700" stroke="#0f172a" stroke-width="1.8" marker-end="url(#arrow-blk)"/>
+
+                        <!-- ไม่ชำรุด -> ตรงเข้า รับคืน -->
+                        <line x1="895" y1="610" x2="895" y2="678" stroke="#0f172a" stroke-width="1.8" marker-end="url(#arrow-blk)"/>
+                        <text x="925" y="640" text-anchor="middle" font-size="10.5" fill="#0f172a">ไม่ชำรุด</text>
+
+                        <!-- รับคืน (Rectangle) -->
+                        <rect x="840" y="680" width="110" height="36" fill="#ffffff" stroke="#0f172a" stroke-width="1.8"/>
+                        <text x="895" y="703" text-anchor="middle" font-size="12" font-weight="600" fill="#0f172a">รับคืน</text>
+
+                        <line x1="895" y1="716" x2="895" y2="745" stroke="#0f172a" stroke-width="1.8"/>
+                        <line x1="895" y1="745" x2="855" y2="745" stroke="#0f172a" stroke-width="1.8" marker-end="url(#arrow-blk)"/>
+
+                        <!-- ออกจากระบบ (ผู้ดูแลระบบ) -->
+                        <rect x="740" y="730" width="110" height="34" rx="17" fill="#ffffff" stroke="#0f172a" stroke-width="1.8"/>
+                        <text x="795" y="752" text-anchor="middle" font-size="12" font-weight="600" fill="#0f172a">ออกจากระบบ</text>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Adaptation Card for Project Libraries (Flow ยืมอุปกรณ์ vs Flow จองคิว) -->
+            <div class="card">
+                <div class="card-title">📦 ผังงานระบบสำหรับโปรเจกต์ Project Libraries (ประยุกต์ Flow ยืม และ Flow จองคิว)</div>
+                <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+                    ผังงานนำโครงสร้างมาตรฐานข้างต้นมาจับคู่กับระบบจริงในโปรเจกต์ห้องสมุด: <strong>Flow การยืมอุปกรณ์</strong> (มีสต๊อก) และ <strong>Flow การจองคิว</strong> (ของหมดสต๊อก รอคิว 5 นาที)
+                </div>
+
+                <div class="branch-grid">
+                    <!-- Flow ยืมอุปกรณ์ -->
+                    <div class="branch-box" style="border-left: 4px solid var(--primary);">
+                        <div class="branch-title" style="color: var(--primary);">📦 Flow การยืมอุปกรณ์ (Borrow Flow)</div>
+                        <div class="branch-body">
+                            <ol>
+                                <li><strong>เข้าสู่ระบบ (นศ.)</strong> → รหัสนักศึกษา + บัตร ปชช.</li>
+                                <li><strong>ตรวจเช็คสถานะพัสดุ</strong> → มีอุปกรณ์ว่าง (Stock &gt; 0)</li>
+                                <li><strong>กรอกข้อมูลการยืม</strong> → ตรวจโควตา (ไม่เกิน 5 ชิ้น/วัน, 1 ชิ้น/รุ่น)</li>
+                                <li><strong>ส่งคำขอยืม</strong> → สร้างสถานะ <code>pending</code> (หมดอายุใน 15 นาที)</li>
+                                <li><strong>รออนุมัติยืม</strong>:
+                                    <ul>
+                                        <li><em>ถ้าผ่าน:</em> นศ. แสดง QR → เจ้าหน้าที่สแกน Barcode จ่าย → <strong>รับพัสดุ (Borrowed)</strong></li>
+                                        <li><em>ถ้าไม่ผ่าน / เกิน 15 นาที:</em> ยกเลิกคำขอ คืนสต๊อก</li>
+                                    </ul>
+                                </li>
+                                <li><strong>ออกจากระบบ</strong></li>
+                            </ol>
+                        </div>
+                    </div>
+
+                    <!-- Flow การจองคิว -->
+                    <div class="branch-box" style="border-left: 4px solid var(--warning);">
+                        <div class="branch-title" style="color: var(--warning);">🔢 Flow การจองคิวอุปกรณ์ (Queue Flow)</div>
+                        <div class="branch-body">
+                            <ol>
+                                <li><strong>เข้าสู่ระบบ (นศ.)</strong> → รหัสนักศึกษา + บัตร ปชช.</li>
+                                <li><strong>ตรวจเช็คสถานะพัสดุ</strong> → อุปกรณ์หมด (Stock = 0)</li>
+                                <li><strong>กรอกข้อมูลการจองคิว</strong> → ตรวจคิวไม่เกิน 10 คน และไม่จองซ้ำ</li>
+                                <li><strong>ส่งคำขอจองคิว</strong> → ได้รับลำดับคิว สถานะ <code>waiting</code></li>
+                                <li><strong>รอการเรียกคิว</strong>:
+                                    <ul>
+                                        <li>เมื่อมีคนคืนพัสดุ → ระบบเปลี่ยนเป็น <code>called</code> (มีเวลา 5 นาที)</li>
+                                        <li><em>มารับทัน:</em> สแกน Barcode จ่าย → <strong>รับพัสดุ</strong> (คิว Completed)</li>
+                                        <li><em>ไม่มารับเกิน 5 นาที:</em> ข้ามคิวอัตโนมัติ (Expired) → เรียกคนถัดไป</li>
+                                    </ul>
+                                </li>
+                                <li><strong>ออกจากระบบ</strong></li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================== TAB: FLOW BORROW ===================== -->
+        <div class="tab-panel" id="flow-borrow" data-title="Flow: ยืมอุปกรณ์">
+            <div class="section-title">📦 Flow: ยืมอุปกรณ์ (Checkout)</div>
+            <div class="section-desc">ลำดับขั้นตอนตั้งแต่นักศึกษากดยืม จนถึงได้รับอุปกรณ์ตัวจริง</div>
+
+            <div class="flow-container">
+                <div class="flow-step">
+                    <div class="flow-step-header">
+                        <div class="flow-step-num">1</div>
+                        <div class="flow-step-title"><span class="badge badge-student">🎓 นศ.</span> เข้าสู่ระบบ</div>
+                    </div>
+                    <div class="flow-step-body">ใส่รหัสนักศึกษา + เลขบัตรประชาชน → ได้ JWT Token (8 ชม.)</div>
+                </div>
+                <div class="flow-arrow">↓</div>
+
+                <div class="flow-step">
+                    <div class="flow-step-header">
+                        <div class="flow-step-num">2</div>
+                        <div class="flow-step-title"><span class="badge badge-student">🎓 นศ.</span> เลือกอุปกรณ์ที่ต้องการ</div>
+                    </div>
+                    <div class="flow-step-body">ดูรายการอุปกรณ์ → เลือกอุปกรณ์ที่มีจำนวนเหลือ → กดยืม</div>
+                </div>
+                <div class="flow-arrow">↓</div>
+
+                <div class="flow-step">
+                    <div class="flow-step-header">
+                        <div class="flow-step-num" style="background: var(--warning);">3</div>
+                        <div class="flow-step-title">⚡ ตรวจสอบเงื่อนไข (Validation)</div>
+                    </div>
+                    <div class="validation-box">
+                        <div class="title">🔒 เงื่อนไขที่ต้องผ่านทั้งหมด (Database Transaction + Row Lock)</div>
+                        <ul>
+                            <li>❌ ยืมหรือจองชิ้นเดิมอยู่แล้ว → "1 คน ยืม/จองได้สูงสุด 1 ชิ้นต่อรุ่น"</li>
+                            <li>❌ อยู่ในคิวของอุปกรณ์นี้ → "คุณอยู่ในคิวแล้ว"</li>
+                            <li>❌ ยืมเกิน 5 ชิ้น/วัน → "ระบบจำกัดสูงสุด 5 ชิ้นต่อวัน"</li>
+                            <li>❌ Stock หมด → "กรุณาจองคิวแทน"</li>
+                            <li>❌ มีคิวที่ถูกเรียกอยู่ (ของคนอื่น) → "รอสักครู่"</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="flow-arrow">↓</div>
+                <div class="flow-arrow-label">✅ ผ่านทุกเงื่อนไข</div>
+
+                <div class="flow-step" style="border-left: 4px solid var(--success);">
+                    <div class="flow-step-header">
+                        <div class="flow-step-num" style="background: var(--success);">4</div>
+                        <div class="flow-step-title">💾 สร้างคำขอยืม</div>
+                    </div>
+                    <div class="flow-step-body">
+                        INSERT INTO <code>borrowed</code> →<br>
+                        สถานะ: <span class="status status-pending">pending</span> |
+                        reservation_expires_at: NOW() + 15 นาที
+                    </div>
+                </div>
+                <div class="flow-arrow">↓</div>
+
+                <div class="flow-step" style="border-left: 4px solid var(--info);">
+                    <div class="flow-step-header">
+                        <div class="flow-step-num" style="background: var(--info);">5</div>
+                        <div class="flow-step-title">🔔 แจ้งเตือนนักศึกษา</div>
+                    </div>
+                    <div class="flow-step-body">
+                        📧 Email + 🔔 In-App: "ส่งคำขอยืมสำเร็จ กรุณารอการอนุมัติจากเจ้าหน้าที่"<br>
+                        📡 Socket.io: <code>data_updated</code>
+                    </div>
+                </div>
+                <div class="flow-arrow">↓</div>
+
+                <div class="flow-step">
+                    <div class="flow-step-header">
+                        <div class="flow-step-num">6</div>
+                        <div class="flow-step-title"><span class="badge badge-admin">🛡️ Admin</span> สแกน QR Code ของนักศึกษา</div>
+                    </div>
+                    <div class="flow-step-body">
+                        Admin สแกน QR จากมือถือนักศึกษา → ดูรายการอุปกรณ์ที่ขอยืม<br>
+                        <code>GET /api/admin/queue_details.php?queue_id=LBxxx</code>
+                    </div>
+                </div>
+                <div class="flow-arrow">↓</div>
+
+                <div class="flow-step">
+                    <div class="flow-step-header">
+                        <div class="flow-step-num">7</div>
+                        <div class="flow-step-title"><span class="badge badge-admin">🛡️ Admin</span> สแกน Barcode อุปกรณ์ตัวจริง</div>
+                    </div>
+                    <div class="flow-step-body">
+                        สแกน Barcode ทีละชิ้น หรือกด AUTO เพื่อเลือกอัตโนมัติ<br>
+                        <code>POST /api/admin/pickup_queue.php</code> → ล็อค item → อัพเดตสถานะ
+                    </div>
+                </div>
+                <div class="flow-arrow">↓</div>
+
+                <div class="flow-step" style="border-left: 4px solid var(--success);">
+                    <div class="flow-step-header">
+                        <div class="flow-step-num" style="background: var(--success);">8</div>
+                        <div class="flow-step-title">✅ จ่ายอุปกรณ์สำเร็จ</div>
+                    </div>
+                    <div class="flow-step-body">
+                        borrowed สถานะ: <span class="status status-borrowed">borrowed</span> + pickup_time = NOW()<br>
+                        equipment_item สถานะ: <span class="status status-borrowed">borrowed</span><br>
+                        📧 Email: "อนุมัติเรียบร้อย ไปรับที่ห้องสมุด"<br>
+                        📡 Socket.io: <code>scan_success</code> + <code>data_updated</code>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================== TAB: FLOW QUEUE ===================== -->
+        <div class="tab-panel" id="flow-queue" data-title="Flow: จองคิว">
+            <div class="section-title">🔢 Flow: จองคิว (Queue System)</div>
+            <div class="section-desc">ลำดับขั้นตอนเมื่ออุปกรณ์หมด — จองคิว → รอ → ถูกเรียก → รับอุปกรณ์</div>
+
+            <div class="flow-container">
+                <div class="flow-step">
+                    <div class="flow-step-header">
+                        <div class="flow-step-num">1</div>
+                        <div class="flow-step-title"><span class="badge badge-student">🎓 นศ.</span> กดจองคิว</div>
+                    </div>
+                    <div class="flow-step-body">
+                        อุปกรณ์ที่ต้องการมี available_quantity = 0<br>
+                        นักศึกษากด "จองคิว" → <code>POST /api/join_queue.php</code>
+                    </div>
+                </div>
+                <div class="flow-arrow">↓</div>
+
+                <div class="flow-step">
+                    <div class="flow-step-header">
+                        <div class="flow-step-num" style="background: var(--warning);">2</div>
+                        <div class="flow-step-title">⚡ ตรวจสอบเงื่อนไข</div>
+                    </div>
+                    <div class="validation-box">
+                        <div class="title">🔒 เงื่อนไข</div>
+                        <ul>
+                            <li>❌ ยืมอุปกรณ์ชิ้นนี้อยู่แล้ว</li>
+                            <li>❌ อยู่ในคิวของชิ้นนี้แล้ว</li>
+                            <li>❌ คิวเต็ม (สูงสุด 10 คน)</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="flow-arrow">↓</div>
+                <div class="flow-arrow-label">✅ ผ่านเงื่อนไข</div>
+
+                <div class="flow-step" style="border-left: 4px solid var(--success);">
+                    <div class="flow-step-header">
+                        <div class="flow-step-num" style="background: var(--success);">3</div>
+                        <div class="flow-step-title">💾 เพิ่มเข้าคิว</div>
+                    </div>
+                    <div class="flow-step-body">
+                        INSERT INTO <code>equipment_queue</code> →
+                        สถานะ: <span class="status status-waiting">waiting</span> | ตำแหน่ง: ลำดับที่ N<br>
+                        📧 Email + 🔔 In-App: "จองคิวสำเร็จ ลำดับที่ N มีเวลา 5 นาทีเมื่อถูกเรียก"
+                    </div>
+                </div>
+                <div class="flow-arrow">↓</div>
+                <div class="flow-arrow-label">⏳ รอจนกว่าจะมีอุปกรณ์ว่าง...</div>
+
+                <div class="flow-step" style="border-left: 4px solid var(--success);">
+                    <div class="flow-step-header">
+                        <div class="flow-step-num" style="background: var(--success);">4</div>
+                        <div class="flow-step-title"><span class="badge badge-system">⚙️ Auto</span> เรียกคิว (callNextInQueue)</div>
+                    </div>
+                    <div class="flow-step-body">
+                        <strong>Trigger:</strong> เมื่อมีคนคืนอุปกรณ์ (action='return') หรือคิวก่อนหน้า expired<br>
+                        ค้นหาคิว <span class="status status-waiting">waiting</span> ตำแหน่งแรก → เปลี่ยนเป็น <span class="status status-called">called</span><br>
+                        expires_at = NOW() + 5 นาที<br>
+                        📧 Email + 🔔 In-App: "ถึงคิวของคุณแล้ว! มีเวลา 5 นาทีมารับ"
+                    </div>
+                </div>
+                <div class="flow-arrow">↓</div>
+
+                <div class="flow-step">
+                    <div class="flow-step-header">
+                        <div class="flow-step-num">5</div>
+                        <div class="flow-step-title">🔀 แยกกรณี</div>
+                    </div>
+                    <div class="branch-grid">
+                        <div class="branch-box" style="border-left: 4px solid var(--success);">
+                            <div class="branch-title" style="color: var(--success);">✅ มารับทันเวลา (< 5 นาที)</div>
+                            <div class="branch-body">
+                                <ol>
+                                    <li>Admin สแกน QR ของนักศึกษา</li>
+                                    <li>Admin สแกน Barcode อุปกรณ์ตัวจริง</li>
+                                    <li>สร้าง <code>borrowed</code> record สถานะ <span class="status status-borrowed">borrowed</span></li>
+                                    <li>คิวเปลี่ยนเป็น <span class="status status-completed">completed</span></li>
+                                </ol>
+                            </div>
+                        </div>
+                        <div class="branch-box" style="border-left: 4px solid var(--error);">
+                            <div class="branch-title" style="color: var(--error);">❌ ไม่มาภายใน 5 นาที</div>
+                            <div class="branch-body">
+                                <ol>
+                                    <li>Cron (ทุก 1 นาที) ตรวจพบ expires_at < NOW()</li>
+                                    <li>เปลี่ยนสถานะเป็น <span class="status status-expired">expired</span></li>
+                                    <li>🔔 แจ้ง "คิวถูกข้ามอัตโนมัติ เกินเวลา 5 นาที"</li>
+                                    <li>เรียงลำดับคิวใหม่</li>
+                                    <li>เรียกคิวถัดไปอัตโนมัติ (ลำดับที่ 4 ซ้ำ)</li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flow-arrow">↓</div>
+                <div class="flow-arrow-label">กรณี Admin ข้ามคิวเอง</div>
+
+                <div class="flow-step" style="border-left: 4px solid var(--warning);">
+                    <div class="flow-step-header">
+                        <div class="flow-step-num" style="background: var(--warning);">6</div>
+                        <div class="flow-step-title"><span class="badge badge-admin">🛡️ Admin</span> ข้ามคิว (Manual Skip)</div>
+                    </div>
+                    <div class="flow-step-body">
+                        <code>POST /api/admin/queue/:id/skip</code><br>
+                        คิวปัจจุบัน → <span class="status status-expired">expired</span> → 🔔 แจ้ง "คิวถูกข้าม"<br>
+                        → เรียงลำดับใหม่ → เรียกคิวถัดไปอัตโนมัติ
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================== TAB: FLOW APPROVE ===================== -->
+        <div class="tab-panel" id="flow-approve" data-title="Flow: อนุมัติ">
+            <div class="section-title">✅ Flow: อนุมัติ / ปฏิเสธ / คืน / สูญหาย</div>
+            <div class="section-desc">Admin ดำเนินการคำขอยืม — ใช้ Database Transaction เพื่อป้องกัน Race Condition</div>
+
+            <div class="flow-container">
+                <div class="flow-step">
+                    <div class="flow-step-header">
+                        <div class="flow-step-num">1</div>
+                        <div class="flow-step-title"><span class="badge badge-admin">🛡️ Admin</span> ดูรายการคำขอ</div>
+                    </div>
+                    <div class="flow-step-body">
+                        <code>GET /api/admin/requests</code> — กรอง by status, pagination<br>
+                        แสดง: student_name, equipment_name, borrow_date, status, overdue_days
+                    </div>
+                </div>
+                <div class="flow-arrow">↓</div>
+
+                <div class="flow-step">
+                    <div class="flow-step-header">
+                        <div class="flow-step-num">2</div>
+                        <div class="flow-step-title"><span class="badge badge-admin">🛡️ Admin</span> เลือก Action</div>
+                    </div>
+                    <div class="flow-step-body">
+                        <code>POST /api/admin/update-request</code> — ส่ง { id, action, fine }<br>
+                        Actions: <code>approve</code> | <code>reject</code> | <code>return</code> | <code>lost</code>
+                    </div>
+                </div>
+                <div class="flow-arrow">↓</div>
+
+                <!-- Action: Approve -->
+                <div class="card" style="border-left: 5px solid var(--success);">
+                    <div class="card-title" style="color: var(--success);">✅ action = "approve" (อนุมัติ)</div>
+                    <div class="flow-step-body">
+                        <ol>
+                            <li>ค้นหา equipment_item ที่ว่าง → <strong>SELECT ... FOR UPDATE</strong> (ล็อค row)</li>
+                            <li>ถ้าไม่มี item ว่าง → ❌ "อุปกรณ์หมด ไม่สามารถอนุมัติได้"</li>
+                            <li>อัพเดต item สถานะ → <span class="status status-borrowed">borrowed</span></li>
+                            <li>อัพเดต borrowed สถานะ → <span class="status status-borrowed">borrowed</span></li>
+                            <li>📧 Email: "✅ ยืนยันยืมอุปกรณ์สำเร็จ กรุณาไปรับที่ห้องสมุด"</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <!-- Action: Reject -->
+                <div class="card" style="border-left: 5px solid var(--error);">
+                    <div class="card-title" style="color: var(--error);">❌ action = "reject" (ปฏิเสธ)</div>
+                    <div class="flow-step-body">
+                        <ol>
+                            <li>ถ้าสถานะเดิมเป็น <span class="status status-borrowed">borrowed</span> → คืน item กลับ stock (available)</li>
+                            <li>อัพเดต borrowed สถานะ → <span class="status status-rejected">rejected</span></li>
+                            <li>📧 Email + 🔔 In-App: "คำขอยืมถูกยกเลิกโดยผู้ดูแลระบบ"</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <!-- Action: Return -->
+                <div class="card" style="border-left: 5px solid var(--info);">
+                    <div class="card-title" style="color: var(--info);">🔄 action = "return" (รับคืน)</div>
+                    <div class="flow-step-body">
+                        <ol>
+                            <li>ค้นหา item ที่สถานะ = borrowed → เปลี่ยนเป็น <span class="status status-available">available</span></li>
+                            <li>อัพเดต borrowed สถานะ → <span class="status status-returned">returned</span> + return_date = NOW()</li>
+                            <li>📧 Email: "✅ คืนอุปกรณ์สำเร็จ ขอบคุณที่ใช้บริการ"</li>
+                            <li>⚡ <strong>เรียกคิวถัดไปอัตโนมัติ</strong> (callNextInQueue) → ถ้ามีคนรอ</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <!-- Action: Lost -->
+                <div class="card" style="border-left: 5px solid var(--warning);">
+                    <div class="card-title" style="color: var(--warning);">⚠️ action = "lost" (สูญหาย/ชำรุด)</div>
+                    <div class="flow-step-body">
+                        <ol>
+                            <li>ค้นหา item ที่สถานะ = borrowed → เปลี่ยนเป็น <span class="status status-lost">damaged_lost</span></li>
+                            <li>อัพเดต borrowed สถานะ → <span class="status status-lost">damaged_lost</span> + return_date = NOW()</li>
+                            <li>🔔 In-App: "อุปกรณ์ถูกบันทึกว่าสูญหาย/ชำรุด กรุณาติดต่อบรรณารักษ์"</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <div class="flow-arrow">↓</div>
+                <div class="flow-step" style="border-left: 4px solid var(--purple);">
+                    <div class="flow-step-header">
+                        <div class="flow-step-num" style="background: var(--purple);">✓</div>
+                        <div class="flow-step-title">📡 Realtime Update</div>
+                    </div>
+                    <div class="flow-step-body">
+                        Socket.io emit <code>data_updated</code> → ทุก Client อัพเดต UI อัตโนมัติ
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================== TAB: FLOW RETURN ===================== -->
+        <div class="tab-panel" id="flow-return" data-title="Flow: คืนอุปกรณ์">
+            <div class="section-title">🔄 Flow: คืนอุปกรณ์</div>
+            <div class="section-desc">มี 3 วิธีในการคืนอุปกรณ์เข้าระบบ</div>
+
+            <!-- Method 1 -->
+            <div class="card" style="border-left: 5px solid var(--primary);">
+                <div class="card-title" style="color: var(--primary);">📱 วิธีที่ 1: สแกน Barcode อุปกรณ์ (แนะนำ)</div>
+                <div class="flow-container">
+                    <div class="flow-step" style="border: 1px solid var(--border);">
+                        <div class="flow-step-header">
+                            <div class="flow-step-num">1</div>
+                            <div class="flow-step-title"><span class="badge badge-admin">🛡️ Admin</span> สแกน Barcode อุปกรณ์ตัวจริง</div>
+                        </div>
+                        <div class="flow-step-body"><code>POST /api/admin/return_by_barcode.php</code> ส่ง { barcode }</div>
+                    </div>
+                    <div class="flow-arrow">↓</div>
+                    <div class="flow-step" style="border: 1px solid var(--border);">
+                        <div class="flow-step-header">
+                            <div class="flow-step-num">2</div>
+                            <div class="flow-step-title">ค้นหา equipment_item จาก full_asset_code</div>
+                        </div>
+                        <div class="flow-step-body">ตรวจสอบว่า status = 'borrowed' (ถ้าไม่ใช่ → ❌ "ไม่ได้ถูกยืมอยู่")</div>
+                    </div>
+                    <div class="flow-arrow">↓</div>
+                    <div class="flow-step" style="border: 1px solid var(--border);">
+                        <div class="flow-step-header">
+                            <div class="flow-step-num">3</div>
+                            <div class="flow-step-title">ค้นหา borrowed record</div>
+                        </div>
+                        <div class="flow-step-body">SELECT FROM borrowed WHERE equipment_id = ? AND status = 'borrowed' ORDER BY borrow_date ASC LIMIT 1</div>
+                    </div>
+                    <div class="flow-arrow">↓</div>
+                    <div class="flow-step" style="border: 1px solid var(--border);">
+                        <div class="flow-step-header">
+                            <div class="flow-step-num" style="background: var(--success);">4</div>
+                            <div class="flow-step-title">อัพเดตสถานะ</div>
+                        </div>
+                        <div class="flow-step-body">
+                            equipment_item → <span class="status status-available">available</span><br>
+                            borrowed → <span class="status status-returned">returned</span> + return_date = NOW()<br>
+                            📡 Socket: <code>scan_success</code> (type: 'return') + <code>data_updated</code>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Method 2 -->
+            <div class="card" style="border-left: 5px solid var(--warning);">
+                <div class="card-title" style="color: var(--warning);">🖱️ วิธีที่ 2: Manual จากหน้า Requests</div>
+                <div class="flow-container">
+                    <div class="flow-step" style="border: 1px solid var(--border);">
+                        <div class="flow-step-header">
+                            <div class="flow-step-num">1</div>
+                            <div class="flow-step-title"><span class="badge badge-admin">🛡️ Admin</span> เลือกรายการยืม → กดปุ่ม "คืน"</div>
+                        </div>
+                        <div class="flow-step-body"><code>POST /api/admin/update-request</code> ส่ง { id, action: 'return' }</div>
+                    </div>
+                    <div class="flow-arrow">↓</div>
+                    <div class="flow-step" style="border: 1px solid var(--border);">
+                        <div class="flow-step-header">
+                            <div class="flow-step-num" style="background: var(--success);">2</div>
+                            <div class="flow-step-title">อัพเดตสถานะ + เรียกคิว</div>
+                        </div>
+                        <div class="flow-step-body">
+                            item → <span class="status status-available">available</span> |
+                            borrowed → <span class="status status-returned">returned</span><br>
+                            📧 Email: "คืนอุปกรณ์สำเร็จ"<br>
+                            ⚡ <strong>เรียกคิวถัดไปอัตโนมัติ</strong> (callNextInQueue)
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Method 3: Student Report Lost -->
+            <div class="card" style="border-left: 5px solid var(--error);">
+                <div class="card-title" style="color: var(--error);">⚠️ กรณีพิเศษ: นักศึกษาแจ้งสูญหาย</div>
+                <div class="flow-container">
+                    <div class="flow-step" style="border: 1px solid var(--border);">
+                        <div class="flow-step-header">
+                            <div class="flow-step-num">1</div>
+                            <div class="flow-step-title"><span class="badge badge-student">🎓 นศ.</span> กรอกข้อมูลการสูญหาย</div>
+                        </div>
+                        <div class="flow-step-body">
+                            <code>POST /api/report_lost.php</code> ส่ง { id, student_id, lost_date, lost_note }<br>
+                            เงื่อนไข: สถานะต้องเป็น <span class="status status-borrowed">borrowed</span> หรือ <span class="status status-overdue">overdue</span>
+                        </div>
+                    </div>
+                    <div class="flow-arrow">↓</div>
+                    <div class="flow-step" style="border: 1px solid var(--border);">
+                        <div class="flow-step-header">
+                            <div class="flow-step-num" style="background: var(--error);">2</div>
+                            <div class="flow-step-title">อัพเดตสถานะ</div>
+                        </div>
+                        <div class="flow-step-body">
+                            equipment_item → <span class="status status-lost">damaged_lost</span><br>
+                            borrowed → <span class="status status-lost">damaged_lost</span> + lost_date + lost_note + return_date = NOW()<br>
+                            📧 Email + 🔔 In-App: "แจ้งสูญหาย/ชำรุด กรุณาติดต่อบรรณารักษ์"
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================== TAB: FLOW NOTIFY ===================== -->
+        <div class="tab-panel" id="flow-notify" data-title="Flow: แจ้งเตือน">
+            <div class="section-title">🔔 Flow: ระบบแจ้งเตือน</div>
+            <div class="section-desc">แจ้งเตือนผ่าน 3 ช่องทาง — ตารางรวม Event ทั้งหมดที่ trigger notification</div>
+
+            <!-- Channels -->
+            <div class="card">
+                <div class="card-title">📡 ช่องทางการแจ้งเตือน</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+                    <div style="background: var(--bg-content); border: 1px solid var(--border); border-radius: 10px; padding: 16px; text-align: center;">
+                        <div style="font-size: 28px; margin-bottom: 8px;">📧</div>
+                        <div style="font-size: 14px; font-weight: 700;">Email</div>
+                        <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Gmail SMTP<br>via Nodemailer<br>HTML Template</div>
+                    </div>
+                    <div style="background: var(--bg-content); border: 1px solid var(--border); border-radius: 10px; padding: 16px; text-align: center;">
+                        <div style="font-size: 28px; margin-bottom: 8px;">🔔</div>
+                        <div style="font-size: 14px; font-weight: 700;">In-App</div>
+                        <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">notifications table<br>type: alert / announcement<br>target: email / 'all'</div>
+                    </div>
+                    <div style="background: var(--bg-content); border: 1px solid var(--border); border-radius: 10px; padding: 16px; text-align: center;">
+                        <div style="font-size: 28px; margin-bottom: 8px;">📡</div>
+                        <div style="font-size: 14px; font-weight: 700;">Realtime (Socket.io)</div>
+                        <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">data_updated event<br>scan_success event<br>ทุก Client รับทันที</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Event-based Table -->
+            <div class="card">
+                <div class="card-title">📋 Event-based Notifications</div>
+                <div style="overflow-x: auto;">
+                    <table class="notif-table">
+                        <thead>
+                            <tr>
+                                <th>Event</th>
+                                <th>Trigger โดย</th>
+                                <th>ช่องทาง</th>
+                                <th>ข้อความ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>ส่งคำขอยืม</strong></td>
+                                <td><span class="badge badge-student">🎓 นศ.</span></td>
+                                <td><span class="channel-badge channel-email">Email</span><span class="channel-badge channel-inapp">In-App</span><span class="channel-badge channel-socket">Socket</span></td>
+                                <td>"ส่งคำขอยืมสำเร็จ รอการอนุมัติ"</td>
+                            </tr>
+                            <tr>
+                                <td><strong>อนุมัติยืม</strong></td>
+                                <td><span class="badge badge-admin">🛡️ Admin</span></td>
+                                <td><span class="channel-badge channel-email">Email</span><span class="channel-badge channel-socket">Socket</span></td>
+                                <td>"✅ อนุมัติเรียบร้อย ไปรับที่ห้องสมุด"</td>
+                            </tr>
+                            <tr>
+                                <td><strong>ปฏิเสธยืม</strong></td>
+                                <td><span class="badge badge-admin">🛡️ Admin</span></td>
+                                <td><span class="channel-badge channel-email">Email</span><span class="channel-badge channel-inapp">In-App</span><span class="channel-badge channel-socket">Socket</span></td>
+                                <td>"คำขอยืมถูกยกเลิกโดยผู้ดูแลระบบ"</td>
+                            </tr>
+                            <tr>
+                                <td><strong>คืนอุปกรณ์</strong></td>
+                                <td><span class="badge badge-admin">🛡️ Admin</span></td>
+                                <td><span class="channel-badge channel-email">Email</span><span class="channel-badge channel-socket">Socket</span></td>
+                                <td>"✅ คืนอุปกรณ์เรียบร้อย ขอบคุณ"</td>
+                            </tr>
+                            <tr>
+                                <td><strong>แจ้งสูญหาย</strong></td>
+                                <td><span class="badge badge-student">🎓 นศ.</span> / <span class="badge badge-admin">🛡️ Admin</span></td>
+                                <td><span class="channel-badge channel-email">Email</span><span class="channel-badge channel-inapp">In-App</span><span class="channel-badge channel-socket">Socket</span></td>
+                                <td>"แจ้งสูญหาย/ชำรุด กรุณาติดต่อบรรณารักษ์"</td>
+                            </tr>
+                            <tr>
+                                <td><strong>จองคิวสำเร็จ</strong></td>
+                                <td><span class="badge badge-student">🎓 นศ.</span></td>
+                                <td><span class="channel-badge channel-email">Email</span><span class="channel-badge channel-inapp">In-App</span><span class="channel-badge channel-socket">Socket</span></td>
+                                <td>"จองคิวลำดับที่ N มีเวลา 5 นาทีเมื่อถูกเรียก"</td>
+                            </tr>
+                            <tr>
+                                <td><strong>ถึงคิวแล้ว</strong></td>
+                                <td><span class="badge badge-system">⚙️ Auto</span></td>
+                                <td><span class="channel-badge channel-email">Email</span><span class="channel-badge channel-inapp">In-App</span><span class="channel-badge channel-socket">Socket</span></td>
+                                <td>"🔔 ถึงคิวของคุณแล้ว! มีเวลา 5 นาทีมารับ"</td>
+                            </tr>
+                            <tr>
+                                <td><strong>คิวหมดอายุ/ถูกข้าม</strong></td>
+                                <td><span class="badge badge-system">⚙️ Auto</span> / <span class="badge badge-admin">🛡️ Admin</span></td>
+                                <td><span class="channel-badge channel-email">Email</span><span class="channel-badge channel-inapp">In-App</span><span class="channel-badge channel-socket">Socket</span></td>
+                                <td>"คิวถูกข้ามเนื่องจากไม่มารับภายในเวลาที่กำหนด"</td>
+                            </tr>
+                            <tr>
+                                <td><strong>ยกเลิกคำขอยืม</strong></td>
+                                <td><span class="badge badge-student">🎓 นศ.</span></td>
+                                <td><span class="channel-badge channel-email">Email</span><span class="channel-badge channel-inapp">In-App</span><span class="channel-badge channel-socket">Socket</span></td>
+                                <td>"ยกเลิกคำขอยืมสำเร็จ"</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Scheduled Table -->
+            <div class="card">
+                <div class="card-title">⏰ Scheduled Notifications (Cron Jobs)</div>
+                <div style="overflow-x: auto;">
+                    <table class="notif-table">
+                        <thead>
+                            <tr>
+                                <th>เวลา</th>
+                                <th>Trigger โดย</th>
+                                <th>ช่องทาง</th>
+                                <th>ข้อความ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>08:00 ทุกวัน</strong></td>
+                                <td><span class="badge badge-system">⚙️ Cron</span></td>
+                                <td><span class="channel-badge channel-email">Email</span><span class="channel-badge channel-inapp">In-App</span></td>
+                                <td>"อุปกรณ์จะครบกำหนดคืนในอีก 1-3 วัน"</td>
+                            </tr>
+                            <tr>
+                                <td><strong>16:00 ทุกวัน</strong></td>
+                                <td><span class="badge badge-system">⚙️ Cron</span></td>
+                                <td><span class="channel-badge channel-email">Email</span><span class="channel-badge channel-inapp">In-App</span></td>
+                                <td>"⚠️ ครบกำหนดคืนวันนี้!"</td>
+                            </tr>
+                            <tr>
+                                <td><strong>00:00 ทุกวัน</strong></td>
+                                <td><span class="badge badge-system">⚙️ Cron</span></td>
+                                <td><span class="channel-badge channel-email">Email</span><span class="channel-badge channel-inapp">In-App</span></td>
+                                <td>"อุปกรณ์เลยกำหนดคืน" + "ยกเลิก pending/คิวสิ้นวัน"</td>
+                            </tr>
+                            <tr>
+                                <td><strong>ทุก 1 นาที</strong></td>
+                                <td><span class="badge badge-system">⚙️ Cron</span></td>
+                                <td><span class="channel-badge channel-email">Email</span><span class="channel-badge channel-inapp">In-App</span><span class="channel-badge channel-socket">Socket</span></td>
+                                <td>"คิวหมดอายุ (5 นาที)" + "pending หมดอายุ (15 นาที)"</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Admin Manual -->
+            <div class="card" style="border-left: 5px solid var(--warning);">
+                <div class="card-title" style="color: var(--warning);">📢 Admin ส่งประกาศเอง</div>
+                <div class="flow-step-body">
+                    <code>POST /api/admin/notifications</code><br>
+                    <ul>
+                        <li><strong>target:</strong> 'all' (ส่งทุกคนที่มี email) หรือ email เฉพาะคน</li>
+                        <li><strong>แนบรูป:</strong> รองรับ Multer upload (max 5MB)</li>
+                        <li><strong>การทำงาน:</strong> บันทึก DB ทันที (type: announcement) → ส่ง Email ในพื้นหลัง (ไม่ block UI)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================== TAB: LIFECYCLE ===================== -->
+        <div class="tab-panel" id="lifecycle" data-title="Status Lifecycle">
+            <div class="section-title">📊 Status Lifecycle — การเปลี่ยนสถานะในระบบ</div>
+            <div class="section-desc">แสดงทุกสถานะและเส้นทางการเปลี่ยนแปลงของแต่ละ Table</div>
+
+            <!-- Borrowed -->
+            <div class="card">
+                <div class="card-title">📦 borrowed table — วงจรสถานะการยืม</div>
+                <div style="margin-bottom: 8px; font-size: 13px; color: var(--text-muted);">ทุกรายการเริ่มที่ <span class="status status-pending">pending</span> และจบที่สถานะใดสถานะหนึ่ง</div>
+
+                <div class="lifecycle-row">
+                    <span class="status status-pending">pending</span>
+                    <span class="lifecycle-arrow">→</span>
+                    <span class="status status-borrowed">borrowed</span>
+                    <span class="lifecycle-arrow">→</span>
+                    <span class="status status-returned">returned</span>
+                    <span class="lifecycle-label">(Flow ปกติ: ยืม → อนุมัติ → คืน)</span>
+                </div>
+                <div class="lifecycle-row">
+                    <span class="status status-pending">pending</span>
+                    <span class="lifecycle-arrow">→</span>
+                    <span class="status status-rejected">rejected</span>
+                    <span class="lifecycle-label">(Admin ปฏิเสธ / เกิน 15 นาทีไม่มารับ)</span>
+                </div>
+                <div class="lifecycle-row">
+                    <span class="status status-pending">pending</span>
+                    <span class="lifecycle-arrow">→</span>
+                    <span class="status status-cancelled">cancelled</span>
+                    <span class="lifecycle-label">(นศ. ยกเลิกเอง / Cron สิ้นวัน)</span>
+                </div>
+                <div class="lifecycle-row">
+                    <span class="status status-borrowed">borrowed</span>
+                    <span class="lifecycle-arrow">→</span>
+                    <span class="status status-overdue">overdue</span>
+                    <span class="lifecycle-arrow">→</span>
+                    <span class="status status-returned">returned</span>
+                    <span class="lifecycle-label">(เลยกำหนด → คืนช้า)</span>
+                </div>
+                <div class="lifecycle-row">
+                    <span class="status status-borrowed">borrowed</span>
+                    <span class="lifecycle-arrow">→</span>
+                    <span class="status status-lost">damaged_lost</span>
+                    <span class="lifecycle-label">(สูญหาย/ชำรุด — นศ. แจ้งเอง หรือ Admin บันทึก)</span>
+                </div>
+                <div class="lifecycle-row">
+                    <span class="status status-overdue">overdue</span>
+                    <span class="lifecycle-arrow">→</span>
+                    <span class="status status-lost">damaged_lost</span>
+                    <span class="lifecycle-label">(เลยกำหนด + สูญหาย)</span>
+                </div>
+            </div>
+
+            <!-- Queue -->
+            <div class="card">
+                <div class="card-title">🔢 equipment_queue table — วงจรสถานะคิว</div>
+                <div style="margin-bottom: 8px; font-size: 13px; color: var(--text-muted);">ทุกคิวเริ่มที่ <span class="status status-waiting">waiting</span></div>
+
+                <div class="lifecycle-row">
+                    <span class="status status-waiting">waiting</span>
+                    <span class="lifecycle-arrow">→</span>
+                    <span class="status status-called">called</span>
+                    <span class="lifecycle-arrow">→</span>
+                    <span class="status status-completed">completed</span>
+                    <span class="lifecycle-label">(Flow ปกติ: รอ → ถูกเรียก → มารับทัน)</span>
+                </div>
+                <div class="lifecycle-row">
+                    <span class="status status-called">called</span>
+                    <span class="lifecycle-arrow">→</span>
+                    <span class="status status-expired">expired</span>
+                    <span class="lifecycle-label">(ไม่มาภายใน 5 นาที / Admin ข้ามคิว)</span>
+                </div>
+                <div class="lifecycle-row">
+                    <span class="status status-waiting">waiting</span>
+                    <span class="lifecycle-arrow">→</span>
+                    <span class="status status-cancelled">cancelled</span>
+                    <span class="lifecycle-label">(นศ. ยกเลิกคิวเอง)</span>
+                </div>
+                <div class="lifecycle-row">
+                    <span class="status status-waiting">waiting</span> / <span class="status status-called">called</span>
+                    <span class="lifecycle-arrow">→</span>
+                    <span class="status status-expired">expired</span>
+                    <span class="lifecycle-label">(Cron 00:00 รีเซ็ตสิ้นวัน)</span>
+                </div>
+            </div>
+
+            <!-- Equipment Items -->
+            <div class="card">
+                <div class="card-title">🔧 equipment_items table — สถานะอุปกรณ์ตัวจริง</div>
+                <div style="margin-bottom: 8px; font-size: 13px; color: var(--text-muted);">แต่ละรายการอุปกรณ์ (equipment) มีหลาย items (ชิ้นย่อยตัวจริง)</div>
+
+                <div class="lifecycle-row">
+                    <span class="status status-available">available</span>
+                    <span class="lifecycle-arrow">⇄</span>
+                    <span class="status status-borrowed" style="background: var(--info-light); color: var(--info);">borrowed</span>
+                    <span class="lifecycle-label">(ยืม ↔ คืน — สลับไปมาได้)</span>
+                </div>
+                <div class="lifecycle-row">
+                    <span class="status status-borrowed" style="background: var(--info-light); color: var(--info);">borrowed</span>
+                    <span class="lifecycle-arrow">→</span>
+                    <span class="status status-lost">damaged_lost</span>
+                    <span class="lifecycle-label">(สูญหาย/ชำรุด — ต้อง Admin แก้ไขกลับเอง)</span>
+                </div>
+                <div class="lifecycle-row">
+                    <span class="status status-available">available</span>
+                    <span class="lifecycle-arrow">→</span>
+                    <span class="status status-lost">damaged_lost</span>
+                    <span class="lifecycle-label">(Admin ปรับ available_quantity ลง)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================== TAB: ERD ===================== -->
+        <div class="tab-panel" id="erd" data-title="ERD Diagram">
+            <div class="section-title">🗂️ แผนภาพความสัมพันธ์ของข้อมูล (Entity Relationship Diagram - ERD)</div>
+            <div class="section-desc">โครงสร้างตารางฐานข้อมูลจริง ความสัมพันธ์ (Cardinality) และ Foreign Keys ในระบบ Project Libraries</div>
+
+            <!-- Mermaid Code Box -->
+            <div class="card">
+                <div class="card-title">💻 โค้ด Mermaid ERD (คัดลอกไปวางที่ mermaid.live ได้ทันที)</div>
+                <div class="mermaid-code-box">erDiagram
+    USERS ||--o| STUDENT_PROFILES : "has profile"
+    STUDENT_PROFILES ||--o{ BORROWED : "places"
+    EQUIPMENTS ||--|{ EQUIPMENT_ITEMS : "contains"
+    EQUIPMENTS ||--o{ BORROWED : "is borrowed in"
+    STUDENT_PROFILES ||--o{ EQUIPMENT_QUEUE : "joins"
+    EQUIPMENTS ||--o{ EQUIPMENT_QUEUE : "has queues"
+    STUDENT_PROFILES ||--o{ NOTIFICATIONS : "receives"
+
+    USERS {
+        int user_id PK
+        string username UK
+        string password
+        string role
+        datetime created_at
+    }
+
+    STUDENT_PROFILES {
+        string student_id PK
+        int user_id FK
+        string name_th
+        string name_en
+        string email
+        string phone_number
+        string department
+        string education_status
+        string student_img
+        boolean notify_email
+    }
+
+    EMPLOYEES {
+        string emp_id PK
+        string citizen_id
+        string name_th
+        string name_en
+        string email
+        string phone
+    }
+
+    EQUIPMENTS {
+        int equipment_id PK
+        string kit_code
+        string name
+        string category
+        string equipment_img
+        decimal price
+        int borrow_days
+        int total_quantity
+        string status
+        string description
+    }
+
+    EQUIPMENT_ITEMS {
+        int item_id PK
+        int equipment_id FK
+        string sequence_code
+        string full_asset_code UK
+        string status
+    }
+
+    BORROWED {
+        int id PK
+        string student_id FK
+        int equipment_id FK
+        datetime borrow_date
+        datetime return_date
+        datetime reservation_expires_at
+        datetime pickup_time
+        decimal fine_amount
+        datetime lost_date
+        string lost_note
+        string status
+    }
+
+    EQUIPMENT_QUEUE {
+        int id PK
+        int equipment_id FK
+        string student_id FK
+        int position
+        string status
+        datetime queued_at
+        datetime called_at
+        datetime expires_at
+    }
+
+    NOTIFICATIONS {
+        int id PK
+        string target
+        string title
+        text message
+        string type
+        string image_url
+        datetime created_at
+    }</div>
+            </div>
+
+            <!-- Entities Detail Grid -->
+            <div class="actor-grid">
+                <div class="card">
+                    <div class="card-title">👥 ตารางเกี่ยวกับผู้ใช้ (Users &amp; Staff)</div>
+                    <ul class="usecase-list">
+                        <li class="usecase-item"><strong>users:</strong> จัดเก็บข้อมูลบัญชีผู้ใช้, รหัสผ่าน, และสิทธิ์ (student, admin)</li>
+                        <li class="usecase-item"><strong>student_profiles:</strong> ข้อมูลประวัตินักศึกษา (student_id เป็น PK อ้างอิง user_id)</li>
+                        <li class="usecase-item"><strong>employees:</strong> ข้อมูลเจ้าหน้าที่/บรรณารักษ์ (emp_id, citizen_id สำหรับ login admin)</li>
+                    </ul>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">📦 ตารางเกี่ยวกับอุปกรณ์ (Inventory)</div>
+                    <ul class="usecase-list">
+                        <li class="usecase-item"><strong>equipments:</strong> ข้อมูลรุ่นอุปกรณ์หลัก (ชื่อ, หมวดหมู่, ราคา, วันยืมสูงสุด, จำนวนรวม)</li>
+                        <li class="usecase-item"><strong>equipment_items:</strong> ชิ้นอุปกรณ์ตัวจริงแต่ละตัว (full_asset_code, barcode, สถานะ available/borrowed/damaged_lost)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="actor-grid">
+                <div class="card">
+                    <div class="card-title">🔄 ตารางการทำรายการ (Transactions)</div>
+                    <ul class="usecase-list">
+                        <li class="usecase-item"><strong>borrowed:</strong> ประวัติการยืม-คืน (student_id, equipment_id, วันที่ยืม-คืน, สถานะ pending/borrowed/returned/overdue)</li>
+                        <li class="usecase-item"><strong>equipment_queue:</strong> รายการจองคิวเมื่อของหมด (ลำดับ position, สถานะ waiting/called/completed/expired)</li>
+                    </ul>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">🔔 ตารางการแจ้งเตือน (Notifications)</div>
+                    <ul class="usecase-list">
+                        <li class="usecase-item"><strong>notifications:</strong> บันทึกข้อความแจ้งเตือน (target email หรือ 'all', หัวข้อ, เนื้อหา, type: alert/announcement)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================== TAB: DFD ===================== -->
+        <div class="tab-panel" id="dfd" data-title="DFD Level 0 - 2">
+            <div class="section-title">📊 แผนภาพกระแสข้อมูล (Data Flow Diagram: DFD Level 0, Level 1, Level 2)</div>
+            <div class="section-desc">จำลองการไหลของข้อมูล (Data Flow) ตามตัวอย่างภาพวิจัย ครอบคลุม Context Diagram, Level 1 (Process 1-7) และ Level 2 ย่อยของระบบ</div>
+
+            <!-- DFD Level 0 (Context Diagram) -->
+            <div class="card" style="border-left: 4px solid var(--primary);">
+                <div class="card-title" style="color: var(--primary);">1. DFD Level 0: แผนภาพบริบท (Context Diagram) — Process 0</div>
+                <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+                    แสดงขอบเขตภาพรวมของ <strong>"ระบบสารสนเทศยืม-คืน วัสดุและครุภัณฑ์ (Process 0)"</strong> กับ External Entities ทั้ง 3 ได้แก่: ผู้ดูแลระบบ (Admin), สมาชิก (Member) และ ผู้ใช้งานทั่วไป (User)
+                </div>
+                <div class="mermaid-code-box">flowchart TD
+    Admin["ผู้ดูแลระบบ (Admin)"]
+    Member["สมาชิก"]
+    User["ผู้ใช้งานทั่วไป"]
+
+    P0[["0<br/>ระบบสารสนเทศยืม-คืน วัสดุและครุภัณฑ์"]]
+
+    %% Flows: Admin <--> Process 0
+    Admin -->|"- ข้อมูลการสมัครสมาชิก<br/>- ข้อมูลสมาชิก<br/>- ข้อมูลการยืม / ข้อมูลการคืน<br/>- ข้อมูลสต๊อก<br/>- ข้อมูลอุปกรณ์พร้อมใช้ / ชำรุด / สูญหาย<br/>- ข้อมูลประวัติการซ่อม<br/>- ข้อมูลที่ต้องปรับปรุง"| P0
+    P0 -->|"- เรียกดูข้อมูล: สมัครสมาชิก, สมาชิก, ยืม, คืน, สต๊อก, อุปกรณ์พร้อมใช้, ชำรุด, สูญหาย, ประวัติการซ่อม, ปรับปรุง<br/>- ข้อมูลรายงานสรุปทุกประเภท"| Admin
+
+    %% Flows: สมาชิก <--> Process 0
+    Member -->|"- ข้อมูลสมาชิก / เข้าสู่ระบบ<br/>- ข้อมูลการยืม / ข้อมูลการคืน<br/>- ข้อมูลการติดตาม (จองคิว)<br/>- ข้อมูลอุปกรณ์พร้อมใช้ / ชำรุด / สูญหาย"| P0
+    P0 -->|"- ผลการยืม / รับคืน / สต๊อก<br/>- การแจ้งเตือนถึงคิว / ค่าปรับ"| Member
+
+    %% Flows: ผู้ใช้งาน <--> Process 0
+    User -->|"ข้อมูลรายละเอียดสมัครสมาชิก"| P0
+    P0 -->|"ข้อมูลผลการสมัครสมาชิก"| User</div>
+            </div>
+
+            <!-- DFD Level 1 -->
+            <div class="card" style="border-left: 4px solid var(--warning);">
+                <div class="card-title" style="color: var(--warning);">2. DFD Level 1: แผนภาพกระแสข้อมูลภาพรวม (Processes 1 - 7)</div>
+                <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+                    กระจายการทำงานของระบบออกเป็น 7 กระบวนการหลักตามรูปภาพตัวอย่าง พร้อมเชื่อมต่อ Data Stores (D1 ถึง D11)
+                </div>
+                <div class="mermaid-code-box">flowchart TD
+    User["ผู้ใช้งาน"]
+    Member["สมาชิก"]
+    Admin["ผู้ดูแลระบบ"]
+
+    P1[["1<br/>เข้าสู่ระบบ"]]
+    P2[["2<br/>จัดการข้อมูล"]]
+    P3[["3<br/>ยืม - คืนอุปกรณ์"]]
+    P4[["4<br/>สต๊อกอุปกรณ์"]]
+    P5[["5<br/>รายการสถานะอุปกรณ์"]]
+    P6[["6<br/>ประวัติการซ่อม"]]
+    P7[["7<br/>รายงานสรุป"]]
+
+    D1[("D1 ข้อมูลสมาชิก")]
+    D2[("D2 ข้อมูลวัสดุ-ครุภัณฑ์")]
+    D3[("D3 ข้อมูลการยืม")]
+    D4[("D4 ข้อมูลการติดตาม (คิว)")]
+    D5[("D5 ข้อมูลสถานะอุปกรณ์")]
+    D6[("D6 ข้อมูลการคืน")]
+    D7[("D7 ข้อมูลสต๊อก")]
+    D8[("D8 ข้อมูลประวัติการซ่อม")]
+    D10[("D10 ข้อมูลอุปกรณ์พร้อมใช้งาน")]
+    D11[("D11 ข้อมูลอุปกรณ์ชำรุด")]
+    D12[("D12 ข้อมูลอุปกรณ์สูญหาย")]
+
+    %% Process 1
+    User -->|"ข้อมูลสมัครสมาชิก"| P1
+    P1 -->|"ผลการสมัครสมาชิก"| User
+    Member -->|"ข้อมูลสมาชิก / รหัสผ่าน"| P1
+    P1 -->|"ยืนยันตัวตนเข้าใช้งาน"| Member
+    P1 <-->|"บันทึก / ตรวจสอบ"| D1
+
+    %% Process 2
+    Member <-->|"ข้อมูลที่ปรับปรุง"| P2
+    P2 <--> D2
+    P2 <--> D3
+    P2 <--> D7
+    P2 <--> D5
+
+    %% Process 3
+    Member -->|"ข้อมูลการยืม / คืน"| P3
+    P3 -->|"ผลการยืม / คืน"| Member
+    Member <-->|"ข้อมูลการติดตาม (คิว)"| P3
+    P3 <--> D3
+    P3 <--> D4
+    P3 <--> D6
+
+    %% Process 4
+    P3 -.-> P4
+    Member <--> P4
+    P4 <--> D7
+    P4 --> P5
+
+    %% Process 5
+    Member <--> P5
+    P5 <--> D10
+    P5 <--> D11
+    P5 <--> D12
+
+    %% Process 6
+    Admin <-->|"บันทึก / ดูประวัติการซ่อม"| P6
+    P5 -.->|"ส่งซ่อมพัสดุชำรุด"| P6
+    P6 <--> D8
+
+    %% Process 7
+    Admin -->|"เรียกดูรายงานสรุป"| P7
+    P7 -->|"ส่งออกรายงานสรุป"| Admin
+    D2 -.-> P7
+    D3 -.-> P7
+    D6 -.-> P7
+    D4 -.-> P7
+    D5 -.-> P7
+    D7 -.-> P7
+    D8 -.-> P7</div>
+            </div>
+
+            <!-- DFD Level 2 -->
+            <div class="card" style="border-left: 4px solid var(--success);">
+                <div class="card-title" style="color: var(--success);">3. DFD Level 2: แผนภาพขยายกระบวนการย่อยที่สำคัญ (Decomposition)</div>
+                <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+                    ขยายความ Process 3: <strong>"ยืม - คืนอุปกรณ์"</strong> ออกเป็น 4 กระบวนการย่อย ได้แก่ 3.1 บันทึกขอยืม, 3.2 อนุมัติและจ่ายพัสดุ, 3.3 ติดตามและจองคิว, 3.4 รับคืนและตรวจเช็คสภาพ
+                </div>
+                <div class="mermaid-code-box">flowchart TD
+    Member["สมาชิก (Student)"]
+    Admin["ผู้ดูแลระบบ (Admin)"]
+
+    P31[["3.1<br/>ยื่นคำขอยืมอุปกรณ์"]]
+    P32[["3.2<br/>ตรวจสอบและอนุมัติจ่าย"]]
+    P33[["3.3<br/>ติดตามสถานะและจองคิว"]]
+    P34[["3.4<br/>รับคืนและเช็คสภาพ"]]
+
+    D2[("D2 ข้อมูลวัสดุ-ครุภัณฑ์")]
+    D3[("D3 ข้อมูลการยืม")]
+    D4[("D4 ข้อมูลการติดตาม (คิว)")]
+    D5[("D5 ข้อมูลสถานะอุปกรณ์")]
+    D6[("D6 ข้อมูลการคืน")]
+    D7[("D7 ข้อมูลสต๊อก")]
+
+    %% 3.1
+    Member -->|"เลือกอุปกรณ์ / ขอยืม"| P31
+    P31 -->|"ส่งคำขอยืม (Pending)"| D3
+    D2 -.->|"เช็คจำนวนและเงื่อนไข"| P31
+
+    %% 3.2
+    Admin -->|"สแกน QR / Barcode จ่าย"| P32
+    P32 <-->|"อัปเดต Borrowed"| D3
+    P32 <-->|"ตัดสต๊อกพัสดุ"| D7
+    P32 <-->|"เปลี่ยนสถานะชิ้นพัสดุ"| D5
+    P32 -->|"รับพัสดุตัวจริง"| Member
+
+    %% 3.3
+    Member -->|"จองคิวเมื่อของหมด"| P33
+    P33 <-->|"บันทึกลำดับคิว"| D4
+    P33 -->|"แจ้งเตือนถึงคิว (5 นาที)"| Member
+
+    %% 3.4
+    Member -->|"นำพัสดุมาคืน"| P34
+    Admin -->|"สแกน Barcode รับคืน"| P34
+    P34 <-->|"บันทึกการคืน"| D6
+    P34 <-->|"คืนสต๊อก Available"| D7
+    P34 <-->|"อัปเดตสถานะชิ้นพัสดุ"| D5
+    P34 -.->|"เรียกคิวคนถัดไป"| P33</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== FOOTER ===== -->
+    <div class="footer">
+        📋 Use Case & Flow Diagram — Project Libraries | สร้างจากโค้ดจริง (mobileRoutes.js, adminRoutes.js, server.js, mailer.js)<br>
+        สร้างเมื่อ: 20 พฤศจิกายน 2569
+    </div>
+
+    <!-- ===== SCRIPT ===== -->
+    <script>
+        // Tab Navigation
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById(btn.dataset.tab).classList.add('active');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+        });
+
+        // Theme Toggle
+        function toggleTheme() {
+            const body = document.body;
+            const isLight = body.getAttribute('data-theme') === 'light';
+            body.setAttribute('data-theme', isLight ? 'dark' : 'light');
+            localStorage.setItem('theme', isLight ? 'dark' : 'light');
+        }
+
+        // Load saved theme
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme) {
+            document.body.setAttribute('data-theme', savedTheme);
+        }
+    </script>
+</body>
+</html>

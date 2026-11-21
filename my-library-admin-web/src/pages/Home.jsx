@@ -214,7 +214,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
     const [activeTab, setActiveTab] = useState('overview'); // overview, students, equipments
     const [showExportDropdown, setShowExportDropdown] = useState(false);
 
-    const REPORT_LABEL = { monthly: 'รายเดือน', yearly: 'รายปี', equipment_stats: 'สถิติอุปกรณ์ยอดนิยม' };
+    const REPORT_LABEL = { daily: 'รายวัน', monthly: 'รายเดือน', yearly: 'รายปี', equipment_stats: 'สถิติอุปกรณ์ยอดนิยม' };
     const THAI_MONTHS = ['', 'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 
     const getReportTitle = () => {
@@ -240,18 +240,27 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
             const data = await authFetch(`/api/admin/reports?type=${reportType}&startDate=${reportStartDate}&endDate=${reportEndDate}&sort=${equipSortOrder}`);
             if (data.success) {
                 const formattedData = (data.data || []).map(item => {
-                    if (item.report_month && item.report_year) {
-                        item.report_date = `${THAI_MONTHS[item.report_month]} ${item.report_year + 543}`;
-                    } else if (item.report_year) {
-                        item.report_date = `ปี ${item.report_year + 543}`;
-                    } else if (item.name) {
-                        item.report_date = formatEquipmentName(item.name);
+                    const row = { ...item };
+                    if (row.report_month && row.report_year) {
+                        row.report_date = `${THAI_MONTHS[row.report_month]} ${row.report_year + 543}`;
+                    } else if (row.report_year && !row.report_month) {
+                        row.report_date = `ปี ${row.report_year + 543}`;
+                    } else if (reportType === 'daily' && row.report_date) {
+                        const parts = String(row.report_date).split('-');
+                        if (parts.length === 3) {
+                            const y = parseInt(parts[0]) + 543;
+                            const m = parseInt(parts[1]);
+                            const d = parseInt(parts[2]);
+                            row.report_date = `${d} ${THAI_MONTHS[m]} ${y}`;
+                        }
+                    } else if (row.name) {
+                        row.name = formatEquipmentName(row.name);
                     }
                     // Convert string numbers to actual numbers for chart rendering
-                    item.total_borrows = parseInt(item.total_borrows) || 0;
-                    item.total_returned = parseInt(item.total_returned) || 0;
-                    item.total_overdue = parseInt(item.total_overdue) || 0;
-                    return item;
+                    row.total_borrows = parseInt(row.total_borrows) || 0;
+                    row.total_returned = parseInt(row.total_returned) || 0;
+                    row.total_overdue = parseInt(row.total_overdue) || 0;
+                    return row;
                 });
                 setReportData(formattedData);
                 fetchEquipmentBreakdown();
@@ -269,7 +278,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
     const fetchEquipmentBreakdown = async () => {
         setIsEquipBreakdownLoading(true);
         try {
-            const data = await authFetch(`/api/admin/reports/equipment-breakdown?startDate=${reportStartDate}&endDate=${reportEndDate}`);
+            const data = await authFetch(`/api/admin/reports/equipment-breakdown?startDate=${reportStartDate}&endDate=${reportEndDate}&sort=${equipSortOrder}`);
             if (data.success) {
                 setEquipmentBreakdownData(data.data);
             }
@@ -301,28 +310,14 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
         if (currentPage === "report") {
             generateReport();
         }
-    }, [currentPage, reportType, reportStartDate, reportEndDate]);
+    }, [currentPage, reportType, reportStartDate, reportEndDate, equipSortOrder]);
 
     /* --- Export Functions (Data-Driven) --- */
     const exportToExcel = async () => {
         const XLSX = await import('xlsx');
         const workbook = XLSX.utils.book_new();
-        // Sheet 1: Report summary
-        if (reportData && reportData.length > 0) {
-            const HEADER_MAP = {
-                report_date: 'วันที่', report_month: 'เดือน', report_year: 'ปี',
-                total_borrows: 'ยืมทั้งหมด', total_returned: 'คืนแล้ว', total_overdue: 'เลยกำหนด',
-                name: 'ชื่ออุปกรณ์'
-            };
-            const mappedData = reportData.map(row => {
-                const newRow = {};
-                Object.entries(row).forEach(([k, v]) => { newRow[HEADER_MAP[k] || k] = v; });
-                return newRow;
-            });
-            const ws1 = XLSX.utils.json_to_sheet(mappedData);
-            XLSX.utils.book_append_sheet(workbook, ws1, "รายงาน");
-        }
-        // Sheet 2: Equipment breakdown
+
+        // Sheet 1: Equipment breakdown (อุปกรณ์)
         if (equipmentBreakdownData && equipmentBreakdownData.length > 0) {
             const eqData = equipmentBreakdownData.map((eq, i) => ({
                 'ลำดับ': i + 1,
@@ -334,12 +329,14 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                 'เลยกำหนด': eq.total_overdue,
                 'กำลังยืม': eq.currently_borrowed,
             }));
-            const ws2 = XLSX.utils.json_to_sheet(eqData);
-            XLSX.utils.book_append_sheet(workbook, ws2, "อุปกรณ์");
+            const ws1 = XLSX.utils.json_to_sheet(eqData);
+            XLSX.utils.book_append_sheet(workbook, ws1, "อุปกรณ์");
         }
-        // 3. Add Student Breakdown sheet
+
+        // Sheet 2: Student Breakdown (ข้อมูลนักศึกษา)
         if (studentBreakdownData && studentBreakdownData.length > 0) {
-            const wsStudent = XLSX.utils.json_to_sheet(studentBreakdownData.map(s => ({
+            const ws2 = XLSX.utils.json_to_sheet(studentBreakdownData.map((s, i) => ({
+                'ลำดับ': i + 1,
                 'รหัสนักศึกษา': s.student_id,
                 'ชื่อ-นามสกุล': s.student_name,
                 'ยืมทั้งหมด': s.total_borrows,
@@ -347,7 +344,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                 'เลยกำหนด': s.total_overdue,
                 'กำลังยืม': s.currently_borrowed
             })));
-            XLSX.utils.book_append_sheet(workbook, wsStudent, "ข้อมูลนักศึกษา");
+            XLSX.utils.book_append_sheet(workbook, ws2, "ข้อมูลนักศึกษา");
         }
 
         if (workbook.SheetNames.length === 0) return showToast("ไม่มีข้อมูลให้ส่งออก", "warning");
@@ -1805,6 +1802,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                         <label className="block text-[13px] font-bold text-slate-500 mb-2">ประเภทรายงาน</label>
                                         <div className="relative">
                                             <select value={reportType} onChange={e => setReportType(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56] appearance-none cursor-pointer">
+                                                <option value="daily">รายวัน (สรุปเป็นวัน)</option>
                                                 <option value="monthly">รายเดือน (สรุปเป็นเดือน)</option>
                                                 <option value="yearly">รายปี (สรุปเป็นปี)</option>
                                                 <option value="equipment_stats">สถิติอุปกรณ์ยอดนิยม</option>
@@ -1999,19 +1997,45 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                                             <table className="w-full text-left border-collapse relative">
                                                                 <thead className="sticky top-0 bg-slate-50/90 backdrop-blur z-10">
                                                                     <tr className="text-[12.5px] uppercase text-slate-500 border-b border-slate-200">
-                                                                        {reportData[0] && Object.keys(reportData[0]).map(k => (
-                                                                            <th key={k} className="py-3 px-4 font-bold whitespace-nowrap">{k === 'report_date' ? 'วันที่' : k === 'report_month' ? 'เดือน' : k === 'report_year' ? 'ปี (ค.ศ.)' : k === 'total_borrows' ? 'ยืมทั้งหมด' : k === 'total_returned' ? 'คืนแล้ว' : k === 'total_overdue' ? 'เลยกำหนด' : k === 'name' ? 'ชื่ออุปกรณ์' : k}</th>
-                                                                        ))}
+                                                                        {reportType === 'equipment_stats' ? (
+                                                                            <>
+                                                                                <th className="py-3 px-4 font-bold whitespace-nowrap text-center w-16">ลำดับ</th>
+                                                                                <th className="py-3 px-4 font-bold whitespace-nowrap">ชื่ออุปกรณ์</th>
+                                                                                <th className="py-3 px-4 font-bold whitespace-nowrap text-center">ยืมทั้งหมด</th>
+                                                                                <th className="py-3 px-4 font-bold whitespace-nowrap text-center">คืนแล้ว</th>
+                                                                                <th className="py-3 px-4 font-bold whitespace-nowrap text-center">เลยกำหนด</th>
+                                                                            </>
+                                                                        ) : (
+                                                                            <>
+                                                                                <th className="py-3 px-4 font-bold whitespace-nowrap">
+                                                                                    {reportType === 'monthly' ? 'เดือน/ปี' : reportType === 'yearly' ? 'ปี (พ.ศ.)' : 'วันที่'}
+                                                                                </th>
+                                                                                <th className="py-3 px-4 font-bold whitespace-nowrap text-center">ยืมทั้งหมด</th>
+                                                                                <th className="py-3 px-4 font-bold whitespace-nowrap text-center">คืนแล้ว</th>
+                                                                                <th className="py-3 px-4 font-bold whitespace-nowrap text-center">เลยกำหนด</th>
+                                                                            </>
+                                                                        )}
                                                                     </tr>
                                                                 </thead>
                                                                 <tbody>
                                                                     {reportData.map((row, i) => (
                                                                         <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/50 transition">
-                                                                            {row && Object.values(row).map((val, idx) => (
-                                                                                <td key={idx} className={`py-3 px-4 text-[13px] ${idx > 0 ? 'font-semibold text-slate-700' : 'text-slate-500'}`}>
-                                                                                    {val}
-                                                                                </td>
-                                                                            ))}
+                                                                            {reportType === 'equipment_stats' ? (
+                                                                                <>
+                                                                                    <td className="py-3 px-4 text-[13px] text-slate-400 text-center font-bold">{i + 1}</td>
+                                                                                    <td className="py-3 px-4 text-[13px] font-semibold text-slate-700">{row.name}</td>
+                                                                                    <td className="py-3 px-4 text-[13px] font-bold text-blue-600 text-center">{row.total_borrows}</td>
+                                                                                    <td className="py-3 px-4 text-[13px] font-bold text-green-600 text-center">{row.total_returned}</td>
+                                                                                    <td className="py-3 px-4 text-[13px] font-bold text-red-500 text-center">{row.total_overdue}</td>
+                                                                                </>
+                                                                            ) : (
+                                                                                <>
+                                                                                    <td className="py-3 px-4 text-[13px] font-semibold text-slate-700">{row.report_date}</td>
+                                                                                    <td className="py-3 px-4 text-[13px] font-bold text-blue-600 text-center">{row.total_borrows}</td>
+                                                                                    <td className="py-3 px-4 text-[13px] font-bold text-green-600 text-center">{row.total_returned}</td>
+                                                                                    <td className="py-3 px-4 text-[13px] font-bold text-red-500 text-center">{row.total_overdue}</td>
+                                                                                </>
+                                                                            )}
                                                                         </tr>
                                                                     ))}
                                                                 </tbody>

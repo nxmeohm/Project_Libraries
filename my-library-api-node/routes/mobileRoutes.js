@@ -232,7 +232,7 @@ router.post('/checkout.php', validate(checkoutSchema), async (req, res) => {
 
         // Check stock & lock available items row using FOR UPDATE to prevent race condition
         const [availableItems] = await connection.query(
-            `SELECT id FROM equipment_items 
+            `SELECT item_id FROM equipment_items 
              WHERE equipment_id = ? AND status = 'available' 
              LIMIT 1 FOR UPDATE`,
             [equipment_id]
@@ -263,20 +263,23 @@ router.post('/checkout.php', validate(checkoutSchema), async (req, res) => {
 
         await connection.commit();
         connection.release();
-        return res.json({ success: true, message: "ยืมอุปกรณ์สำเร็จ", borrow_id: insertResult.insertId });
 
         req.app.get('io').emit('data_updated');
         
         // Notify user via Email and In-App
         const notifTitle = "ส่งคำขอยืมสำเร็จ";
         const notifMsg = `ระบบได้รับคำขอยืมอุปกรณ์แล้ว กรุณารอการอนุมัติจากเจ้าหน้าที่`;
-        const [studentProfile] = await pool.query("SELECT email FROM student_profiles WHERE student_id = ?", [student_id]);
-        if (studentProfile.length > 0 && studentProfile[0].email) {
-            await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [studentProfile[0].email, notifTitle, notifMsg]);
-            mailer.sendManualNotification(studentProfile[0].email, notifTitle, notifMsg);
+        try {
+            const [studentProfile] = await pool.query("SELECT email FROM student_profiles WHERE student_id = ?", [student_id]);
+            if (studentProfile.length > 0 && studentProfile[0].email) {
+                await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [studentProfile[0].email, notifTitle, notifMsg]);
+                mailer.sendManualNotification(studentProfile[0].email, notifTitle, notifMsg);
+            }
+        } catch (mailErr) {
+            console.error("Checkout Notification Error:", mailErr);
         }
 
-        res.json({ success: true, message: "ส่งคำขอยืมอุปกรณ์สำเร็จ กรุณารอการอนุมัติจากเจ้าหน้าที่" });
+        return res.json({ success: true, message: "ส่งคำขอยืมอุปกรณ์สำเร็จ กรุณารอการอนุมัติจากเจ้าหน้าที่", borrow_id: insertResult.insertId });
     } catch (error) {
         await connection.rollback();
         connection.release();

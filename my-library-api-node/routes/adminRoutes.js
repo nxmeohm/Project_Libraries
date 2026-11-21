@@ -1246,7 +1246,23 @@ router.get('/reports', async (req, res) => {
         let whereClause = "DATE(borrow_date) >= ? AND DATE(borrow_date) <= ?";
         let baseParams = [startDate, endDate];
 
-        if (type === 'monthly') {
+        if (type === 'daily') {
+            sql = `
+                SELECT 
+                    DATE_FORMAT(borrow_date, '%Y-%m-%d') as report_date,
+                    COUNT(id) as total_borrows,
+                    SUM(CASE WHEN status = 'returned' THEN 1 ELSE 0 END) as total_returned,
+                    SUM(CASE WHEN status = 'overdue' THEN 1 ELSE 0 END) as total_overdue
+                FROM borrowed
+                WHERE ${whereClause}
+                GROUP BY DATE(borrow_date)
+                ORDER BY report_date ASC
+            `;
+            params = [...baseParams];
+            const [resRows] = await pool.query(sql, params);
+            rows = resRows;
+        }
+        else if (type === 'monthly') {
             sql = `
                 SELECT 
                     MONTH(borrow_date) as report_month,
@@ -1284,12 +1300,14 @@ router.get('/reports', async (req, res) => {
             sql = `
                 SELECT 
                     e.name,
-                    COUNT(b.id) as total_borrows
-                FROM borrowed b
-                JOIN equipments e ON b.equipment_id = e.equipment_id
-                WHERE DATE(b.borrow_date) >= ? AND DATE(b.borrow_date) <= ?
-                GROUP BY b.equipment_id
-                ORDER BY total_borrows ${sort}
+                    COUNT(b.id) as total_borrows,
+                    SUM(CASE WHEN b.status = 'returned' THEN 1 ELSE 0 END) as total_returned,
+                    SUM(CASE WHEN b.status = 'overdue' THEN 1 ELSE 0 END) as total_overdue
+                FROM equipments e
+                LEFT JOIN borrowed b ON e.equipment_id = b.equipment_id 
+                    AND DATE(b.borrow_date) >= ? AND DATE(b.borrow_date) <= ?
+                GROUP BY e.equipment_id, e.name
+                ORDER BY total_borrows ${sort}, e.name ASC
                 LIMIT 20
             `;
             params = [...baseParams];
@@ -1309,8 +1327,8 @@ router.get('/reports', async (req, res) => {
 // ============================================================
 router.get('/reports/equipment-breakdown', async (req, res) => {
     try {
-        const { startDate, endDate } = req.query;
-        let whereClauses = ['DATE(b.borrow_date) >= ?', 'DATE(b.borrow_date) <= ?'];
+        const { startDate, endDate, sort } = req.query;
+        const sortOrder = sort === 'asc' ? 'ASC' : 'DESC';
         let params = [startDate, endDate];
 
         const sql = `
@@ -1322,11 +1340,11 @@ router.get('/reports/equipment-breakdown', async (req, res) => {
                 SUM(CASE WHEN b.status = 'returned' THEN 1 ELSE 0 END) as total_returned,
                 SUM(CASE WHEN b.status = 'overdue' THEN 1 ELSE 0 END) as total_overdue,
                 SUM(CASE WHEN b.status = 'borrowed' THEN 1 ELSE 0 END) as currently_borrowed
-            FROM borrowed b
-            JOIN equipments e ON b.equipment_id = e.equipment_id
-            WHERE ${whereClauses.join(' AND ')}
-            GROUP BY b.equipment_id, e.name, e.kit_code, e.category
-            ORDER BY total_borrows DESC
+            FROM equipments e
+            LEFT JOIN borrowed b ON e.equipment_id = b.equipment_id 
+                AND DATE(b.borrow_date) >= ? AND DATE(b.borrow_date) <= ?
+            GROUP BY e.equipment_id, e.name, e.kit_code, e.category
+            ORDER BY total_borrows ${sortOrder}, e.name ASC
         `;
         const [rows] = await pool.query(sql, params);
         res.json({ success: true, data: rows });

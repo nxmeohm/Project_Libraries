@@ -20,13 +20,19 @@ const mobileRoutes = require('./routes/mobileRoutes');
 // ============================================================
 const CORS_ORIGINS = process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
-    : ['http://localhost:5173', 'http://localhost:5174'];
+    : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'https://localhost:5175'];
+
+const isAllowedOrigin = (origin) => {
+    // Allow requests with no origin (mobile apps, curl, Postman, etc.)
+    if (!origin) return true;
+    if (CORS_ORIGINS.includes('*') || CORS_ORIGINS.includes(origin)) return true;
+    // Allow any localhost, 127.0.0.1, or local LAN IP (10.x.x.x, 192.168.x.x, 172.16-31.x.x) on any port (http/https)
+    return /^https?:\/\/(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})(:\d+)?$/.test(origin);
+};
 
 const corsOptions = {
     origin: function (origin, callback) {
-        // Allow requests with no origin (mobile apps, curl, etc.)
-        if (!origin) return callback(null, true);
-        if (CORS_ORIGINS.includes('*') || CORS_ORIGINS.includes(origin)) {
+        if (isAllowedOrigin(origin)) {
             callback(null, true);
         } else {
             callback(new Error(`Origin ${origin} is not allowed by CORS`));
@@ -43,8 +49,11 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: CORS_ORIGINS,
-        methods: ["GET", "POST"]
+        origin: function (origin, callback) {
+            callback(null, isAllowedOrigin(origin));
+        },
+        methods: ["GET", "POST"],
+        credentials: true
     }
 });
 

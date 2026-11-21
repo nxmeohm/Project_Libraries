@@ -1,0 +1,108 @@
+%% =====================================================================
+%% ERD: แผนภาพความสัมพันธ์ของข้อมูล (Entity Relationship Diagram)
+%% อ้างอิงตาม Data Stores (D1 - D12) ใน DFD Level 0 - 1
+%% นำโค้ดด้านล่างนี้ไปวางที่ https://mermaid.live
+%% =====================================================================
+
+erDiagram
+    %% D1: ข้อมูลสมาชิก และ ผู้ใช้งาน
+    MEMBERS {
+        int member_id PK "รหัสสมาชิก"
+        string username UK "ชื่อผู้ใช้งาน"
+        string password "รหัสผ่าน"
+        string full_name "ชื่อ-นามสกุล"
+        string email "อีเมล"
+        string phone "เบอร์โทรศัพท์"
+        string status "สถานะสมาชิก (active, pending)"
+        datetime registered_at "วันที่สมัครสมาชิก"
+    }
+
+    ADMINS {
+        int admin_id PK "รหัสผู้ดูแลระบบ"
+        string admin_code UK "รหัสเจ้าหน้าที่"
+        string password "รหัสผ่าน"
+        string name "ชื่อเจ้าหน้าที่"
+        string role "บทบาท/สิทธิ์"
+    }
+
+    %% D2: ข้อมูลวัสดุ-ครุภัณฑ์ & D7: ข้อมูลสต๊อก
+    EQUIPMENTS {
+        int equipment_id PK "รหัสวัสดุ-ครุภัณฑ์"
+        string kit_code "รหัสชุดครุภัณฑ์"
+        string name "ชื่อวัสดุ-ครุภัณฑ์"
+        string category "หมวดหมู่"
+        decimal price "ราคา"
+        int total_stock "จำนวนสต๊อกทั้งหมด (D7)"
+        int available_stock "จำนวนสต๊อกที่ว่าง (D7)"
+        int borrow_days "ระยะเวลายืมสูงสุด (วัน)"
+        string description "รายละเอียด"
+    }
+
+    %% D5: ข้อมูลสถานะอุปกรณ์ (D10: พร้อมใช้, D11: ชำรุด, D12: สูญหาย)
+    EQUIPMENT_ITEMS {
+        int item_id PK "รหัสชิ้นอุปกรณ์ตัวจริง"
+        int equipment_id FK "รหัสวัสดุ-ครุภัณฑ์"
+        string asset_barcode UK "รหัสบาร์โค้ดครุภัณฑ์"
+        string status "สถานะ (D10:พร้อมใช้, D11:ชำรุด, D12:สูญหาย)"
+        datetime updated_at "วันที่ปรับปรุงสถานะ"
+    }
+
+    %% D3: ข้อมูลการยืม
+    BORROW_TRANSACTIONS {
+        int borrow_id PK "รหัสการยืม"
+        int member_id FK "รหัสสมาชิกผู้ยืม"
+        int equipment_id FK "รหัสวัสดุ-ครุภัณฑ์"
+        datetime borrow_date "วันที่ยืม"
+        datetime due_date "กำหนดคืน"
+        string status "สถานะการยืม (pending, borrowed, completed)"
+        datetime created_at "เวลาที่ทำรายการ"
+    }
+
+    %% D6: ข้อมูลการคืน
+    RETURN_TRANSACTIONS {
+        int return_id PK "รหัสการคืน"
+        int borrow_id FK "รหัสการยืมที่อ้างอิง"
+        int member_id FK "รหัสสมาชิกผู้คืน"
+        datetime return_date "วันที่คืนจริง"
+        string condition "สภาพพัสดุ (ปกติ, ชำรุด, สูญหาย)"
+        decimal fine_amount "ค่าปรับ (ถ้ามี)"
+        int handled_by_admin FK "เจ้าหน้าที่ผู้รับคืน"
+    }
+
+    %% D4: ข้อมูลการติดตาม / จองคิว
+    TRACKING_QUEUES {
+        int queue_id PK "รหัสการติดตาม/คิว"
+        int member_id FK "รหัสสมาชิก"
+        int equipment_id FK "รหัสวัสดุ-ครุภัณฑ์"
+        int queue_position "ลำดับคิวติดตาม"
+        string status "สถานะ (waiting, called, expired, completed)"
+        datetime queued_at "เวลาที่เข้าคิว"
+        datetime expires_at "เวลาหมดอายุคิว (5 นาที)"
+    }
+
+    %% D8: ข้อมูลประวัติการซ่อม
+    MAINTENANCE_REPAIRS {
+        int repair_id PK "รหัสประวัติการซ่อม"
+        int item_id FK "รหัสชิ้นพัสดุที่ซ่อม"
+        string symptom "อาการชำรุด/สาเหตุ"
+        decimal repair_cost "ค่าใช้จ่ายในการซ่อม"
+        string repair_status "สถานะการซ่อม (in_repair, repaired, scrapped)"
+        datetime sent_date "วันที่ส่งซ่อม"
+        datetime completed_date "วันที่ซ่อมเสร็จ"
+        int recorded_by_admin FK "เจ้าหน้าที่ผู้บันทึก"
+    }
+
+    %% RELATIONSHIPS
+    MEMBERS ||--o{ BORROW_TRANSACTIONS : "ทำรายการยืม (D3)"
+    MEMBERS ||--o{ TRACKING_QUEUES : "ติดตาม/จองคิว (D4)"
+    MEMBERS ||--o{ RETURN_TRANSACTIONS : "ทำรายการคืน (D6)"
+    
+    EQUIPMENTS ||--|{ EQUIPMENT_ITEMS : "มีชิ้นพัสดุตัวจริง (D5)"
+    EQUIPMENTS ||--o{ BORROW_TRANSACTIONS : "ถูกยืม (D3)"
+    EQUIPMENTS ||--o{ TRACKING_QUEUES : "ถูกติดตาม/เข้าคิว (D4)"
+
+    BORROW_TRANSACTIONS ||--o| RETURN_TRANSACTIONS : "มีบันทึกการคืน (D6)"
+    EQUIPMENT_ITEMS ||--o{ MAINTENANCE_REPAIRS : "มีประวัติการซ่อม (D8)"
+    
+    ADMINS ||--o{ RETURN_TRANSACTIONS : "บันทึกการคืน"
+    ADMINS ||--o{ MAINTENANCE_REPAIRS : "บันทึกการซ่อม"

@@ -1,0 +1,105 @@
+%% =====================================================================
+%% ERD Diagram: ระบบยืม-คืนอุปกรณ์ห้องสมุด (Project Libraries)
+%% นำโค้ดด้านล่างนี้ไปวางที่ https://mermaid.live
+%% =====================================================================
+
+erDiagram
+    %% --------------------------------------------------
+    %% ENTITY DEFINITIONS
+    %% --------------------------------------------------
+    USERS {
+        int user_id PK "รหัสผู้ใช้"
+        string username UK "รหัสนักศึกษา / username"
+        string password "รหัสผ่าน"
+        string role "สิทธิ์การใช้งาน (student, admin)"
+        datetime created_at "วันที่สร้างบัญชี"
+    }
+
+    STUDENT_PROFILES {
+        string student_id PK "รหัสนักศึกษา (Bxxxxxxx)"
+        int user_id FK "รหัสอ้างอิง users"
+        string name_th "ชื่อ-นามสกุล (ภาษาไทย)"
+        string name_en "ชื่อ-นามสกุล (ภาษาอังกฤษ)"
+        string email "อีเมลนักศึกษา"
+        string phone_number "เบอร์โทรศัพท์"
+        string department "สำนักวิชา / สาขา"
+        string education_status "สถานะการศึกษา"
+        string student_img "รูปถ่ายนักศึกษา"
+        boolean notify_email "การแจ้งเตือนทางอีเมล"
+    }
+
+    EMPLOYEES {
+        string emp_id PK "รหัสพนักงาน (6 หลัก)"
+        string citizen_id "เลขบัตรประชาชน (13 หลัก)"
+        string name_th "ชื่อ-นามสกุล (ไทย)"
+        string name_en "ชื่อ-นามสกุล (อังกฤษ)"
+        string email "อีเมลเจ้าหน้าที่"
+        string phone "เบอร์โทรศัพท์"
+    }
+
+    EQUIPMENTS {
+        int equipment_id PK "รหัสอุปกรณ์ (รุ่น)"
+        string kit_code "รหัสครุภัณฑ์ชุด"
+        string name "ชื่ออุปกรณ์"
+        string category "หมวดหมู่อุปกรณ์"
+        string equipment_img "รูปภาพอุปกรณ์"
+        decimal price "ราคาอุปกรณ์ (บาท)"
+        int borrow_days "ระยะเวลายืมสูงสุด (วัน)"
+        int total_quantity "จำนวนทั้งหมด"
+        string status "สถานะอุปกรณ์"
+        string description "รายละเอียด"
+    }
+
+    EQUIPMENT_ITEMS {
+        int item_id PK "รหัสชิ้นอุปกรณ์ตัวจริง"
+        int equipment_id FK "รหัสรุ่นอุปกรณ์"
+        string sequence_code "ลำดับชิ้น (เช่น c.1, c.2)"
+        string full_asset_code UK "รหัสบาร์โค้ดครุภัณฑ์ตัวจริง"
+        string status "สถานะ (available, borrowed, damaged_lost)"
+    }
+
+    BORROWED {
+        int id PK "รหัสรายการยืม"
+        string student_id FK "รหัสนักศึกษาที่ยืม"
+        int equipment_id FK "รหัสอุปกรณ์ที่ยืม"
+        datetime borrow_date "วัน-เวลาที่ส่งคำขอยืม"
+        datetime return_date "วัน-เวลาที่คืนอุปกรณ์"
+        datetime reservation_expires_at "เวลาหมดอายุคำขอ Pending (15 นาที)"
+        datetime pickup_time "เวลาที่มารับอุปกรณ์จริง"
+        decimal fine_amount "ค่าปรับ (ถ้ามี)"
+        datetime lost_date "วันที่แจ้งสูญหาย"
+        string lost_note "หมายเหตุการสูญหาย"
+        string status "สถานะ (pending, borrowed, returned, rejected, overdue, damaged_lost)"
+    }
+
+    EQUIPMENT_QUEUE {
+        int id PK "รหัสรายการคิว"
+        int equipment_id FK "รหัสอุปกรณ์ที่จองคิว"
+        string student_id FK "รหัสนักศึกษาที่จองคิว"
+        int position "ลำดับคิว (1, 2, 3...)"
+        string status "สถานะคิว (waiting, called, completed, expired, cancelled)"
+        datetime queued_at "เวลาที่กดเข้าคิว"
+        datetime called_at "เวลาที่ถูกเรียกคิว"
+        datetime expires_at "เวลาหมดอายุคิว (5 นาทีหลังเรียก)"
+    }
+
+    NOTIFICATIONS {
+        int id PK "รหัสการแจ้งเตือน"
+        string target "เป้าหมาย (email หรือ 'all')"
+        string title "หัวข้อการแจ้งเตือน"
+        text message "ข้อความรายละเอียด"
+        string type "ประเภท (alert, announcement)"
+        string image_url "รูปภาพแนบประกาศ"
+        datetime created_at "เวลาที่สร้างการแจ้งเตือน"
+    }
+
+    %% --------------------------------------------------
+    %% RELATIONSHIPS
+    %% --------------------------------------------------
+    USERS ||--o| STUDENT_PROFILES : "has profile"
+    STUDENT_PROFILES ||--o{ BORROWED : "places"
+    EQUIPMENTS ||--|{ EQUIPMENT_ITEMS : "contains"
+    EQUIPMENTS ||--o{ BORROWED : "is borrowed in"
+    STUDENT_PROFILES ||--o{ EQUIPMENT_QUEUE : "joins"
+    EQUIPMENTS ||--o{ EQUIPMENT_QUEUE : "has queues"
+    STUDENT_PROFILES ||--o{ NOTIFICATIONS : "receives"
