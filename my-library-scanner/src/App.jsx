@@ -32,10 +32,41 @@ const playBeep = (type = 'success') => {
 };
 
 /* =============================================
+   Token Storage Helpers (Prevent Browser Storage Poisoning - CWE-502 / S5148)
+   ============================================= */
+const JWT_PATTERN = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
+
+function persistScannerToken(rawToken) {
+  if (typeof rawToken !== 'string') return false;
+  const trimmed = rawToken.trim();
+  const match = trimmed.match(JWT_PATTERN);
+  if (!match) return false;
+  sessionStorage.setItem('scanner_token', encodeURIComponent(match[0]));
+  return true;
+}
+
+function getStoredScannerToken() {
+  const stored = sessionStorage.getItem('scanner_token');
+  if (!stored) return '';
+  const match = stored.match(/^[A-Za-z0-9_%-]+\.[A-Za-z0-9_%-]+\.[A-Za-z0-9_%-]+$/);
+  if (!match) return '';
+  try {
+    return decodeURIComponent(match[0]);
+  } catch {
+    return '';
+  }
+}
+
+function clearScannerToken() {
+  sessionStorage.removeItem('scanner_token');
+  localStorage.removeItem('scanner_token');
+}
+
+/* =============================================
    Main App
    ============================================= */
 export default function App() {
-  const [token, setToken] = useState(() => sessionStorage.getItem('scanner_token') || localStorage.getItem('scanner_token') || '');
+  const [token, setToken] = useState(() => getStoredScannerToken());
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -88,8 +119,7 @@ export default function App() {
         }
       });
       if (res.status === 401) {
-        sessionStorage.removeItem('scanner_token');
-        localStorage.removeItem('scanner_token');
+        clearScannerToken();
         setToken('');
         showToast('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่', 'error');
         return { success: false, message: 'เซสชันหมดอายุ' };
@@ -120,10 +150,14 @@ export default function App() {
       });
       const data = await res.json();
       if (data.success && typeof data.token === 'string') {
-        const safeToken = data.token.trim();
-        sessionStorage.setItem('scanner_token', safeToken);
-        setToken(safeToken);
-        showToast('เข้าสู่ระบบสำเร็จ', 'success');
+        const isPersisted = persistScannerToken(data.token);
+        if (isPersisted) {
+          const verifiedToken = getStoredScannerToken();
+          setToken(verifiedToken);
+          showToast('เข้าสู่ระบบสำเร็จ', 'success');
+        } else {
+          setLoginError('โทเคนไม่ถูกต้องหรือไม่ปลอดภัย');
+        }
       } else {
         setLoginError(data.message || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
       }
@@ -136,8 +170,7 @@ export default function App() {
   /* ---- Logout ---- */
   const handleLogout = () => {
     stopScanner();
-    sessionStorage.removeItem('scanner_token');
-    localStorage.removeItem('scanner_token');
+    clearScannerToken();
     setToken('');
   };
 
