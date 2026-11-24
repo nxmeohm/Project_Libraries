@@ -141,7 +141,15 @@ async function authFetch(url, options = {}) {
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
     }
-    const res = await fetch(`${API_BASE}${url}`, { ...options, headers });
+    const cleanPath = String(url).startsWith('/') ? String(url) : `/${url}`;
+    if (/^(\/\/|[a-z]+:)/i.test(cleanPath)) {
+        throw new Error('Untrusted URL schema or authority');
+    }
+    const targetUrl = new URL(cleanPath, API_BASE);
+    if (targetUrl.origin !== new URL(API_BASE).origin) {
+        throw new Error('Untrusted URL origin');
+    }
+    const res = await fetch(targetUrl.href, { ...options, headers });
     if (res.status === 401) {
         sessionStorage.removeItem('admin_token');
         sessionStorage.removeItem('admin_data');
@@ -237,7 +245,13 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
     const generateReport = async () => {
         setIsReportLoading(true);
         try {
-            const data = await authFetch(`/api/admin/reports?type=${reportType}&startDate=${reportStartDate}&endDate=${reportEndDate}&sort=${equipSortOrder}`);
+            const params = new URLSearchParams({
+                type: reportType,
+                startDate: reportStartDate,
+                endDate: reportEndDate,
+                sort: equipSortOrder
+            });
+            const data = await authFetch(`/api/admin/reports?${params.toString()}`);
             if (data.success) {
                 const formattedData = (data.data || []).map(item => {
                     const row = { ...item };
@@ -278,7 +292,12 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
     const fetchEquipmentBreakdown = async () => {
         setIsEquipBreakdownLoading(true);
         try {
-            const data = await authFetch(`/api/admin/reports/equipment-breakdown?startDate=${reportStartDate}&endDate=${reportEndDate}&sort=${equipSortOrder}`);
+            const params = new URLSearchParams({
+                startDate: reportStartDate,
+                endDate: reportEndDate,
+                sort: equipSortOrder
+            });
+            const data = await authFetch(`/api/admin/reports/equipment-breakdown?${params.toString()}`);
             if (data.success) {
                 setEquipmentBreakdownData(data.data);
             }
@@ -293,7 +312,11 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
     const fetchStudentBreakdown = async () => {
         setIsStudentBreakdownLoading(true);
         try {
-            const data = await authFetch(`/api/admin/reports/student-breakdown?startDate=${reportStartDate}&endDate=${reportEndDate}`);
+            const params = new URLSearchParams({
+                startDate: reportStartDate,
+                endDate: reportEndDate
+            });
+            const data = await authFetch(`/api/admin/reports/student-breakdown?${params.toString()}`);
             if (data.success) {
                 setStudentBreakdownData(data.data);
             }
@@ -428,13 +451,17 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
             });
     };
 
-    const handleAction = async (id, action) => {
+    const handleAction = async (id, action, extraValue = null) => {
         if (!confirm(`ยืนยันการดำเนินการ?`)) return;
 
         try {
+            const payload = { id, action };
+            if (extraValue !== null && extraValue !== undefined) {
+                payload.extraValue = extraValue;
+            }
             const data = await authFetch('/api/admin/update-request', {
                 method: "POST",
-                body: JSON.stringify({ id, action })
+                body: JSON.stringify(payload)
             });
             if (data.success) {
                 showToast('อัปเดตสถานะเรียบร้อยแล้ว', 'success');

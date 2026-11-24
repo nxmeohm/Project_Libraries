@@ -199,7 +199,15 @@ async function authFetch(url, options = {}) {
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
     }
-    const res = await fetch(`${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`, { ...options, headers });
+    const cleanPath = String(url).startsWith('/') ? String(url) : `/${url}`;
+    if (/^(\/\/|[a-z]+:)/i.test(cleanPath)) {
+        throw new Error('Untrusted URL schema or authority');
+    }
+    const targetUrl = new URL(cleanPath, API_BASE);
+    if (targetUrl.origin !== new URL(API_BASE).origin) {
+        throw new Error('Untrusted URL origin');
+    }
+    const res = await fetch(targetUrl.href, { ...options, headers });
     if (res.status === 401) {
         sessionStorage.removeItem('user_token');
         sessionStorage.removeItem('user_student_id');
@@ -416,7 +424,7 @@ export default function UserApp({ studentId, onLogout }) {
     // Fetch student on mount
     useEffect(() => {
         if (studentId) {
-            authFetch(`/get_student.php?id=${studentId}`)
+            authFetch(`/get_student.php?id=${encodeURIComponent(studentId)}`)
                 .then(data => {
                     setStudent(data);
                     if (data) {
@@ -487,7 +495,7 @@ export default function UserApp({ studentId, onLogout }) {
 
     const fetchBorrowed = () => {
         if (!studentId) return;
-        authFetch(`/get_borrowed.php?student_id=${studentId}`)
+        authFetch(`/get_borrowed.php?student_id=${encodeURIComponent(studentId)}`)
             .then(result => { if (result.success) setBorrowedItems(result.data); })
             .catch(console.error);
     };
@@ -496,7 +504,7 @@ export default function UserApp({ studentId, onLogout }) {
         if (!studentId) return;
         setIsQueueLoading(true);
         try {
-            const result = await authFetch(`/my_queue.php?student_id=${studentId}`);
+            const result = await authFetch(`/my_queue.php?student_id=${encodeURIComponent(studentId)}`);
             if (result.success) setMyQueueItems(result.data);
         } catch (e) { console.error(e); }
         setIsQueueLoading(false);
@@ -575,7 +583,7 @@ export default function UserApp({ studentId, onLogout }) {
 
             // 3. Fetch from API (alerts or announcements)
             try {
-                const sysRes = await authFetch(`/get_notifications.php?student_id=${studentId}&type=${type}`);
+                const sysRes = await authFetch(`/get_notifications.php?student_id=${encodeURIComponent(studentId)}&type=${encodeURIComponent(type)}`);
                 if (sysRes.success && Array.isArray(sysRes.data)) {
                     sysRes.data.forEach(item => {
                         notifs.push({
@@ -754,7 +762,7 @@ export default function UserApp({ studentId, onLogout }) {
 
     const fetchNotifications = async () => {
         try {
-            const data = await authFetch(`/get_notifications.php?student_id=${studentId}&type=announcement`);
+            const data = await authFetch(`/get_notifications.php?student_id=${encodeURIComponent(studentId)}&type=announcement`);
             if (data.success) setNotifications(data.data);
         } catch (e) { console.error(e); }
     };
@@ -922,7 +930,7 @@ export default function UserApp({ studentId, onLogout }) {
         setIsDetailOpen(true);
         setIsDetailLoading(true);
         try {
-            const res = await fetch(`${API_BASE}/get_detail.php?id=${equipmentId}`);
+            const res = await fetch(`${API_BASE}/get_detail.php?id=${encodeURIComponent(equipmentId)}`);
             const data = await res.json();
             setDetailItem(data);
         } catch (e) { console.error(e); }

@@ -74,7 +74,12 @@ export default function App() {
   /* ---- Auth Fetch Helper ---- */
   const authFetch = useCallback(async (url, options = {}) => {
     try {
-      const res = await fetch(`${API_BASE}${url}`, {
+      const cleanPath = String(url).startsWith('/') ? String(url) : `/${url}`;
+      if (/^(\/\/|[a-z]+:)/i.test(cleanPath)) {
+        throw new Error('Untrusted URL schema or authority');
+      }
+      const targetUrl = new URL(cleanPath, window.location.origin);
+      const res = await fetch(targetUrl.href, {
         ...options,
         headers: {
           'Content-Type': 'application/json',
@@ -113,10 +118,11 @@ export default function App() {
         body: JSON.stringify({ adminCode: username, password })
       });
       const data = await res.json();
-      if (data.success && data.token) {
-        // Admin login successful
-        localStorage.setItem('scanner_token', data.token);
-        setToken(data.token);
+      if (data.success && typeof data.token === 'string' && /^[A-Za-z0-9-_=.]+$/.test(data.token.trim())) {
+        // Admin login successful - validated and sanitized token
+        const safeToken = data.token.trim();
+        localStorage.setItem('scanner_token', safeToken);
+        setToken(safeToken);
         showToast('เข้าสู่ระบบสำเร็จ', 'success');
       } else {
         setLoginError(data.message || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
@@ -151,7 +157,7 @@ export default function App() {
         // Mode 1: Set Active Queue and fetch details
         const qIdClean = inputToUse.toUpperCase().replace('QUEUE-', '');
         
-        const res = await authFetch(`/api/admin/queue_details.php?queue_id=${qIdClean}`);
+        const res = await authFetch(`/api/admin/queue_details.php?queue_id=${encodeURIComponent(qIdClean)}`);
         if (res.success) {
             setActiveQueue(qIdClean);
             setActiveQueueDetails(res.data);
@@ -191,7 +197,7 @@ export default function App() {
         
         // Update checklist locally
         if (currentActiveQueue) {
-            const res = await authFetch(`/api/admin/queue_details.php?queue_id=${currentActiveQueue}`);
+            const res = await authFetch(`/api/admin/queue_details.php?queue_id=${encodeURIComponent(currentActiveQueue)}`);
             if (res.success) {
                 setActiveQueueDetails(res.data);
             }
