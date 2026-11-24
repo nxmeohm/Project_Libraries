@@ -1,29 +1,11 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import { securityHeaders, securityPlugin } from '../shared/security.js'
+import { securityPlugin, commonServerOptions } from '../shared/security.js'
 
 export default defineConfig({
-  plugins: [
-    securityPlugin(),
-    react(),
-    tailwindcss(),
-  ],
-  server: {
-    host: true,
-    port: 5173,
-    headers: securityHeaders,
-    fs: {
-      strict: true,
-      deny: ['.env', '.env.*', '*.{crt,pem}', '**/.git/**', '../*']
-    }
-  },
-  preview: {
-    host: true,
-    port: 5173,
-    headers: securityHeaders
-  },
-  build: {
-    sourcemap: false
-  }
+  plugins: [securityPlugin(), react(), tailwindcss()],
+  server: { ...commonServerOptions, port: 5173 },
+  preview: { port: 5173, headers: commonServerOptions.headers },
+  build: { sourcemap: false }
 })

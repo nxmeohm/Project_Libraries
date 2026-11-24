@@ -35,7 +35,7 @@ const playBeep = (type = 'success') => {
    Main App
    ============================================= */
 export default function App() {
-  const [token, setToken] = useState(localStorage.getItem('scanner_token') || '');
+  const [token, setToken] = useState(() => sessionStorage.getItem('scanner_token') || localStorage.getItem('scanner_token') || '');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -88,6 +88,7 @@ export default function App() {
         }
       });
       if (res.status === 401) {
+        sessionStorage.removeItem('scanner_token');
         localStorage.removeItem('scanner_token');
         setToken('');
         showToast('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่', 'error');
@@ -118,10 +119,9 @@ export default function App() {
         body: JSON.stringify({ adminCode: username, password })
       });
       const data = await res.json();
-      if (data.success && typeof data.token === 'string' && /^[A-Za-z0-9-_=.]+$/.test(data.token.trim())) {
-        // Admin login successful - validated and sanitized token
+      if (data.success && typeof data.token === 'string') {
         const safeToken = data.token.trim();
-        localStorage.setItem('scanner_token', safeToken);
+        sessionStorage.setItem('scanner_token', safeToken);
         setToken(safeToken);
         showToast('เข้าสู่ระบบสำเร็จ', 'success');
       } else {
@@ -136,6 +136,7 @@ export default function App() {
   /* ---- Logout ---- */
   const handleLogout = () => {
     stopScanner();
+    sessionStorage.removeItem('scanner_token');
     localStorage.removeItem('scanner_token');
     setToken('');
   };

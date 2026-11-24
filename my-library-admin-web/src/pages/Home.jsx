@@ -42,7 +42,7 @@ class ReportErrorBoundary extends React.Component {
    ============================================================ */
 const formatEquipmentName = (name) => {
     if (!name) return '';
-    return name.replace(/\s*\[.*?\]\s*:\s*/g, ' ').replace(/\s*\[.*?\]/g, '').trim();
+    return name.replace(/\[[^\]]*\]\s*:?/g, ' ').replace(/\s+/g, ' ').trim();
 };
 
 /* ============================================================
@@ -236,9 +236,9 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
 
     const getReportSummary = () => {
         if (!reportData || reportData.length === 0) return null;
-        const totalBorrows = reportData.reduce((sum, r) => sum + (parseInt(r.total_borrows) || 0), 0);
-        const totalReturned = reportData.reduce((sum, r) => sum + (parseInt(r.total_returned) || 0), 0);
-        const totalOverdue = reportData.reduce((sum, r) => sum + (parseInt(r.total_overdue) || 0), 0);
+        const totalBorrows = reportData.reduce((sum, r) => sum + (Number.Number.parseInt(r.total_borrows) || 0), 0);
+        const totalReturned = reportData.reduce((sum, r) => sum + (Number.Number.parseInt(r.total_returned) || 0), 0);
+        const totalOverdue = reportData.reduce((sum, r) => sum + (Number.Number.parseInt(r.total_overdue) || 0), 0);
         return { totalBorrows, totalReturned, totalOverdue };
     };
 
@@ -262,23 +262,23 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                     } else if (reportType === 'daily' && row.report_date) {
                         const parts = String(row.report_date).split('-');
                         if (parts.length === 3) {
-                            const y = parseInt(parts[0]) + 543;
-                            const m = parseInt(parts[1]);
-                            const d = parseInt(parts[2]);
+                            const y = Number.Number.parseInt(parts[0]) + 543;
+                            const m = Number.Number.parseInt(parts[1]);
+                            const d = Number.Number.parseInt(parts[2]);
                             row.report_date = `${d} ${THAI_MONTHS[m]} ${y}`;
                         }
                     } else if (row.name) {
                         row.name = formatEquipmentName(row.name);
                     }
                     // Convert string numbers to actual numbers for chart rendering
-                    row.total_borrows = parseInt(row.total_borrows) || 0;
-                    row.total_returned = parseInt(row.total_returned) || 0;
-                    row.total_overdue = parseInt(row.total_overdue) || 0;
+                    row.total_borrows = Number.Number.parseInt(row.total_borrows) || 0;
+                    row.total_returned = Number.Number.parseInt(row.total_returned) || 0;
+                    row.total_overdue = Number.Number.parseInt(row.total_overdue) || 0;
                     return row;
                 });
                 setReportData(formattedData);
-                fetchEquipmentBreakdown();
-                fetchStudentBreakdown();
+                await fetchEquipmentBreakdown();
+                await fetchStudentBreakdown();
             } else {
                 showToast("ดึงข้อมูลไม่สำเร็จ: " + data.message, "error");
             }
@@ -331,7 +331,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
     // Auto-fetch report data when opening the report page
     useEffect(() => {
         if (currentPage === "report") {
-            generateReport();
+            void generateReport();
         }
     }, [currentPage, reportType, reportStartDate, reportEndDate, equipSortOrder]);
 
@@ -1313,7 +1313,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                     </div>
                                     <div className="p-6 space-y-5">
                                         <div>
-                                            <label className="block text-[13.5px] font-bold text-purple-900 mb-2">รูปภาพอุปกรณ์ (ถ้ามี)</label>
+                                            <span className="block text-[13.5px] font-bold text-purple-900 mb-2">รูปภาพอุปกรณ์ (ถ้ามี)</span>
                                             <input type="file" accept="image/*" className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
                                                 onChange={e => setImageFile(e.target.files[0])} />
                                             {imageFile && (
@@ -1325,13 +1325,13 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                             )}
                                         </div>
                                         <div>
-                                            <label className="block text-[13.5px] font-bold text-purple-900 mb-2">ชื่ออุปกรณ์</label>
+                                            <span className="block text-[13.5px] font-bold text-purple-900 mb-2">ชื่ออุปกรณ์</span>
                                             <input type="text" placeholder="เช่น iPad Air (Gen 5)" className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
                                                 value={newEquip.name} onChange={e => setNewEquip({ ...newEquip, name: e.target.value })} />
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <label className="block text-[13.5px] font-bold text-purple-900 mb-2">รหัสครุภัณฑ์</label>
+                                                <span className="block text-[13.5px] font-bold text-purple-900 mb-2">รหัสครุภัณฑ์</span>
                                                 <div className="flex w-full bg-slate-50 border border-purple-100 rounded-xl overflow-hidden focus-within:border-purple-400">
                                                     <span className="bg-slate-200/50 text-slate-500 font-bold px-4 py-3 border-r border-purple-100 flex items-center justify-center">Kit</span>
                                                     <input type="text" placeholder="XXXX" className="w-full bg-transparent px-4 py-3 text-[14px] outline-none"
@@ -1339,7 +1339,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                                 </div>
                                             </div>
                                             <div>
-                                                <label className="block text-[13.5px] font-bold text-purple-900 mb-2">สถานะ</label>
+                                                <span className="block text-[13.5px] font-bold text-purple-900 mb-2">สถานะ</span>
                                                 <select className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
                                                     value={newEquip.status} onChange={e => setNewEquip({ ...newEquip, status: e.target.value })}>
                                                     <option>ใช้งานได้</option>
@@ -1351,28 +1351,28 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                         </div>
                                         <div className="grid grid-cols-3 gap-4">
                                             <div>
-                                                <label className="block text-[13.5px] font-bold text-purple-900 mb-2">จำนวนทั้งหมด</label>
+                                                <span className="block text-[13.5px] font-bold text-purple-900 mb-2">จำนวนทั้งหมด</span>
                                                 <input type="number" className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
-                                                    value={newEquip.total_quantity} onChange={e => setNewEquip({ ...newEquip, total_quantity: parseInt(e.target.value) })} />
+                                                    value={newEquip.total_quantity} onChange={e => setNewEquip({ ...newEquip, total_quantity: Number.parseInt(e.target.value) })} />
                                             </div>
                                             <div>
-                                                <label className="block text-[13.5px] font-bold text-purple-900 mb-2">คงเหลือ</label>
+                                                <span className="block text-[13.5px] font-bold text-purple-900 mb-2">คงเหลือ</span>
                                                 <input type="number" className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
-                                                    value={newEquip.available_quantity} onChange={e => setNewEquip({ ...newEquip, available_quantity: parseInt(e.target.value) })} />
+                                                    value={newEquip.available_quantity} onChange={e => setNewEquip({ ...newEquip, available_quantity: Number.parseInt(e.target.value) })} />
                                             </div>
                                             <div>
-                                                <label className="block text-[13.5px] font-bold text-purple-900 mb-2">ยืมได้ (วัน)</label>
+                                                <span className="block text-[13.5px] font-bold text-purple-900 mb-2">ยืมได้ (วัน)</span>
                                                 <input type="number" className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
-                                                    value={newEquip.borrow_days} onChange={e => setNewEquip({ ...newEquip, borrow_days: parseInt(e.target.value) })} />
+                                                    value={newEquip.borrow_days} onChange={e => setNewEquip({ ...newEquip, borrow_days: Number.parseInt(e.target.value) })} />
                                             </div>
                                         </div>
                                         <div>
-                                            <label className="block text-[13.5px] font-bold text-purple-900 mb-2">ราคาสินค้า (บาท)</label>
+                                            <span className="block text-[13.5px] font-bold text-purple-900 mb-2">ราคาสินค้า (บาท)</span>
                                             <input type="number" className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
-                                                value={newEquip.price} onChange={e => setNewEquip({ ...newEquip, price: parseFloat(e.target.value) })} />
+                                                value={newEquip.price} onChange={e => setNewEquip({ ...newEquip, price: Number.parseFloat(e.target.value) })} />
                                         </div>
                                         <div>
-                                            <label className="block text-[13.5px] font-bold text-purple-900 mb-2">รายละเอียด</label>
+                                            <span className="block text-[13.5px] font-bold text-purple-900 mb-2">รายละเอียด</span>
                                             <textarea placeholder="คำอธิบายสั้นๆ เกี่ยวกับอุปกรณ์" rows="3" className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
                                                 value={newEquip.description} onChange={e => setNewEquip({ ...newEquip, description: e.target.value })}></textarea>
                                         </div>
@@ -1477,18 +1477,18 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                             </div>
                                         )}
                                         <div>
-                                            <label className="block text-[13.5px] font-bold text-purple-900 mb-2">เปลี่ยนรูปภาพใหม่ (ถ้าต้องการ)</label>
+                                            <span className="block text-[13.5px] font-bold text-purple-900 mb-2">เปลี่ยนรูปภาพใหม่ (ถ้าต้องการ)</span>
                                             <input type="file" accept="image/*" className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
                                                 onChange={e => setEditImageFile(e.target.files[0])} />
                                         </div>
                                         <div>
-                                            <label className="block text-[13.5px] font-bold text-purple-900 mb-2">ชื่ออุปกรณ์</label>
+                                            <span className="block text-[13.5px] font-bold text-purple-900 mb-2">ชื่ออุปกรณ์</span>
                                             <input type="text" className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
                                                 value={editEquip.name} onChange={e => setEditEquip({ ...editEquip, name: e.target.value })} />
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <label className="block text-[13.5px] font-bold text-purple-900 mb-2">รหัสอุปกรณ์ (Kit Code)</label>
+                                                <span className="block text-[13.5px] font-bold text-purple-900 mb-2">รหัสอุปกรณ์ (Kit Code)</span>
                                                 <div className="flex w-full bg-slate-50 border border-purple-100 rounded-xl overflow-hidden focus-within:border-purple-400">
                                                     <span className="bg-slate-200/50 text-slate-500 font-bold px-4 py-3 border-r border-purple-100 flex items-center justify-center">Kit</span>
                                                     <input type="text" className="w-full bg-transparent px-4 py-3 text-[14px] outline-none"
@@ -1496,7 +1496,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                                 </div>
                                             </div>
                                             <div>
-                                                <label className="block text-[13.5px] font-bold text-purple-900 mb-2">สถานะ</label>
+                                                <span className="block text-[13.5px] font-bold text-purple-900 mb-2">สถานะ</span>
                                                 <select className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
                                                     value={editEquip.status} onChange={e => setEditEquip({ ...editEquip, status: e.target.value })}>
                                                     <option>ใช้งานได้</option>
@@ -1508,28 +1508,28 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                         </div>
                                         <div className="grid grid-cols-3 gap-4">
                                             <div>
-                                                <label className="block text-[13.5px] font-bold text-purple-900 mb-2">จำนวนทั้งหมด</label>
+                                                <span className="block text-[13.5px] font-bold text-purple-900 mb-2">จำนวนทั้งหมด</span>
                                                 <input type="number" className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
-                                                    value={editEquip.total_quantity} onChange={e => setEditEquip({ ...editEquip, total_quantity: parseInt(e.target.value) })} />
+                                                    value={editEquip.total_quantity} onChange={e => setEditEquip({ ...editEquip, total_quantity: Number.parseInt(e.target.value) })} />
                                             </div>
                                             <div>
-                                                <label className="block text-[13.5px] font-bold text-purple-900 mb-2">คงเหลือ</label>
+                                                <span className="block text-[13.5px] font-bold text-purple-900 mb-2">คงเหลือ</span>
                                                 <input type="number" className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
-                                                    value={editEquip.available_quantity} onChange={e => setEditEquip({ ...editEquip, available_quantity: parseInt(e.target.value) })} />
+                                                    value={editEquip.available_quantity} onChange={e => setEditEquip({ ...editEquip, available_quantity: Number.parseInt(e.target.value) })} />
                                             </div>
                                             <div>
-                                                <label className="block text-[13.5px] font-bold text-purple-900 mb-2">ยืมได้ (วัน)</label>
+                                                <span className="block text-[13.5px] font-bold text-purple-900 mb-2">ยืมได้ (วัน)</span>
                                                 <input type="number" className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
-                                                    value={editEquip.borrow_days} onChange={e => setEditEquip({ ...editEquip, borrow_days: parseInt(e.target.value) })} />
+                                                    value={editEquip.borrow_days} onChange={e => setEditEquip({ ...editEquip, borrow_days: Number.parseInt(e.target.value) })} />
                                             </div>
                                         </div>
                                         <div>
-                                            <label className="block text-[13.5px] font-bold text-purple-900 mb-2">ราคาสินค้า (บาท)</label>
+                                            <span className="block text-[13.5px] font-bold text-purple-900 mb-2">ราคาสินค้า (บาท)</span>
                                             <input type="number" className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
-                                                value={editEquip.price} onChange={e => setEditEquip({ ...editEquip, price: parseFloat(e.target.value) })} />
+                                                value={editEquip.price} onChange={e => setEditEquip({ ...editEquip, price: Number.parseFloat(e.target.value) })} />
                                         </div>
                                         <div>
-                                            <label className="block text-[13.5px] font-bold text-purple-900 mb-2">รายละเอียด</label>
+                                            <span className="block text-[13.5px] font-bold text-purple-900 mb-2">รายละเอียด</span>
                                             <textarea rows="3" className="w-full bg-slate-50 border border-purple-100 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-purple-400"
                                                 value={editEquip.description} onChange={e => setEditEquip({ ...editEquip, description: e.target.value })}></textarea>
                                         </div>
@@ -1603,7 +1603,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                                         className="hover:bg-purple-50 transition border-b border-purple-50 last:border-0 cursor-pointer"
                                                         onClick={() => {
                                                             setSelectedUser(user);
-                                                            fetchUserHistoryForModal(user.student_id);
+                                                            void fetchUserHistoryForModal(user.student_id);
                                                             setIsUserModalOpen(true);
                                                         }}
                                                     >
@@ -1761,7 +1761,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                 <div className="space-y-4">
 
                                     <div>
-                                        <label className="block text-[13px] font-bold text-slate-600 mb-1.5">หัวข้อ</label>
+                                        <span className="block text-[13px] font-bold text-slate-600 mb-1.5">หัวข้อ</span>
                                         <input
                                             type="text"
                                             placeholder="เช่น ประกาศปิดห้องสมุด"
@@ -1771,7 +1771,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-[13px] font-bold text-slate-600 mb-1.5">ข้อความ</label>
+                                        <span className="block text-[13px] font-bold text-slate-600 mb-1.5">ข้อความ</span>
                                         <textarea
                                             placeholder="พิมพ์ข้อความที่ต้องการประกาศ..."
                                             rows="5"
@@ -1781,7 +1781,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                         ></textarea>
                                     </div>
                                     <div>
-                                        <label className="block text-[13px] font-bold text-slate-600 mb-1.5">รูปภาพประกอบ (ไม่บังคับ)</label>
+                                        <span className="block text-[13px] font-bold text-slate-600 mb-1.5">รูปภาพประกอบ (ไม่บังคับ)</span>
                                         <input
                                             type="file"
                                             accept="image/*"
@@ -1847,7 +1847,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                             <div className="bg-white rounded-[20px] p-6 shadow-sm border border-slate-100 mb-6">
                                 <div className="flex flex-wrap items-end gap-4">
                                     <div className="flex-1 min-w-[180px]">
-                                        <label className="block text-[13px] font-bold text-slate-500 mb-2">ประเภทรายงาน</label>
+                                        <span className="block text-[13px] font-bold text-slate-500 mb-2">ประเภทรายงาน</span>
                                         <div className="relative">
                                             <select value={reportType} onChange={e => setReportType(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56] appearance-none cursor-pointer">
                                                 <option value="daily">รายวัน (สรุปเป็นวัน)</option>
@@ -1860,17 +1860,17 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                     </div>
                                     
                                     <div className="flex-1 min-w-[150px]">
-                                        <label className="block text-[13px] font-bold text-slate-500 mb-2">ตั้งแต่วันที่</label>
+                                        <span className="block text-[13px] font-bold text-slate-500 mb-2">ตั้งแต่วันที่</span>
                                         <input type="date" value={reportStartDate} onChange={e => setReportStartDate(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56]" />
                                     </div>
                                     <div className="flex-1 min-w-[150px]">
-                                        <label className="block text-[13px] font-bold text-slate-500 mb-2">ถึงวันที่</label>
+                                        <span className="block text-[13px] font-bold text-slate-500 mb-2">ถึงวันที่</span>
                                         <input type="date" value={reportEndDate} onChange={e => setReportEndDate(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56]" />
                                     </div>
 
                                     {reportType === 'equipment_stats' && (
                                         <div className="flex-1 min-w-[180px]">
-                                            <label className="block text-[13px] font-bold text-slate-500 mb-2">การจัดอันดับ</label>
+                                            <span className="block text-[13px] font-bold text-slate-500 mb-2">การจัดอันดับ</span>
                                             <div className="relative">
                                                 <select value={equipSortOrder} onChange={e => setEquipSortOrder(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56] appearance-none cursor-pointer">
                                                     <option value="desc">ใช้มากที่สุด</option>
@@ -1882,7 +1882,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                     )}
 
                                     <div className="flex-1 min-w-[180px]">
-                                        <label className="block text-[13px] font-bold text-slate-500 mb-2">รูปแบบการแสดงผล</label>
+                                        <span className="block text-[13px] font-bold text-slate-500 mb-2">รูปแบบการแสดงผล</span>
                                         <div className="relative">
                                             <select value={displayFormat} onChange={e => setDisplayFormat(e.target.value)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 outline-none focus:border-[#3D2B56] focus:ring-1 focus:ring-[#3D2B56] appearance-none cursor-pointer">
                                                 <option value="dashboard">Dashboard (รวมทั้งหมด)</option>
@@ -2196,7 +2196,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                         <form onSubmit={handleUnifiedScan} className="p-6">
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-[13px] font-bold text-slate-700 mb-2">สแกนรหัสคิว / รหัสครุภัณฑ์</label>
+                                    <span className="block text-[13px] font-bold text-slate-700 mb-2">สแกนรหัสคิว / รหัสครุภัณฑ์</span>
                                     <div className="flex gap-2">
                                         <input
                                             autoFocus

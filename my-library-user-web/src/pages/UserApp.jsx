@@ -43,7 +43,13 @@ const STATUS_MAP = {
    ============================================================ */
 const formatEquipmentName = (name) => {
     if (!name) return '';
-    return name.replace(/\s*\[.*?\]\s*:\s*/g, ' ').replace(/\s*\[.*?\]/g, '').trim();
+    return name.replace(/\[[^\]]*\]\s*:?/g, ' ').replace(/\s+/g, ' ').trim();
+};
+
+const getSecureRandomId = () => {
+    const array = new Uint32Array(1);
+    window.crypto.getRandomValues(array);
+    return 100000 + (array[0] % 900000);
 };
 
 const formatThaiDate = (dateString) => {
@@ -93,7 +99,7 @@ const getItemStatus = (item) => {
     if (item.status === 'fine_paid') {
         progress = 100;
     } else if (item.status === 'damaged_lost') {
-        fine = parseFloat(item.fine_amount) || 0;
+        fine = Number.parseFloat(item.fine_amount) || 0;
         progress = 100;
     } else if (item.status === 'rejected') {
         progress = 0;
@@ -107,7 +113,7 @@ const getItemStatus = (item) => {
         dueDate.setDate(dueDate.getDate() + (item.borrow_days || 7));
         if (returnDate && returnDate > dueDate) {
             overdueDays = daysBetween(dueDate, returnDate);
-            fine = parseFloat(item.fine_amount) || (overdueDays * 20);
+            fine = Number.parseFloat(item.fine_amount) || (overdueDays * 20);
             type = 'returned-late';
         }
     } else {
@@ -820,7 +826,7 @@ export default function UserApp({ studentId, onLogout }) {
             } catch (e) { console.error(e); }
         }
         if (successItems.length > 0) {
-            const txId = firstBorrowId ? 'LB' + String(firstBorrowId).padStart(6, '0') : 'LB' + Math.floor(100000 + Math.random() * 900000);
+            const txId = firstBorrowId ? 'LB' + String(firstBorrowId).padStart(6, '0') : 'LB' + getSecureRandomId();
             
             let borrowTime;
             try {
@@ -859,7 +865,7 @@ export default function UserApp({ studentId, onLogout }) {
             if (result.success) {
                 showToast(result.message || 'ส่งคำขอยืมสำเร็จ', 'success');
                 setCheckoutSuccess(true);
-                const txId = result.borrow_id ? 'LB' + String(result.borrow_id).padStart(6, '0') : 'LB' + Math.floor(100000 + Math.random() * 900000);
+                const txId = result.borrow_id ? 'LB' + String(result.borrow_id).padStart(6, '0') : 'LB' + getSecureRandomId();
                 setTransactionDetails({
                     transactionId: txId,
                     equipmentName: equipment.name,

@@ -15,6 +15,15 @@ export const securityHeaders = {
   'Pragma': 'no-cache'
 };
 
+export const commonServerOptions = {
+  host: true,
+  headers: securityHeaders,
+  fs: {
+    strict: true,
+    deny: ['.env', '.env.*', '*.{crt,pem}', '**/.git/**', '../*']
+  }
+};
+
 export function securityPlugin() {
   const handleSecurity = (req, res, next) => {
     for (const [header, val] of Object.entries(securityHeaders)) {
