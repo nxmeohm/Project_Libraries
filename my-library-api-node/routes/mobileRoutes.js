@@ -13,20 +13,20 @@ const router = express.Router();
 const checkoutSchema = {
     body: z.object({
         student_id: z.string().min(1, 'กรุณาระบุรหัสนักศึกษา'),
-        equipment_id: z.union([z.number(), z.string()]).transform(v => parseInt(v))
+        equipment_id: z.union([z.number(), z.string()]).transform(v => Number.parseInt(v))
     })
 };
 
 const queueSchema = {
     body: z.object({
         student_id: z.string().min(1, 'กรุณาระบุรหัสนักศึกษา'),
-        equipment_id: z.union([z.number(), z.string()]).transform(v => parseInt(v))
+        equipment_id: z.union([z.number(), z.string()]).transform(v => Number.parseInt(v))
     })
 };
 
 const reportLostSchema = {
     body: z.object({
-        id: z.union([z.number(), z.string()]).transform(v => parseInt(v)),
+        id: z.union([z.number(), z.string()]).transform(v => Number.parseInt(v)),
         student_id: z.string().min(1),
         lost_date: z.string().min(1, 'กรุณาระบุวันที่สูญหาย'),
         lost_note: z.string().optional()
@@ -80,7 +80,7 @@ router.get('/get_equipments.php', async (req, res) => {
 // Public route — Get equipment detail
 // ============================================================
 router.get('/get_detail.php', async (req, res) => {
-    const id = parseInt(req.query.id);
+    const id = Number.parseInt(req.query.id);
     try {
         const sql = `SELECT e.*, 
             (SELECT COUNT(*) FROM equipment_items WHERE equipment_id = e.equipment_id AND status = 'available') AS available_quantity,
@@ -98,7 +98,7 @@ router.get('/get_detail.php', async (req, res) => {
 // Public route — Get queue for an equipment
 // ============================================================
 router.get('/get_queue.php', async (req, res) => {
-    const equipmentId = parseInt(req.query.equipment_id);
+    const equipmentId = Number.parseInt(req.query.equipment_id);
     if (!equipmentId) return res.status(400).json({ success: false, message: "equipment_id is required" });
     try {
         const [rows] = await pool.query(
@@ -403,7 +403,7 @@ router.post('/cancel_queue.php', async (req, res) => {
 
         const [queueItem] = await connection.query(
             "SELECT * FROM equipment_queue WHERE id = ? AND student_id = ? AND status IN ('waiting', 'called')",
-            [parseInt(id), student_id]
+            [Number.parseInt(id), student_id]
         );
         if (queueItem.length === 0) {
             await connection.rollback();
@@ -411,7 +411,7 @@ router.post('/cancel_queue.php', async (req, res) => {
             return res.status(404).json({ success: false, message: "ไม่พบรายการคิวนี้" });
         }
 
-        await connection.query("UPDATE equipment_queue SET status = 'cancelled' WHERE id = ?", [parseInt(id)]);
+        await connection.query("UPDATE equipment_queue SET status = 'cancelled' WHERE id = ?", [Number.parseInt(id)]);
 
         // Re-order positions for remaining queue items
         const [remaining] = await connection.query(
@@ -446,7 +446,7 @@ router.post('/cancel_request.php', async (req, res) => {
     try {
         await connection.beginTransaction();
 
-        const [borrowed] = await connection.query("SELECT equipment_id, status FROM borrowed WHERE id = ?", [parseInt(id)]);
+        const [borrowed] = await connection.query("SELECT equipment_id, status FROM borrowed WHERE id = ?", [Number.parseInt(id)]);
         if (borrowed.length > 0) {
             if (borrowed[0].status === 'borrowed') {
                 const equip_id = borrowed[0].equipment_id;
@@ -458,14 +458,14 @@ router.post('/cancel_request.php', async (req, res) => {
                     await connection.query("UPDATE equipment_items SET status = 'available' WHERE item_id = ?", [item[0].item_id]);
                 }
             }
-            await connection.query("UPDATE borrowed SET status = 'rejected' WHERE id = ?", [parseInt(id)]);
+            await connection.query("UPDATE borrowed SET status = 'rejected' WHERE id = ?", [Number.parseInt(id)]);
 
             await connection.commit();
             connection.release();
 
             const [studentProfile] = await pool.query(
                 "SELECT s.email, e.name as equipment_name FROM student_profiles s JOIN borrowed b ON s.student_id = b.student_id LEFT JOIN equipments e ON b.equipment_id = e.equipment_id WHERE b.id = ?",
-                [parseInt(id)]
+                [Number.parseInt(id)]
             );
             
             if (studentProfile.length > 0 && studentProfile[0].email) {

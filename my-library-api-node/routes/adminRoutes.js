@@ -82,7 +82,7 @@ async function callNextInQueue(equipmentId, io) {
         if (queueItem.student_email) {
             await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", 
                 [queueItem.student_email, notifTitle, notifMsg]);
-            mailer.sendManualNotification(queueItem.student_email, notifTitle, notifMsg);
+            await mailer.sendManualNotification(queueItem.student_email, notifTitle, notifMsg);
         }
 
         if (io) io.emit('data_updated');
@@ -102,9 +102,9 @@ router.callNextInQueue = callNextInQueue;
 // ============================================================
 const updateRequestSchema = {
     body: z.object({
-        id: z.union([z.number(), z.string()]).transform(v => parseInt(v)),
+        id: z.union([z.number(), z.string()]).transform(v => Number.parseInt(v)),
         action: z.enum(['approve', 'reject', 'return', 'lost', 'fine_paid']),
-        fine: z.union([z.number(), z.string()]).optional().transform(v => v ? parseFloat(v) : 0)
+        fine: z.union([z.number(), z.string()]).optional().transform(v => v ? Number.parseFloat(v) : 0)
     })
 };
 
@@ -113,10 +113,10 @@ const addEquipmentSchema = {
         name: z.string().min(1, 'กรุณาระบุชื่ออุปกรณ์'),
         kit_code: z.string().min(1, 'กรุณาระบุรหัสอุปกรณ์'),
         category: z.string().optional().default('อุปกรณ์อิเล็กทรอนิกส์'),
-        total_quantity: z.union([z.number(), z.string()]).transform(v => parseInt(v)),
-        available_quantity: z.union([z.number(), z.string()]).transform(v => parseInt(v)),
-        borrow_days: z.union([z.number(), z.string()]).transform(v => parseInt(v)),
-        price: z.union([z.number(), z.string()]).transform(v => parseFloat(v)),
+        total_quantity: z.union([z.number(), z.string()]).transform(v => Number.parseInt(v)),
+        available_quantity: z.union([z.number(), z.string()]).transform(v => Number.parseInt(v)),
+        borrow_days: z.union([z.number(), z.string()]).transform(v => Number.parseInt(v)),
+        price: z.union([z.number(), z.string()]).transform(v => Number.parseFloat(v)),
         description: z.string().optional().default(''),
         status: z.string().optional().default('ใช้งานได้')
     })
@@ -141,7 +141,7 @@ router.get('/dashboard', async (req, res) => {
         };
 
         let targetDate = req.query.date;
-        if (!targetDate || isNaN(new Date(targetDate).getTime())) {
+        if (!targetDate || Number.isNaN(new Date(targetDate).getTime())) {
             targetDate = new Date().toISOString().split('T')[0];
         }
 
@@ -202,8 +202,8 @@ router.get('/dashboard', async (req, res) => {
 // ============================================================
 router.get('/requests', async (req, res) => {
     try {
-        const page = Math.max(1, parseInt(req.query.page) || 1);
-        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+        const page = Math.max(1, Number.parseInt(req.query.page) || 1);
+        const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit) || 50));
         const offset = (page - 1) * limit;
         const statusFilter = req.query.status;
 
@@ -386,7 +386,7 @@ router.post('/update-request', validate(updateRequestSchema), async (req, res) =
             try {
                 if (action === 'return') {
                     if (borrowInfo.student_email) {
-                        mailer.sendReturnEmail(borrowInfo.student_email, borrowInfo.student_name, borrowInfo.equipment_name);
+                        await mailer.sendReturnEmail(borrowInfo.student_email, borrowInfo.student_name, borrowInfo.equipment_name);
                     }
                 } else if (action === 'lost') {
                     if (borrowInfo.student_email) {
@@ -396,14 +396,14 @@ router.post('/update-request', validate(updateRequestSchema), async (req, res) =
                     }
                 } else if (action === 'approve') {
                     if (borrowInfo.student_email) {
-                        mailer.sendApprovalEmail(borrowInfo.student_email, borrowInfo.student_name, borrowInfo.equipment_name);
+                        await mailer.sendApprovalEmail(borrowInfo.student_email, borrowInfo.student_name, borrowInfo.equipment_name);
                     }
                 } else if (action === 'reject') {
                     if (borrowInfo.student_email) {
                         const notifTitle = "คำขอยืมถูกยกเลิก";
                         const notifMsg = `คำขอยืมอุปกรณ์ "${borrowInfo.equipment_name}" ของคุณถูกยกเลิกโดยผู้ดูแลระบบ`;
                         await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [borrowInfo.student_email, notifTitle, notifMsg]);
-                        mailer.sendManualNotification(borrowInfo.student_email, notifTitle, notifMsg);
+                        await mailer.sendManualNotification(borrowInfo.student_email, notifTitle, notifMsg);
                     }
                 }
             } catch (emailError) {
@@ -552,19 +552,19 @@ router.put('/equipments/:id', upload.single('equipment_img'), async (req, res) =
         if (equipment_img) {
             const sql = `UPDATE equipments SET kit_code=?, name=?, total_quantity=?, description=?, price=?, category=?, borrow_days=?, status=?, equipment_img=? WHERE equipment_id=?`;
             await pool.query(sql, [
-                kit_code, name, parseInt(total_quantity), description, parseFloat(price), category, parseInt(borrow_days), equipStatus || 'ใช้งานได้', equipment_img, parseInt(id)
+                kit_code, name, Number.parseInt(total_quantity), description, Number.parseFloat(price), category, Number.parseInt(borrow_days), equipStatus || 'ใช้งานได้', equipment_img, Number.parseInt(id)
             ]);
         } else {
             const sql = `UPDATE equipments SET kit_code=?, name=?, total_quantity=?, description=?, price=?, category=?, borrow_days=?, status=? WHERE equipment_id=?`;
             await pool.query(sql, [
-                kit_code, name, parseInt(total_quantity), description, parseFloat(price), category, parseInt(borrow_days), equipStatus || 'ใช้งานได้', parseInt(id)
+                kit_code, name, Number.parseInt(total_quantity), description, Number.parseFloat(price), category, Number.parseInt(borrow_days), equipStatus || 'ใช้งานได้', Number.parseInt(id)
             ]);
         }
         
         // Count existing items
-        const [existing] = await pool.query("SELECT item_id, status FROM equipment_items WHERE equipment_id = ?", [parseInt(id)]);
-        const total = parseInt(total_quantity);
-        const reqAvailable = parseInt(available_quantity);
+        const [existing] = await pool.query("SELECT item_id, status FROM equipment_items WHERE equipment_id = ?", [Number.parseInt(id)]);
+        const total = Number.parseInt(total_quantity);
+        const reqAvailable = Number.parseInt(available_quantity);
         
         // Adjust total_quantity
         if (total > existing.length) {
@@ -572,29 +572,29 @@ router.put('/equipments/:id', upload.single('equipment_img'), async (req, res) =
             for(let i=0; i < diff; i++) {
                 const seq = `c.${existing.length + i + 1}`;
                 const asset = `${Date.now()}-${i}`;
-                await pool.query("INSERT INTO equipment_items (equipment_id, sequence_code, full_asset_code, status) VALUES (?, ?, ?, 'available')", [parseInt(id), seq, asset]);
+                await pool.query("INSERT INTO equipment_items (equipment_id, sequence_code, full_asset_code, status) VALUES (?, ?, ?, 'available')", [Number.parseInt(id), seq, asset]);
             }
         } else if (total < existing.length) {
             const diff = existing.length - total;
             // Try to delete available items first
-            await pool.query("DELETE FROM equipment_items WHERE equipment_id = ? AND status = 'available' LIMIT ?", [parseInt(id), diff]);
-            const [afterDel] = await pool.query("SELECT item_id FROM equipment_items WHERE equipment_id = ?", [parseInt(id)]);
+            await pool.query("DELETE FROM equipment_items WHERE equipment_id = ? AND status = 'available' LIMIT ?", [Number.parseInt(id), diff]);
+            const [afterDel] = await pool.query("SELECT item_id FROM equipment_items WHERE equipment_id = ?", [Number.parseInt(id)]);
             if (afterDel.length > total) {
-                await pool.query("DELETE FROM equipment_items WHERE equipment_id = ? LIMIT ?", [parseInt(id), afterDel.length - total]);
+                await pool.query("DELETE FROM equipment_items WHERE equipment_id = ? LIMIT ?", [Number.parseInt(id), afterDel.length - total]);
             }
         }
 
         // Adjust available_quantity
-        if (!isNaN(reqAvailable)) {
-             const [currentItems] = await pool.query("SELECT item_id, status FROM equipment_items WHERE equipment_id = ?", [parseInt(id)]);
+        if (!Number.isNaN(reqAvailable)) {
+             const [currentItems] = await pool.query("SELECT item_id, status FROM equipment_items WHERE equipment_id = ?", [Number.parseInt(id)]);
              const currentAvailable = currentItems.filter(item => item.status === 'available').length;
              
              if (reqAvailable > currentAvailable) {
                  const diff = reqAvailable - currentAvailable;
-                 await pool.query("UPDATE equipment_items SET status = 'available' WHERE equipment_id = ? AND status != 'borrowed' AND status != 'available' LIMIT ?", [parseInt(id), diff]);
+                 await pool.query("UPDATE equipment_items SET status = 'available' WHERE equipment_id = ? AND status != 'borrowed' AND status != 'available' LIMIT ?", [Number.parseInt(id), diff]);
              } else if (reqAvailable < currentAvailable) {
                  const diff = currentAvailable - reqAvailable;
-                 await pool.query("UPDATE equipment_items SET status = 'damaged_lost' WHERE equipment_id = ? AND status = 'available' LIMIT ?", [parseInt(id), diff]);
+                 await pool.query("UPDATE equipment_items SET status = 'damaged_lost' WHERE equipment_id = ? AND status = 'available' LIMIT ?", [Number.parseInt(id), diff]);
              }
         }
         
@@ -612,13 +612,13 @@ router.put('/equipments/:id', upload.single('equipment_img'), async (req, res) =
 router.delete('/equipments/:id', async (req, res) => {
     const { id } = req.params;
     try {
-        const [borrows] = await pool.query("SELECT id FROM borrowed WHERE equipment_id = ? LIMIT 1", [parseInt(id)]);
+        const [borrows] = await pool.query("SELECT id FROM borrowed WHERE equipment_id = ? LIMIT 1", [Number.parseInt(id)]);
         if (borrows.length > 0) {
             return res.json({ success: false, message: "ไม่สามารถลบได้เนื่องจากมีประวัติการยืมในระบบ" });
         }
         
-        await pool.query("DELETE FROM equipment_items WHERE equipment_id = ?", [parseInt(id)]);
-        await pool.query("DELETE FROM equipments WHERE equipment_id = ?", [parseInt(id)]);
+        await pool.query("DELETE FROM equipment_items WHERE equipment_id = ?", [Number.parseInt(id)]);
+        await pool.query("DELETE FROM equipments WHERE equipment_id = ?", [Number.parseInt(id)]);
         
         req.app.get('io').emit('data_updated');
         res.json({ success: true, message: "ลบอุปกรณ์สำเร็จ" });
@@ -699,7 +699,7 @@ router.get('/queue/:equipmentId', async (req, res) => {
              LEFT JOIN equipments e ON q.equipment_id = e.equipment_id
              WHERE q.equipment_id = ? AND q.status IN ('waiting', 'called')
              ORDER BY q.position ASC`,
-            [parseInt(equipmentId)]
+            [Number.parseInt(equipmentId)]
         );
         res.json({ success: true, data: rows });
     } catch (error) {
@@ -719,7 +719,7 @@ router.post('/queue/:id/skip', async (req, res) => {
 
         const [queueItem] = await connection.query(
             "SELECT * FROM equipment_queue WHERE id = ? AND status IN ('waiting', 'called')",
-            [parseInt(id)]
+            [Number.parseInt(id)]
         );
         if (queueItem.length === 0) {
             await connection.rollback();
@@ -728,7 +728,7 @@ router.post('/queue/:id/skip', async (req, res) => {
         }
 
         // Mark current as expired
-        await connection.query("UPDATE equipment_queue SET status = 'expired' WHERE id = ?", [parseInt(id)]);
+        await connection.query("UPDATE equipment_queue SET status = 'expired' WHERE id = ?", [Number.parseInt(id)]);
 
         // Re-order remaining positions
         const [remaining] = await connection.query(
@@ -751,7 +751,7 @@ router.post('/queue/:id/skip', async (req, res) => {
             const notifTitle = "คิวของคุณถูกข้าม";
             const notifMsg = `คิวสำหรับอุปกรณ์ \"${studentInfo[0].equipment_name}\" ของคุณถูกข้ามเนื่องจากไม่มารับภายในเวลาที่กำหนด`;
             await pool.query("INSERT INTO notifications (target, title, message, type) VALUES (?, ?, ?, 'alert')", [studentInfo[0].email, notifTitle, notifMsg]);
-            mailer.sendManualNotification(studentInfo[0].email, notifTitle, notifMsg);
+            await mailer.sendManualNotification(studentInfo[0].email, notifTitle, notifMsg);
         }
 
         // Auto-call next in queue
@@ -777,8 +777,8 @@ router.get('/queue_details.php', async (req, res) => {
     try {
         const isBorrowRequest = typeof queue_id === 'string' && queue_id.toUpperCase().startsWith('LB');
         if (isBorrowRequest) {
-            const borrowId = parseInt(queue_id.toUpperCase().replace('LB', ''), 10);
-            if (isNaN(borrowId)) return res.status(400).json({ success: false, message: "Invalid queue id" });
+            const borrowId = Number.parseInt(queue_id.toUpperCase().replace('LB', ''), 10);
+            if (Number.isNaN(borrowId)) return res.status(400).json({ success: false, message: "Invalid queue id" });
 
             const [borrowItem] = await pool.query("SELECT * FROM borrowed WHERE id = ?", [borrowId]);
             if (borrowItem.length === 0) return res.status(404).json({ success: false, message: "Queue not found" });
@@ -831,7 +831,7 @@ router.get('/queue_details.php', async (req, res) => {
             });
         } else {
             // It's a single queue item
-            const parsedQueueId = parseInt(queue_id, 10);
+            const parsedQueueId = Number.parseInt(queue_id, 10);
             const [queueItem] = await pool.query(
                 `SELECT q.id as queue_id, q.status as q_status, e.name as equipment_name, e.category, q.queue_date
                  FROM equipment_queue q
@@ -886,8 +886,8 @@ router.post('/pickup_queue.php', async (req, res) => {
 
         if (isBorrowRequest) {
             // --- HANDLE BORROW REQUEST (GROUP) ---
-            const borrowId = parseInt(queue_id.toUpperCase().replace('LB', ''), 10);
-            if (isNaN(borrowId)) {
+            const borrowId = Number.parseInt(queue_id.toUpperCase().replace('LB', ''), 10);
+            if (Number.isNaN(borrowId)) {
                 await connection.rollback();
                 connection.release();
                 return res.status(400).json({ success: false, message: "รหัสรายการยืมไม่ถูกต้อง" });
@@ -1048,8 +1048,8 @@ router.post('/pickup_queue.php', async (req, res) => {
             }
         } else {
             // --- HANDLE QUEUE REQUEST (Single item) ---
-            const parsedQueueId = parseInt(queue_id, 10);
-            if (isNaN(parsedQueueId)) {
+            const parsedQueueId = Number.parseInt(queue_id, 10);
+            if (Number.isNaN(parsedQueueId)) {
                 await connection.rollback();
                 connection.release();
                 return res.status(400).json({ success: false, message: "รหัสคิวไม่ถูกต้อง" });
@@ -1209,7 +1209,7 @@ router.post('/return_by_barcode.php', async (req, res) => {
 router.get('/equipments/:id/items', async (req, res) => {
     const { id } = req.params;
     try {
-        const [rows] = await pool.query('SELECT * FROM equipment_items WHERE equipment_id = ? ORDER BY sequence_code ASC', [parseInt(id)]);
+        const [rows] = await pool.query('SELECT * FROM equipment_items WHERE equipment_id = ? ORDER BY sequence_code ASC', [Number.parseInt(id)]);
         res.json({ success: true, data: rows });
     } catch (error) {
         console.error(error);
@@ -1224,7 +1224,7 @@ router.put('/equipment-items/:itemId/status', async (req, res) => {
     const { itemId } = req.params;
     const { status } = req.body;
     try {
-        await pool.query('UPDATE equipment_items SET status = ? WHERE item_id = ?', [status, parseInt(itemId)]);
+        await pool.query('UPDATE equipment_items SET status = ? WHERE item_id = ?', [status, Number.parseInt(itemId)]);
         req.app.get('io').emit('data_updated');
         res.json({ success: true, message: "อัปเดตสถานะสำเร็จ" });
     } catch (error) {

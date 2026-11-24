@@ -73,7 +73,7 @@ export default function AdminLoginScreen({ onLoginSuccess = () => { } }) {
                 {/* Card */}
                 <form onSubmit={handleLogin} className="bg-white rounded-3xl p-7 shadow-2xl">
                     <div className="mb-4">
-                        <label className="block text-[12.5px] font-semibold text-purple-800 mb-1.5">รหัส Admin</label>
+                        <span className="block text-[12.5px] font-semibold text-purple-800 mb-1.5">รหัส Admin</span>
                         <div className="relative">
                             <User size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-purple-500" />
                             <input
@@ -89,7 +89,7 @@ export default function AdminLoginScreen({ onLoginSuccess = () => { } }) {
                     </div>
 
                     <div className="mb-1">
-                        <label className="block text-[12.5px] font-semibold text-purple-800 mb-1.5">รหัสผ่าน</label>
+                        <span className="block text-[12.5px] font-semibold text-purple-800 mb-1.5">รหัสผ่าน</span>
                         <div className="relative">
                             <Lock size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-purple-500" />
                             <input

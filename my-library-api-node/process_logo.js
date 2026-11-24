@@ -47,4 +47,4 @@ async function processLogo() {
     }
 }
 
-processLogo();
+void processLogo();

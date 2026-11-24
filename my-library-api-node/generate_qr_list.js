@@ -313,4 +313,4 @@ async function generateQRCodes() {
     }
 }
 
-generateQRCodes();
+void generateQRCodes();

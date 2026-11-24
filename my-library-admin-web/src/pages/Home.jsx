@@ -1894,7 +1894,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                     </div>
                                     
                                     <div className="shrink-0 w-full md:w-auto mt-2 md:mt-0">
-                                        <button onClick={() => { generateReport(); }} disabled={isReportLoading} className="bg-[#3D2B56] text-white px-8 py-2.5 rounded-xl text-[14px] font-bold shadow-sm hover:bg-[#2A1D3C] transition active:scale-95 w-full">
+                                        <button onClick={() => { void generateReport(); }} disabled={isReportLoading} className="bg-[#3D2B56] text-white px-8 py-2.5 rounded-xl text-[14px] font-bold shadow-sm hover:bg-[#2A1D3C] transition active:scale-95 w-full">
                                             {isReportLoading ? "กำลังดึงข้อมูล..." : "สร้างรายงาน"}
                                         </button>
                                     </div>
@@ -1936,13 +1936,13 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                         
                                         {showExportDropdown && (
                                             <div className="absolute right-0 top-[110%] w-40 bg-white border border-slate-100 shadow-lg rounded-xl overflow-hidden z-50 py-1">
-                                                <button onClick={() => { exportToExcel(); setShowExportDropdown(false); }} className="w-full text-left px-4 py-2 text-[13px] font-semibold text-slate-700 hover:bg-green-50 hover:text-green-700 flex items-center gap-2">
+                                                <button onClick={() => { void exportToExcel(); setShowExportDropdown(false); }} className="w-full text-left px-4 py-2 text-[13px] font-semibold text-slate-700 hover:bg-green-50 hover:text-green-700 flex items-center gap-2">
                                                     <div className="w-2 h-2 rounded-full bg-green-500"></div> Excel (.xlsx)
                                                 </button>
-                                                <button onClick={() => { exportToPDF(); setShowExportDropdown(false); }} className="w-full text-left px-4 py-2 text-[13px] font-semibold text-slate-700 hover:bg-red-50 hover:text-red-700 flex items-center gap-2">
+                                                <button onClick={() => { void exportToPDF(); setShowExportDropdown(false); }} className="w-full text-left px-4 py-2 text-[13px] font-semibold text-slate-700 hover:bg-red-50 hover:text-red-700 flex items-center gap-2">
                                                     <div className="w-2 h-2 rounded-full bg-red-500"></div> PDF (.pdf)
                                                 </button>
-                                                <button onClick={() => { exportToImage(); setShowExportDropdown(false); }} className="w-full text-left px-4 py-2 text-[13px] font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2">
+                                                <button onClick={() => { void exportToImage(); setShowExportDropdown(false); }} className="w-full text-left px-4 py-2 text-[13px] font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2">
                                                     <div className="w-2 h-2 rounded-full bg-blue-500"></div> Image (.png)
                                                 </button>
                                             </div>
@@ -2199,7 +2199,7 @@ export default function AdminDashboardScreen({ adminData, onLogout }) {
                                     <span className="block text-[13px] font-bold text-slate-700 mb-2">สแกนรหัสคิว / รหัสครุภัณฑ์</span>
                                     <div className="flex gap-2">
                                         <input
-                                            autoFocus
+                                            
                                             type="text"
                                             value={scanInput}
                                             onChange={e => {
