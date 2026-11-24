@@ -1046,10 +1046,19 @@ export default function UserApp({ studentId, onLogout }) {
                     <div className="flex items-center gap-3 px-1 mb-3">
                         <div className="w-[38px] h-[38px] rounded-full bg-white/15 flex items-center justify-center overflow-hidden shrink-0">
                             {student?.student_img ? (
-                                <img src={`${IMG_BASE}${student.student_img}`} alt="" className="w-full h-full object-cover" />
-                            ) : (
-                                <User size={16} />
-                            )}
+                                <img 
+                                    src={`${IMG_BASE}${student.student_img}`} 
+                                    alt="" 
+                                    className="w-full h-full object-cover" 
+                                    onError={(e) => {
+                                        e.currentTarget.style.display = 'none';
+                                        if (e.currentTarget.nextElementSibling) {
+                                            e.currentTarget.nextElementSibling.style.display = 'block';
+                                        }
+                                    }}
+                                />
+                            ) : null}
+                            <User size={16} className={student?.student_img ? 'hidden' : 'block'} />
                         </div>
                         <div className="flex-1 min-w-0">
                             <div className="text-[12.5px] font-semibold truncate">{student?.name_th || 'กำลังโหลด...'}</div>
@@ -1202,10 +1211,19 @@ export default function UserApp({ studentId, onLogout }) {
 
                                             <div className="w-16 h-12 mx-auto bg-purple-50 rounded-xl flex items-center justify-center mb-3 overflow-hidden mt-1">
                                                 {item.equipment_img ? (
-                                                    <img src={`${IMG_BASE}${item.equipment_img}`} alt="" className="w-10 h-10 object-contain" />
-                                                ) : (
-                                                    <Package size={24} className="text-purple-400" />
-                                                )}
+                                                    <img 
+                                                        src={`${IMG_BASE}${item.equipment_img}`} 
+                                                        alt="" 
+                                                        className="w-10 h-10 object-contain"
+                                                        onError={(e) => {
+                                                            e.currentTarget.style.display = 'none';
+                                                            if (e.currentTarget.nextElementSibling) {
+                                                                e.currentTarget.nextElementSibling.style.display = 'block';
+                                                            }
+                                                        }}
+                                                    />
+                                                ) : null}
+                                                <Package size={24} className={`text-purple-400 ${item.equipment_img ? 'hidden' : 'block'}`} />
                                             </div>
                                             <p className="text-[13px] font-bold text-slate-700 line-clamp-2 h-[40px]">{formatEquipmentName(item.name)}</p>
                                             <p className="text-[12px] font-bold text-green-600 mt-2">เหลือ {item.available_quantity ?? item.total_quantity} ชิ้น</p>
@@ -1226,10 +1244,19 @@ export default function UserApp({ studentId, onLogout }) {
                                                 <button onClick={() => openDetail(item.equipment_id)} className="w-full">
                                                     <div className="w-16 h-12 mx-auto bg-amber-50/50 rounded-xl flex items-center justify-center mb-3 overflow-hidden">
                                                         {item.equipment_img ? (
-                                                            <img src={`${IMG_BASE}${item.equipment_img}`} alt="" className="w-10 h-10 object-contain" />
-                                                        ) : (
-                                                            <Package size={24} className="text-amber-400" />
-                                                        )}
+                                                            <img 
+                                                                src={`${IMG_BASE}${item.equipment_img}`} 
+                                                                alt="" 
+                                                                className="w-10 h-10 object-contain"
+                                                                onError={(e) => {
+                                                                    e.currentTarget.style.display = 'none';
+                                                                    if (e.currentTarget.nextElementSibling) {
+                                                                        e.currentTarget.nextElementSibling.style.display = 'block';
+                                                                    }
+                                                                }}
+                                                            />
+                                                        ) : null}
+                                                        <Package size={24} className={`text-amber-400 ${item.equipment_img ? 'hidden' : 'block'}`} />
                                                     </div>
                                                     <p className="text-[13px] font-bold text-slate-700 line-clamp-2 h-[40px]">{formatEquipmentName(item.name)}</p>
                                                     <p className="text-[12px] font-bold text-slate-600 mt-2 mb-3">เหลือ <span className="text-green-600">{item.available_quantity ?? item.total_quantity}</span> ชิ้น</p>
@@ -1319,10 +1346,19 @@ export default function UserApp({ studentId, onLogout }) {
                                         className="w-full bg-white border border-purple-100 rounded-2xl p-4 flex items-center gap-4 hover:shadow-md hover:border-purple-200 transition text-left group">
                                         <div className="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center shrink-0 overflow-hidden border border-purple-100">
                                             {item.equipment_img ? (
-                                                <img src={`${IMG_BASE}${item.equipment_img}`} alt="" className="w-full h-full object-contain" />
-                                            ) : (
-                                                <Package size={22} className="text-purple-400" />
-                                            )}
+                                                <img 
+                                                    src={`${IMG_BASE}${item.equipment_img}`} 
+                                                    alt="" 
+                                                    className="w-full h-full object-contain" 
+                                                    onError={(e) => {
+                                                        e.currentTarget.style.display = 'none';
+                                                        if (e.currentTarget.nextElementSibling) {
+                                                            e.currentTarget.nextElementSibling.style.display = 'block';
+                                                        }
+                                                    }}
+                                                />
+                                            ) : null}
+                                            <Package size={22} className={`text-purple-400 ${item.equipment_img ? 'hidden' : 'block'}`} />
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="text-[15px] font-bold text-slate-800">{formatEquipmentName(item.name)}</p>

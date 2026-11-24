@@ -64,25 +64,35 @@ export default function App() {
     activeQueueRef.current = activeQueue;
   }, [activeQueue]);
 
-  /* ---- Auth Fetch Helper ---- */
-  const authFetch = useCallback(async (url, options = {}) => {
-    const res = await fetch(`${API_BASE}${url}`, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-        ...options.headers
-      }
-    });
-    return res.json();
-  }, [token]);
-
   /* ---- Show Toast ---- */
   const showToast = useCallback((message, type = 'success') => {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     setToast({ message, type });
     toastTimeoutRef.current = setTimeout(() => setToast(null), 3000);
   }, []);
+
+  /* ---- Auth Fetch Helper ---- */
+  const authFetch = useCallback(async (url, options = {}) => {
+    try {
+      const res = await fetch(`${API_BASE}${url}`, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          ...options.headers
+        }
+      });
+      if (res.status === 401) {
+        localStorage.removeItem('scanner_token');
+        setToken('');
+        showToast('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่', 'error');
+        return { success: false, message: 'เซสชันหมดอายุ' };
+      }
+      return res.json();
+    } catch (err) {
+      return { success: false, message: 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้' };
+    }
+  }, [token, showToast]);
 
   /* ---- Show Last Result ---- */
   const showLastResult = useCallback((status, message, code) => {
@@ -290,7 +300,7 @@ export default function App() {
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                             </svg>
                         </div>
-                        <input type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={6} value={username} onChange={(e) => setUsername(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder=""
+                        <input type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={6} value={username} onChange={(e) => setUsername(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="รหัส Admin 6 หลัก"
                             className="w-full pl-[52px] pr-5 py-4 text-[16px] bg-white/90 text-slate-800 placeholder-slate-400 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-purple-400/50 transition shadow-sm box-border tracking-widest" required />
                     </div>
 
@@ -301,7 +311,7 @@ export default function App() {
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                             </svg>
                         </div>
-                        <input type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={13} value={password} onChange={(e) => setPassword(e.target.value.replace(/\D/g, '').slice(0, 13))} placeholder=""
+                        <input type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={13} value={password} onChange={(e) => setPassword(e.target.value.replace(/\D/g, '').slice(0, 13))} placeholder="รหัสผ่าน 13 หลัก"
                             className="w-full pl-[52px] pr-5 py-4 text-[16px] bg-white/90 text-slate-800 placeholder-slate-400 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-purple-400/50 transition shadow-sm box-border tracking-widest" required />
                     </div>
 

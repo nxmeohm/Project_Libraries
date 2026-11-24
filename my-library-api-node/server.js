@@ -18,28 +18,45 @@ const mobileRoutes = require('./routes/mobileRoutes');
 // ============================================================
 // CORS Configuration
 // ============================================================
-const CORS_ORIGINS = process.env.CORS_ORIGINS
-    ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
-    : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'https://localhost:5175'];
+const ALLOWED_ORIGINS = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:5174',
+    'http://127.0.0.1:5174',
+    'http://localhost:5175',
+    'http://127.0.0.1:5175',
+    'https://localhost:5175'
+];
+
+if (process.env.CORS_ORIGINS) {
+    process.env.CORS_ORIGINS.split(',').forEach(o => {
+        const trimmed = o.trim();
+        if (trimmed && trimmed !== '*' && !ALLOWED_ORIGINS.includes(trimmed)) {
+            ALLOWED_ORIGINS.push(trimmed);
+        }
+    });
+}
+
+const CORS_ORIGINS = ALLOWED_ORIGINS;
 
 const isAllowedOrigin = (origin) => {
-    // Allow requests with no origin (mobile apps, curl, Postman, etc.)
     if (!origin) return true;
-    if (CORS_ORIGINS.includes('*') || CORS_ORIGINS.includes(origin)) return true;
-    // Allow any localhost, 127.0.0.1, or local LAN IP (10.x.x.x, 192.168.x.x, 172.16-31.x.x) on any port (http/https)
+    if (origin === 'null' || origin === '*' || origin.includes('*')) return false;
+    if (ALLOWED_ORIGINS.includes(origin)) return true;
     return /^https?:\/\/(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})(:\d+)?$/.test(origin);
 };
 
 const corsOptions = {
     origin: function (origin, callback) {
-        if (isAllowedOrigin(origin)) {
+        if (!origin || isAllowedOrigin(origin)) {
             callback(null, true);
         } else {
-            callback(new Error(`Origin ${origin} is not allowed by CORS`));
+            callback(null, false);
         }
     },
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    credentials: true
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    credentials: true,
+    optionsSuccessStatus: 204
 };
 
 // ============================================================
@@ -60,17 +77,72 @@ const io = new Server(server, {
 // Expose io to routes
 app.set('io', io);
 
+// Global Security Headers Middleware (Always sent on all responses: 200, 404, 500)
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    res.setHeader('Content-Security-Policy', "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob: http://localhost:5000 http://127.0.0.1:5000 http://localhost http://127.0.0.1; connect-src 'self' http://localhost:5000 ws://localhost:5000 http://127.0.0.1:5000 ws://127.0.0.1:5000;");
+    res.removeHeader('X-Powered-By');
+    res.removeHeader('Server');
+    next();
+});
+
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    contentSecurityPolicy: false, // Managed custom headers above without wildcard conflicts
+    frameguard: { action: "deny" },
+    noSniff: true,
+    hsts: { maxAge: 31536000, includeSubDomains: true },
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" }
+}));
+
 app.use(cors(corsOptions));
 app.use(express.json());
 const fs = require('fs');
+
+// Safe Uploads Handler with strict Path Traversal & Directory Browsing Protection
+const uploadsDir = path.resolve(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
 app.use('/uploads', (req, res, next) => {
-    const filePath = path.join(__dirname, 'uploads', req.url.split('?')[0]);
-    if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-        express.static(path.join(__dirname, 'uploads'))(req, res, next);
-    } else {
-        // Fallback to old XAMPP server
-        res.redirect(`http://localhost/uploads${req.url}`);
+    const rawUrl = req.url.split('?')[0];
+    let decodedUrl = '';
+    try {
+        decodedUrl = decodeURIComponent(rawUrl);
+    } catch (e) {
+        return res.status(400).json({ error: 'Invalid URL encoding' });
     }
+
+    if (decodedUrl.includes('..') || rawUrl.includes('%2e%2e') || rawUrl.includes('%2E%2E') || decodedUrl.includes('\0')) {
+        return res.status(403).json({ error: 'Access denied: Directory traversal sequence blocked' });
+    }
+
+    const safeSuffix = path.normalize(decodedUrl).replace(/^(\.\.[\/\\])+/, '');
+    const safeFilePath = path.resolve(uploadsDir, '.' + safeSuffix);
+
+    if (!safeFilePath.startsWith(uploadsDir)) {
+        return res.status(403).json({ error: 'Access denied: Path outside uploads directory' });
+    }
+
+    if (fs.existsSync(safeFilePath) && fs.statSync(safeFilePath).isFile()) {
+        res.sendFile(safeFilePath);
+    } else {
+        // Safe fallback to XAMPP server on port 80 for legacy equipment/student images
+        const cleanPath = safeSuffix.replace(/\\/g, '/');
+        const redirectUrl = `http://localhost/uploads${cleanPath.startsWith('/') ? '' : '/'}${encodeURI(cleanPath)}`;
+        res.redirect(redirectUrl);
+    }
+});
+
+// Root Health Check Route
+app.get('/', (req, res) => {
+    res.json({ success: true, message: 'Library API Service is active' });
 });
 
 // Logger Middleware — ดู log กิจกรรม API ที่ถูกยิงมา
@@ -78,11 +150,6 @@ app.use((req, res, next) => {
     console.log(`[API Request] ${req.method} ${req.url}`);
     next();
 });
-
-// Security Headers Middleware
-app.use(helmet({
-    crossOriginResourcePolicy: { policy: "cross-origin" }
-}));
 
 // Rate Limiting — จำกัดการยิง API Login ไม่เกิน 15 ครั้งต่อ 15 นาที
 const loginLimiter = rateLimit({
@@ -344,6 +411,17 @@ cron.schedule('* * * * *', async () => {
     } catch (error) {
         console.error('[Cron] Error checking expired queue/reservations:', error);
     }
+});
+
+// 404 Handler for undefined routes (returns clean JSON with security headers)
+app.use((req, res) => {
+    res.status(404).json({ success: false, error: 'Endpoint not found' });
+});
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+    console.error('[API Error]', err.message || err);
+    res.status(err.status || 500).json({ success: false, error: err.message || 'Internal Server Error' });
 });
 
 // ============================================================
